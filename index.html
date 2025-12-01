@@ -2,83 +2,111 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>지진계 - 선형 가속도</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>지진계 - 그래프 모드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background-color: #000;
+            background-color: #1e1e1e;
             color: #fff;
             font-family: sans-serif;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            height: 100vh;
             margin: 0;
+            padding: 10px;
+            overflow: hidden; /* 스크롤 방지 */
         }
-        h1 { font-size: 1.5rem; color: #888; margin-bottom: 10px; }
+        h2 { margin: 10px 0; font-size: 1.2rem; color: #ff9f43; }
         
-        #value-box {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #f1c40f; /* 이번엔 노란색 */
-            font-variant-numeric: tabular-nums;
+        /* 차트가 들어갈 액자 */
+        .chart-container {
+            position: relative;
+            height: 60vh; /* 화면 높이의 60% */
+            width: 100%;
         }
-        
-        .unit { font-size: 1.5rem; color: #666; }
 
         #start-btn {
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            background-color: #e67e22; /* 주황색 버튼 */
+            background-color: #2ed573;
             color: white;
             border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
             border-radius: 50px;
-            margin-top: 30px;
+            margin-top: 20px;
             cursor: pointer;
+            box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4);
         }
     </style>
 </head>
 <body>
 
-    <h1>진동 감지 (중력 제거)</h1>
+    <h2>실시간 지진계 (Z축)</h2>
     
-    <div id="value-box">0.00</div>
-    <div class="unit">m/s²</div>
+    <div class="chart-container">
+        <canvas id="seismoChart"></canvas>
+    </div>
 
     <button id="start-btn">측정 시작</button>
 
     <script>
-        const valueBox = document.getElementById('value-box');
         const startBtn = document.getElementById('start-btn');
+        const ctx = document.getElementById('seismoChart').getContext('2d');
 
-        function handleMotion(event) {
-            // [수정된 부분] accelerationIncludingGravity 대신 acceleration을 씁니다.
-            // acceleration: 중력을 뺀 순수 움직임 (Linear Acceleration)
-            let z = 0;
-            
-            if (event.acceleration) {
-                z = event.acceleration.z;
+        // --- 그래프 설정 (여기를 고치면 디자인이 바뀝니다) ---
+        const totalPoints = 100; // 화면에 보여줄 데이터 개수 (가로 길이)
+        const initialData = new Array(totalPoints).fill(0); // 0으로 채운 빈 배열
+
+        const chart = new Chart(ctx, {
+            type: 'line', // 선 그래프
+            data: {
+                labels: new Array(totalPoints).fill(''), // X축 라벨 (공란)
+                datasets: [{
+                    label: '진동',
+                    data: initialData,
+                    borderColor: '#00d2d3', // 형광 하늘색 선
+                    borderWidth: 2,
+                    pointRadius: 0, // 점은 안 찍고 선만 그림
+                    tension: 0.1 // 선을 약간 부드럽게
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false, // 실시간 성능을 위해 애니메이션 끔
+                scales: {
+                    y: {
+                        min: -5, // Y축 최소값 (진동 폭)
+                        max: 5,  // Y축 최대값
+                        grid: { color: '#333' } // 눈금선 색상
+                    },
+                    x: { display: false } // X축 눈금 숨김
+                },
+                plugins: { legend: { display: false } } // 범례 숨김
             }
+        });
 
-            // 가끔 센서 초기화 전이라 null이 들어올 때가 있어서 0으로 처리
+        // --- 센서 데이터 처리 ---
+        function handleMotion(event) {
+            // 중력 제거된 가속도
+            let z = event.acceleration ? event.acceleration.z : 0;
             if (!z) z = 0;
+
+            // 데이터 밀어내기 (오른쪽에서 들어오고 왼쪽으로 나감)
+            chart.data.datasets[0].data.shift(); // 맨 앞 데이터 삭제
+            chart.data.datasets[0].data.push(z); // 맨 뒤에 새 데이터 추가
             
-            valueBox.innerText = z.toFixed(2);
+            chart.update(); // 그래프 다시 그리기
         }
 
+        // --- 시작 버튼 ---
         startBtn.addEventListener('click', () => {
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
+                    .then(res => {
+                        if (res === 'granted') {
                             window.addEventListener('devicemotion', handleMotion);
                             startBtn.style.display = 'none';
-                        } else {
-                            alert('권한이 필요합니다.');
                         }
-                    })
-                    .catch(console.error);
+                    });
             } else {
                 window.addEventListener('devicemotion', handleMotion);
                 startBtn.style.display = 'none';
