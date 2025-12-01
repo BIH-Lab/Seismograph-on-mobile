@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>지진계 센서 테스트</title>
+    <title>지진계 - 선형 가속도</title>
     <style>
         body {
             background-color: #000;
@@ -13,26 +13,24 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            height: 100vh; /* 화면 꽉 차게 */
+            height: 100vh;
             margin: 0;
         }
         h1 { font-size: 1.5rem; color: #888; margin-bottom: 10px; }
         
-        /* 숫자가 표시될 디자인 */
         #value-box {
             font-size: 4rem;
             font-weight: bold;
-            color: #4cd137; /* 밝은 초록색 */
-            font-variant-numeric: tabular-nums; /* 숫자 흔들림 방지 */
+            color: #f1c40f; /* 이번엔 노란색 */
+            font-variant-numeric: tabular-nums;
         }
         
         .unit { font-size: 1.5rem; color: #666; }
 
-        /* 버튼 디자인 */
         #start-btn {
             padding: 15px 30px;
             font-size: 1.2rem;
-            background-color: #0097e6;
+            background-color: #e67e22; /* 주황색 버튼 */
             color: white;
             border: none;
             border-radius: 50px;
@@ -43,43 +41,45 @@
 </head>
 <body>
 
-    <h1>Z축 가속도 (수직)</h1>
+    <h1>진동 감지 (중력 제거)</h1>
     
     <div id="value-box">0.00</div>
     <div class="unit">m/s²</div>
 
-    <button id="start-btn">센서 시작하기</button>
+    <button id="start-btn">측정 시작</button>
 
     <script>
         const valueBox = document.getElementById('value-box');
         const startBtn = document.getElementById('start-btn');
 
-        // 센서 데이터 처리 함수
         function handleMotion(event) {
-            // 가속도(중력 포함) 가져오기
-            // event.accelerationIncludingGravity가 없으면 0으로 처리
-            const z = event.accelerationIncludingGravity ? event.accelerationIncludingGravity.z : 0;
+            // [수정된 부분] accelerationIncludingGravity 대신 acceleration을 씁니다.
+            // acceleration: 중력을 뺀 순수 움직임 (Linear Acceleration)
+            let z = 0;
             
-            // 화면에 소수점 2자리로 표시
+            if (event.acceleration) {
+                z = event.acceleration.z;
+            }
+
+            // 가끔 센서 초기화 전이라 null이 들어올 때가 있어서 0으로 처리
+            if (!z) z = 0;
+            
             valueBox.innerText = z.toFixed(2);
         }
 
-        // 버튼 클릭 시 권한 요청 및 시작
         startBtn.addEventListener('click', () => {
-            // iOS 13+ 권한 요청 로직
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
                     .then(response => {
                         if (response === 'granted') {
                             window.addEventListener('devicemotion', handleMotion);
-                            startBtn.style.display = 'none'; // 버튼 숨기기
+                            startBtn.style.display = 'none';
                         } else {
-                            alert('권한을 허용해 주셔야 작동합니다.');
+                            alert('권한이 필요합니다.');
                         }
                     })
                     .catch(console.error);
             } else {
-                // 안드로이드 및 구형 기기 (바로 시작)
                 window.addEventListener('devicemotion', handleMotion);
                 startBtn.style.display = 'none';
             }
