@@ -15,47 +15,46 @@
 ## Cycle 1 작업 목록
 
 ### 1단계 : 프로젝트 기초 세팅
-- [ ] 폴더 구조 생성 (ARCHITECTURE.md 참고)
-- [ ] index.html 목차 페이지 기본 레이아웃
-- [ ] activity1/ 폴더 및 index.html 생성
-- [ ] assets/css/style.css 기본 스타일 (모바일 퍼스트)
+- [x] 폴더 구조 생성 (ARCHITECTURE.md 참고)
+- [x] index.html 목차 페이지 기본 레이아웃
+- [x] activity1/ 폴더 및 index.html 생성
+- [x] assets/css/style.css 기본 스타일 (모바일 퍼스트)
 
 ### 2단계 : 센서 모듈 (sensor.js)
-- [ ] DeviceMotionEvent 수신 기본 구현
-- [ ] iOS Safari 권한 요청 처리 (requestPermission)
-- [ ] Android Chrome 자동 허용 처리
-- [ ] 데이터 정규화 (magnitude 계산 = √(x²+y²+z²))
-- [ ] 측정 시작 / 정지 기능
+- [x] DeviceMotionEvent 수신 기본 구현
+- [x] iOS Safari 권한 요청 처리 (requestPermission)
+- [x] Android Chrome 자동 허용 처리 + null 값 폴백
+- [x] 측정 시작 시점 기준 캘리브레이션 (5샘플, Δz 출력)
+- [x] 측정 시작 / 정지 기능
 
 ### 3단계 : 시각화 모듈 (visual.js)
-- [ ] 진폭 → 배경색 매핑 구현 (HSL 색상 공간)
-      낮음(파랑) → 중간(초록) → 높음(빨강)
-- [ ] Canvas 기반 실시간 파형 그래프 (X·Y·Z축)
-- [ ] 그래프 시간축 스크롤 (최근 10초 표시)
+- [x] Z축 진폭 → 배경색 매핑 (HSL: 파랑→초록→빨강)
+- [x] Canvas 기반 실시간 Z축 파형 그래프
+- [x] 그래프 왼쪽 앵커 → 슬라이딩 윈도우 전환 (10초)
+- [x] Y축 자동 스케일 (즉시 확장, 천천히 축소)
 
 ### 4단계 : 데이터 내보내기 (export.js)
-- [ ] 수집 데이터 메모리 저장 (배열)
-- [ ] CSV 변환 함수
-      (timestamp, acc_x, acc_y, acc_z, magnitude)
-- [ ] 다운로드 버튼 구현
+- [x] 수집 데이터 메모리 저장 (배열)
+- [x] CSV 변환 함수 (timestamp, acc_x, acc_y, acc_z, magnitude)
+- [x] 다운로드 버튼 구현
 
 ### 5단계 : index.html 목차 완성
-- [ ] Activity 1 카드 활성화
-- [ ] Activity 2·3·4 카드 "준비중" 표시
-- [ ] 플랫폼 소개 문구
-- [ ] GitHub 링크 버튼
-- [ ] 사용법 안내 버튼
+- [x] Activity 1 카드 활성화
+- [x] Activity 2·3·4 카드 "준비중" 표시
+- [x] 플랫폼 소개 문구
+- [x] GitHub 링크 버튼
+- [x] 사용법 안내 버튼
 
 ### 6단계 : 테스트 및 배포
-- [ ] Android Chrome 테스트
-- [ ] iOS Safari 테스트
-- [ ] GitHub Pages 배포 설정
-- [ ] HTTPS 동작 확인
+- [x] Android Chrome 테스트 ✓
+- [x] iOS Safari 테스트 ✓
+- [x] GitHub Pages 배포
+- [x] HTTPS 동작 확인
 
 ---
 
 ## 완료된 작업
-(없음 — Cycle 1 시작 전)
+- Cycle 1 전체 완료 (2026-03-08)
 
 ---
 
@@ -71,3 +70,5 @@
 - iOS에서 DeviceMotionEvent는 반드시 사용자 버튼 클릭 이후에 권한 요청할 것
 - HTTPS 없이는 센서 API 동작 안 함 (GitHub Pages는 자동 HTTPS)
 - 데이터는 메모리에만 저장 (페이지 새로고침 시 초기화됨, Cycle 1 범위)
+- Android 일부 기기에서 accelerationIncludingGravity가 null → acceleration으로 자동 폴백
+- 측정 시작 시 스마트폰을 평평하게 놓은 상태에서 버튼 눌러야 기준값이 정확함
