@@ -42,5 +42,43 @@
     <script src="../assets/js/visual.js"></script>
     <script src="../assets/js/export.js"></script>
 
+    <script>
+        const startBtn    = document.getElementById('start-btn');
+        const stopBtn     = document.getElementById('stop-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const statusMsg   = document.getElementById('status-msg');
+
+        startBtn.addEventListener('click', () => {
+            SensorModule.start(
+                // onData — visual.js 와 export.js 에서 각각 수신
+                (data) => {
+                    if (typeof VisualModule !== 'undefined') VisualModule.update(data);
+                    if (typeof ExportModule !== 'undefined') ExportModule.record(data);
+                },
+                // onError
+                (msg) => {
+                    statusMsg.textContent = '오류: ' + msg;
+                }
+            );
+
+            startBtn.hidden = true;
+            stopBtn.hidden  = false;
+            statusMsg.textContent = '측정 중...';
+        });
+
+        stopBtn.addEventListener('click', () => {
+            SensorModule.stop();
+            stopBtn.hidden     = false;
+            downloadBtn.hidden = false;
+            stopBtn.hidden     = true;
+            startBtn.hidden    = false;
+            statusMsg.textContent = '측정 정지됨. CSV를 다운로드하거나 다시 시작하세요.';
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (typeof ExportModule !== 'undefined') ExportModule.download();
+        });
+    </script>
+
 </body>
 </html>
