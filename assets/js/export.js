@@ -36,24 +36,31 @@ const ExportModule = (() => {
 
         const csvContent = header + body;
         const filename   = _filename();
-        const file       = new File([csvContent], filename, { type: 'text/csv;charset=utf-8;' });
 
-        // ── 1순위: Web Share API (iOS 15+ / Android Chrome 86+)
-        //    네이티브 공유 시트 → "파일에 저장" / "다운로드" 등 선택 가능
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file], title: filename })
-                .catch(err => {
-                    // 사용자가 취소한 경우(AbortError)는 무시
-                    if (err.name !== 'AbortError') {
-                        console.warn('share failed, falling back', err);
-                        _fallbackDownload(csvContent, filename);
-                    }
-                });
+        // ── 1순위: File System Access API — "다른 이름으로 저장" 다이얼로그
+        //    Chrome/Edge (Desktop + Android) 지원
+        if (window.showSaveFilePicker) {
+            window.showSaveFilePicker({
+                suggestedName: filename,
+                types: [{ description: 'CSV 파일', accept: { 'text/csv': ['.csv'] } }],
+            })
+            .then(async fileHandle => {
+                const writable = await fileHandle.createWritable();
+                await writable.write(csvContent);
+                await writable.close();
+            })
+            .catch(err => {
+                // 사용자가 취소한 경우(AbortError)는 무시
+                if (err.name !== 'AbortError') {
+                    console.warn('showSaveFilePicker failed, falling back', err);
+                    _shareOrDownload(csvContent, filename);
+                }
+            });
             return;
         }
 
-        // ── 2순위: 표준 <a download> (Android Chrome / Desktop)
-        _fallbackDownload(csvContent, filename);
+        // ── 2순위 이하
+        _shareOrDownload(csvContent, filename);
     }
 
     /** Clear stored data (call when starting a new session). */
@@ -67,6 +74,21 @@ const ExportModule = (() => {
     }
 
     // ── Helpers ───────────────────────────────────────────────────
+
+    // 2순위: Web Share API (iOS 15+ / Android)
+    // 3순위: <a download> (구형 브라우저)
+    function _shareOrDownload(csvContent, filename) {
+        const file = new File([csvContent], filename, { type: 'text/csv;charset=utf-8;' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: filename })
+                .catch(err => {
+                    if (err.name !== 'AbortError') _fallbackDownload(csvContent, filename);
+                });
+            return;
+        }
+        _fallbackDownload(csvContent, filename);
+    }
+
     function _fallbackDownload(csvContent, filename) {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
