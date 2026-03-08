@@ -58,6 +58,14 @@
                 // onError
                 (msg) => {
                     statusMsg.textContent = '오류: ' + msg;
+                },
+                // onStatus — calibration progress
+                (state, current, total) => {
+                    if (state === 'calibrating') {
+                        statusMsg.textContent = `기준선 측정 중... (${current}/${total})`;
+                    } else if (state === 'ready') {
+                        statusMsg.textContent = '측정 중...';
+                    }
                 }
             );
 

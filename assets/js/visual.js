@@ -9,7 +9,7 @@ const VisualModule = (() => {
 
     // ── Config ───────────────────────────────────────────────────
     const WINDOW_SEC  = 10;       // seconds of data shown on graph
-    const MAX_MAG     = 20;       // magnitude ceiling for color mapping (m/s²)
+    const MAX_MAG     = 3;        // magnitude ceiling for color mapping (m/s²) — calibrated values are near 0 at rest
     const AXIS_COLORS = {
         x: '#ff6b6b',   // red
         y: '#2ed573',   // green
@@ -78,7 +78,7 @@ const VisualModule = (() => {
         const oldest  = now - WINDOW_SEC * 1000;
 
         // Draw grid lines (center + ±range)
-        const range  = 20;   // ±20 m/s² display range
+        const range  = 3;    // ±3 m/s² display range (calibrated values)
         const midY   = h / 2;
         const yScale = h / (range * 2);
 
@@ -112,8 +112,8 @@ const VisualModule = (() => {
         ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth   = 1;
 
-        // Horizontal lines at 0, ±5, ±10, ±15
-        for (let v = -range; v <= range; v += 5) {
+        // Horizontal lines at 0, ±1, ±2, ±3
+        for (let v = -range; v <= range; v += 1) {
             const y = midY - v * yScale;
             ctx.beginPath();
             ctx.moveTo(0, y);
