@@ -9,7 +9,7 @@ const VisualModule = (() => {
 
     // ── Config ───────────────────────────────────────────────────
     const WINDOW_SEC = 10;   // seconds of data shown on graph
-    const MAX_Z      = 3;    // |acc_z| ceiling for color mapping (m/s²)
+    const MAX_Z      = 1.5;  // |acc_z| ceiling for color mapping (m/s²)
     const Z_COLOR    = '#00d2d3';
     const GRID_COLOR = '#2e2e2e';
     const BG_CANVAS  = '#1c1c1c';
@@ -38,7 +38,7 @@ const VisualModule = (() => {
     function _zToHSL(z) {
         const ratio = Math.min(Math.abs(z) / MAX_Z, 1);
         const hue   = Math.round(240 - ratio * 240);
-        return `hsl(${hue}, 80%, 25%)`;
+        return `hsl(${hue}, 90%, 45%)`;
     }
 
     // ── Rendering loop ────────────────────────────────────────────
@@ -99,14 +99,14 @@ const VisualModule = (() => {
         ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth   = 1;
 
-        for (let v = -range; v <= range; v += 1) {
+        for (let v = -range; v <= range; v += 0.5) {
             const y = midY - v * yScale;
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(w, y);
             ctx.stroke();
 
-            if (v !== 0) {
+            if (v !== 0 && v % 1 === 0) {
                 ctx.fillStyle = '#555';
                 ctx.font      = '10px sans-serif';
                 ctx.fillText(v, 4, y - 2);
