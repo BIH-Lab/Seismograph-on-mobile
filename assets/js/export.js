@@ -34,34 +34,26 @@ const ExportModule = (() => {
             .map(r => `${r.timestamp},${r.acc_x},${r.acc_y},${r.acc_z},${r.magnitude}`)
             .join('\n');
 
-        const blob     = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
-        const url      = URL.createObjectURL(blob);
-        const filename = _filename();
+        const csvContent = header + body;
+        const filename   = _filename();
+        const file       = new File([csvContent], filename, { type: 'text/csv;charset=utf-8;' });
 
-        // iOS Safari does not support <a download> — open in new tab instead
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        if (isIOS) {
-            const win = window.open(url, '_blank');
-            if (win) {
-                win.document.title = filename;
-            } else {
-                alert('팝업이 차단되었습니다. Safari 설정에서 팝업 허용 후 다시 시도해주세요.');
-            }
-            // Revoke after a delay to ensure the blob is loaded
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        // ── 1순위: Web Share API (iOS 15+ / Android Chrome 86+)
+        //    네이티브 공유 시트 → "파일에 저장" / "다운로드" 등 선택 가능
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: filename })
+                .catch(err => {
+                    // 사용자가 취소한 경우(AbortError)는 무시
+                    if (err.name !== 'AbortError') {
+                        console.warn('share failed, falling back', err);
+                        _fallbackDownload(csvContent, filename);
+                    }
+                });
             return;
         }
 
-        // Android / Desktop — standard download
-        const a = document.createElement('a');
-        a.href  = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        // Delay revocation so mobile browsers finish initiating the download
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        // ── 2순위: 표준 <a download> (Android Chrome / Desktop)
+        _fallbackDownload(csvContent, filename);
     }
 
     /** Clear stored data (call when starting a new session). */
@@ -74,7 +66,20 @@ const ExportModule = (() => {
         return _rows.length;
     }
 
-    // ── Helper ────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────
+    function _fallbackDownload(csvContent, filename) {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
     function _filename() {
         const now = new Date();
         const pad = n => String(n).padStart(2, '0');
