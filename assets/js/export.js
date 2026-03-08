@@ -34,17 +34,34 @@ const ExportModule = (() => {
             .map(r => `${r.timestamp},${r.acc_x},${r.acc_y},${r.acc_z},${r.magnitude}`)
             .join('\n');
 
-        const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
-        const url  = URL.createObjectURL(blob);
+        const blob     = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
+        const url      = URL.createObjectURL(blob);
+        const filename = _filename();
 
-        const a      = document.createElement('a');
-        a.href       = url;
-        a.download   = _filename();
+        // iOS Safari does not support <a download> — open in new tab instead
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOS) {
+            const win = window.open(url, '_blank');
+            if (win) {
+                win.document.title = filename;
+            } else {
+                alert('팝업이 차단되었습니다. Safari 설정에서 팝업 허용 후 다시 시도해주세요.');
+            }
+            // Revoke after a delay to ensure the blob is loaded
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            return;
+        }
+
+        // Android / Desktop — standard download
+        const a = document.createElement('a');
+        a.href  = url;
+        a.download = filename;
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Delay revocation so mobile browsers finish initiating the download
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
 
     /** Clear stored data (call when starting a new session). */
