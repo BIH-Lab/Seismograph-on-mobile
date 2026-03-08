@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>지진파 색으로 보기</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="activity-page" id="activity-body">
+
+    <header class="activity-header">
+        <a href="../" class="btn btn--ghost btn--sm">← 목록</a>
+        <h1>지진파 색으로 보기</h1>
+    </header>
+
+    <main class="activity-main">
+
+        <!-- 배경색 시각화 영역 -->
+        <div class="color-display" id="color-display">
+            <p class="color-display__label" id="magnitude-label">0.000</p>
+            <p class="color-display__unit">m/s²</p>
+        </div>
+
+        <!-- 파형 그래프 -->
+        <div class="chart-wrapper">
+            <canvas id="waveChart"></canvas>
+        </div>
+
+        <!-- 컨트롤 -->
+        <div class="controls">
+            <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
+            <button class="btn btn--danger btn--lg" id="stop-btn" hidden>측정 정지</button>
+            <button class="btn btn--ghost btn--lg" id="download-btn" hidden>CSV 다운로드</button>
+        </div>
+
+        <!-- 상태 메시지 -->
+        <p class="status-msg" id="status-msg">버튼을 눌러 센서 권한을 요청하세요.</p>
+
+    </main>
+
+    <script src="../assets/js/sensor.js"></script>
+    <script src="../assets/js/visual.js"></script>
+    <script src="../assets/js/export.js"></script>
+
+</body>
+</html>
