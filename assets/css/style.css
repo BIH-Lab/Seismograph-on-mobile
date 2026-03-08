@@ -1,0 +1,224 @@
+/* ===================================
+   Reset & Base
+=================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg:        #0f0f0f;
+    --surface:   #1c1c1c;
+    --border:    #2e2e2e;
+    --text:      #f0f0f0;
+    --muted:     #888;
+    --accent:    #ff9f43;
+    --primary:   #2ed573;
+    --danger:    #ff4757;
+    --wave:      #00d2d3;
+    --radius:    12px;
+    --gap:       16px;
+}
+
+html, body {
+    height: 100%;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+}
+
+
+/* ===================================
+   공통 버튼
+=================================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+.btn:active { opacity: 0.75; }
+
+.btn--primary  { background: var(--primary); color: #000; }
+.btn--danger   { background: var(--danger);  color: #fff; }
+.btn--ghost    { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn--lg       { padding: 14px 36px; font-size: 1.05rem; }
+.btn--sm       { padding: 6px 14px;  font-size: 0.85rem; }
+
+
+/* ===================================
+   목차 페이지 (index.html)
+=================================== */
+.site-header {
+    padding: 40px var(--gap) 20px;
+    text-align: center;
+}
+.site-header h1 {
+    font-size: 1.6rem;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+.subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.activity-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    padding: var(--gap);
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+/* 카드 */
+.card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+    position: relative;
+    transition: border-color 0.2s;
+}
+.card--active  { border-color: var(--primary); cursor: pointer; }
+.card--active:active { opacity: 0.8; }
+.card--disabled { opacity: 0.45; cursor: default; }
+
+.card__number {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 40px;
+}
+.card__body { flex: 1; }
+.card__title { font-size: 1.05rem; margin-bottom: 4px; }
+.card__desc  { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+.card__arrow { font-size: 1.2rem; color: var(--primary); }
+.card__badge {
+    position: absolute;
+    top: 12px; right: 12px;
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 50px;
+    background: var(--border);
+    color: var(--muted);
+}
+
+.site-footer {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px var(--gap) 40px;
+}
+
+
+/* ===================================
+   모달
+=================================== */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--gap);
+    z-index: 100;
+}
+.modal[hidden] { display: none; }
+.modal__box {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    max-width: 360px;
+    width: 100%;
+}
+.modal__box h3 { font-size: 1.1rem; margin-bottom: 16px; color: var(--accent); }
+.modal__box ol { padding-left: 20px; line-height: 2; font-size: 0.92rem; }
+.modal__note   { font-size: 0.8rem; color: var(--muted); margin: 16px 0; }
+.modal__box .btn { width: 100%; margin-top: 8px; }
+
+
+/* ===================================
+   Activity 페이지 공통
+=================================== */
+.activity-page {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    transition: background-color 0.3s ease;
+}
+
+.activity-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px var(--gap);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.activity-header h1 { font-size: 1rem; color: var(--accent); }
+
+.activity-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    padding: var(--gap);
+    overflow: hidden;
+}
+
+/* 배경색 표시 영역 */
+.color-display {
+    text-align: center;
+    padding: 16px;
+}
+.color-display__label {
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+.color-display__unit { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+/* 파형 캔버스 */
+.chart-wrapper {
+    width: 100%;
+    height: 40vh;
+    max-height: 280px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+.chart-wrapper canvas { width: 100% !important; height: 100% !important; }
+
+/* 컨트롤 버튼 그룹 */
+.controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* 상태 메시지 */
+.status-msg {
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+    min-height: 1.4em;
+}

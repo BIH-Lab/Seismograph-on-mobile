@@ -3,115 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>지진계 - 그래프 모드</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            background-color: #1e1e1e;
-            color: #fff;
-            font-family: sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 10px;
-            overflow: hidden; /* 스크롤 방지 */
-        }
-        h2 { margin: 10px 0; font-size: 1.2rem; color: #ff9f43; }
-        
-        /* 차트가 들어갈 액자 */
-        .chart-container {
-            position: relative;
-            height: 60vh; /* 화면 높이의 60% */
-            width: 100%;
-        }
-
-        #start-btn {
-            background-color: #2ed573;
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 1.2rem;
-            border-radius: 50px;
-            margin-top: 20px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4);
-        }
-    </style>
+    <title>스마트폰 지진계 플랫폼</title>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
 
-    <h2>실시간 지진계 (Z축)</h2>
-    
-    <div class="chart-container">
-        <canvas id="seismoChart"></canvas>
+    <header class="site-header">
+        <h1>스마트폰 지진계</h1>
+        <p class="subtitle">스마트폰 하나로 지진동을 측정하고 분석하는 웹 플랫폼</p>
+    </header>
+
+    <main class="activity-grid">
+
+        <!-- Activity 1 : 활성화 -->
+        <a href="activity1/" class="card card--active">
+            <div class="card__number">01</div>
+            <div class="card__body">
+                <h2 class="card__title">지진파 색으로 보기</h2>
+                <p class="card__desc">스마트폰 센서로 진동을 측정하고,<br>진폭에 따라 화면 색이 변합니다.</p>
+            </div>
+            <div class="card__arrow">→</div>
+        </a>
+
+        <!-- Activity 2 : 준비중 -->
+        <div class="card card--disabled">
+            <div class="card__number">02</div>
+            <div class="card__body">
+                <h2 class="card__title">신호 비교하기</h2>
+                <p class="card__desc">여러 기기의 신호를 함께 분석합니다.</p>
+            </div>
+            <div class="card__badge">준비중</div>
+        </div>
+
+        <!-- Activity 3 : 준비중 -->
+        <div class="card card--disabled">
+            <div class="card__number">03</div>
+            <div class="card__body">
+                <h2 class="card__title">주시곡선 그리기</h2>
+                <p class="card__desc">P파·S파 도달 시간으로 진원을 탐색합니다.</p>
+            </div>
+            <div class="card__badge">준비중</div>
+        </div>
+
+        <!-- Activity 4 : 준비중 -->
+        <div class="card card--disabled">
+            <div class="card__number">04</div>
+            <div class="card__body">
+                <h2 class="card__title">진원 찾기</h2>
+                <p class="card__desc">GPS 위치 정보를 이용해 진원지를 역산합니다.</p>
+            </div>
+            <div class="card__badge">준비중</div>
+        </div>
+
+    </main>
+
+    <footer class="site-footer">
+        <a href="https://github.com/sanglimHwang/Seismograph-on-mobile" class="btn btn--ghost" target="_blank" rel="noopener">GitHub</a>
+        <button class="btn btn--ghost" id="how-to-btn">사용법</button>
+    </footer>
+
+    <!-- 사용법 모달 -->
+    <div class="modal" id="how-to-modal" hidden>
+        <div class="modal__box">
+            <h3>사용법</h3>
+            <ol>
+                <li>스마트폰 브라우저(Safari / Chrome)로 접속하세요.</li>
+                <li>Activity 카드를 선택하세요.</li>
+                <li><strong>측정 시작</strong> 버튼을 누르면 센서 권한을 요청합니다.</li>
+                <li>권한을 허용하면 실시간 측정이 시작됩니다.</li>
+            </ol>
+            <p class="modal__note">※ iOS는 Safari, Android는 Chrome을 권장합니다.</p>
+            <button class="btn btn--primary" id="modal-close-btn">닫기</button>
+        </div>
     </div>
 
-    <button id="start-btn">측정 시작</button>
-
     <script>
-        const startBtn = document.getElementById('start-btn');
-        const ctx = document.getElementById('seismoChart').getContext('2d');
+        const howToBtn = document.getElementById('how-to-btn');
+        const modal = document.getElementById('how-to-modal');
+        const closeBtn = document.getElementById('modal-close-btn');
 
-        // --- 그래프 설정 (여기를 고치면 디자인이 바뀝니다) ---
-        const totalPoints = 100; // 화면에 보여줄 데이터 개수 (가로 길이)
-        const initialData = new Array(totalPoints).fill(0); // 0으로 채운 빈 배열
-
-        const chart = new Chart(ctx, {
-            type: 'line', // 선 그래프
-            data: {
-                labels: new Array(totalPoints).fill(''), // X축 라벨 (공란)
-                datasets: [{
-                    label: '진동',
-                    data: initialData,
-                    borderColor: '#00d2d3', // 형광 하늘색 선
-                    borderWidth: 2,
-                    pointRadius: 0, // 점은 안 찍고 선만 그림
-                    tension: 0.1 // 선을 약간 부드럽게
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false, // 실시간 성능을 위해 애니메이션 끔
-                scales: {
-                    y: {
-                        min: -5, // Y축 최소값 (진동 폭)
-                        max: 5,  // Y축 최대값
-                        grid: { color: '#333' } // 눈금선 색상
-                    },
-                    x: { display: false } // X축 눈금 숨김
-                },
-                plugins: { legend: { display: false } } // 범례 숨김
-            }
-        });
-
-        // --- 센서 데이터 처리 ---
-        function handleMotion(event) {
-            // 중력 제거된 가속도
-            let z = event.acceleration ? event.acceleration.z : 0;
-            if (!z) z = 0;
-
-            // 데이터 밀어내기 (오른쪽에서 들어오고 왼쪽으로 나감)
-            chart.data.datasets[0].data.shift(); // 맨 앞 데이터 삭제
-            chart.data.datasets[0].data.push(z); // 맨 뒤에 새 데이터 추가
-            
-            chart.update(); // 그래프 다시 그리기
-        }
-
-        // --- 시작 버튼 ---
-        startBtn.addEventListener('click', () => {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
-                    .then(res => {
-                        if (res === 'granted') {
-                            window.addEventListener('devicemotion', handleMotion);
-                            startBtn.style.display = 'none';
-                        }
-                    });
-            } else {
-                window.addEventListener('devicemotion', handleMotion);
-                startBtn.style.display = 'none';
-            }
-        });
+        howToBtn.addEventListener('click', () => { modal.hidden = false; });
+        closeBtn.addEventListener('click', () => { modal.hidden = true; });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
     </script>
+
 </body>
 </html>
