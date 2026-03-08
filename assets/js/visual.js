@@ -65,8 +65,14 @@ const VisualModule = (() => {
 
         if (buffer.length < 2) return;
 
-        const now    = buffer[buffer.length - 1].ts;
-        const oldest = now - WINDOW_SEC * 1000;
+        const now     = buffer[buffer.length - 1].ts;
+        const elapsed = now - buffer[0].ts;
+        const windowMs = WINDOW_SEC * 1000;
+
+        // Anchor left until window is full; then slide
+        const timeStart = elapsed < windowMs ? buffer[0].ts : now - windowMs;
+        const timeEnd   = elapsed < windowMs ? buffer[0].ts + windowMs : now;
+
         const range  = MAX_Z;
         const midY   = h / 2;
         const yScale = h / (range * 2);
@@ -81,8 +87,8 @@ const VisualModule = (() => {
 
         let first = true;
         for (const pt of buffer) {
-            if (pt.ts < oldest) continue;
-            const px = ((pt.ts - oldest) / (WINDOW_SEC * 1000)) * w;
+            if (pt.ts < timeStart) continue;
+            const px = ((pt.ts - timeStart) / windowMs) * w;
             const py = midY - pt.z * yScale;
             if (first) { ctx.moveTo(px, py); first = false; }
             else          ctx.lineTo(px, py);
