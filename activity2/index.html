@@ -54,7 +54,8 @@
         const gpsAcc      = document.getElementById('gps-acc');
 
         startBtn.addEventListener('click', () => {
-            startBtn.hidden  = true;
+            startBtn.hidden      = true;
+            downloadBtn.hidden   = true;
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
 
@@ -69,13 +70,13 @@
 
                     SensorModule.start(
                         (data) => {
-                            if (typeof VisualModule !== 'undefined') VisualModule.update(data);
                             ExportModule.record({
                                 timestamp : data.timestamp,
                                 latitude  : coords.latitude,
                                 longitude : coords.longitude,
                                 acc_z     : data.acc_z,
                             });
+                            if (typeof VisualModule !== 'undefined') VisualModule.update(data);
                         },
                         (msg) => {
                             statusMsg.textContent = '오류: ' + msg;
