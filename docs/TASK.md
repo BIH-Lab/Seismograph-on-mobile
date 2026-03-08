@@ -15,36 +15,36 @@
 ## Cycle 2 작업 목록
 
 ### 1단계 : activity2/ 페이지 기본 세팅
-- [ ] activity2/ 폴더 및 index.html 생성
-- [ ] index.html 목차에서 Activity 2 카드 활성화
+- [x] activity2/ 폴더 및 index.html 생성
+- [x] index.html 목차에서 Activity 2 카드 활성화
 
 ### 2단계 : GPS 모듈 (gps.js)
-- [ ] navigator.geolocation.getCurrentPosition() 구현
-- [ ] iOS / Android 권한 요청 처리
-- [ ] 좌표 취득 실패 시 오류 메시지 표시
-- [ ] 측정 시작 시 좌표 1회 고정 (이동 추적 아님)
+- [x] navigator.geolocation.getCurrentPosition() 구현
+- [x] iOS / Android 권한 요청 처리
+- [x] 좌표 취득 실패 시 오류 메시지 표시
+- [x] 측정 시작 시 좌표 1회 고정 (이동 추적 아님)
 
 ### 3단계 : 센서 + GPS 통합 수집
-- [ ] sensor.js 재사용 (캘리브레이션 포함)
-- [ ] 수집 데이터: timestamp, latitude, longitude, acc_z
+- [x] sensor.js 재사용 (캘리브레이션 포함)
+- [x] 수집 데이터: timestamp, latitude, longitude, acc_z
 - [ ] (보류) acc_x, acc_y 추가 여부 추후 결정
 
 ### 4단계 : 실시간 그래프
-- [ ] visual.js 재사용 또는 activity2 전용 canvas 구현
-- [ ] Z축 파형 실시간 표시 (슬라이딩 윈도우 10초)
-- [ ] 현재 GPS 좌표 화면에 표시
+- [x] visual.js 재사용
+- [x] Z축 파형 실시간 표시 (슬라이딩 윈도우 10초)
+- [x] 현재 GPS 좌표 화면에 표시
 
 ### 5단계 : CSV 다운로드
-- [ ] export.js 재사용
-- [ ] CSV 컬럼: timestamp, latitude, longitude, acc_z
-- [ ] 다운로드 버튼 (측정 정지 후 활성화)
+- [x] export.js 재사용 (컬럼 자동 생성으로 범용화)
+- [x] CSV 컬럼: timestamp, latitude, longitude, acc_z
+- [x] 다운로드 버튼 (측정 정지 후 활성화)
 
 ### 6단계 : 테스트 및 배포
 - [ ] Android Chrome 테스트
 - [ ] iOS Safari 테스트
 - [ ] GPS 권한 요청 동작 확인
 - [ ] CSV 다운로드 동작 확인
-- [ ] GitHub Pages 배포
+- [x] GitHub Pages 배포
 
 ---
 
