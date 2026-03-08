@@ -21,17 +21,36 @@ const SensorModule = (() => {
         _baseline = null;
     }
 
+    // ── Pick valid acceleration source ───────────────────────────
+    // Some Android devices return null for accelerationIncludingGravity.
+    // Auto-detect and use whichever source provides non-null values.
+    function _readRaw(event) {
+        const aG = event.accelerationIncludingGravity;
+        if (aG && aG.x != null && aG.y != null && aG.z != null) {
+            return { x: aG.x, y: aG.y, z: aG.z };
+        }
+        const a = event.acceleration;
+        if (a && a.x != null && a.y != null && a.z != null) {
+            return { x: a.x, y: a.y, z: a.z };
+        }
+        return null;   // sensor data not available on this device
+    }
+
     // ── Normalize one DeviceMotionEvent ──────────────────────────
     function _handleMotion(event) {
         if (!_running) return;
 
-        // Use accelerationIncludingGravity — raw sensor data, better for seismograph.
-        // Baseline subtraction removes gravity offset after calibration.
-        const a = event.accelerationIncludingGravity || {};
+        const raw = _readRaw(event);
 
-        const raw_x = a.x ?? 0;
-        const raw_y = a.y ?? 0;
-        const raw_z = a.z ?? 0;
+        // Sensor data unavailable — report once then skip
+        if (!raw) {
+            if (_onStatus) _onStatus('unavailable');
+            return;
+        }
+
+        const raw_x = raw.x;
+        const raw_y = raw.y;
+        const raw_z = raw.z;
 
         // ── Calibration phase: collect baseline ──────────────────
         if (_baseline === null) {
