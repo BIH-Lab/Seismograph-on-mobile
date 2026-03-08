@@ -8,14 +8,17 @@
 const VisualModule = (() => {
 
     // ── Config ───────────────────────────────────────────────────
-    const WINDOW_SEC = 10;   // seconds of data shown on graph
-    const MAX_Z      = 1.5;  // |acc_z| ceiling for color mapping (m/s²)
-    const Z_COLOR    = '#00d2d3';
-    const GRID_COLOR = '#2e2e2e';
-    const BG_CANVAS  = '#1c1c1c';
+    const WINDOW_SEC  = 10;    // seconds of data shown on graph
+    const MAX_Z       = 1.5;   // |acc_z| ceiling for background color mapping (m/s²)
+    const MIN_RANGE   = 0.5;   // minimum Y-axis half-range (m/s²)
+    const DECAY_RATE  = 0.997; // per-frame peak decay (slower = stays zoomed out longer)
+    const Z_COLOR     = '#00d2d3';
+    const GRID_COLOR  = '#2e2e2e';
+    const BG_CANVAS   = '#1c1c1c';
 
     // ── State ────────────────────────────────────────────────────
-    const buffer = [];   // [{ ts, z }]
+    const buffer = [];      // [{ ts, z }]
+    let _peakZ   = MIN_RANGE; // current auto-scale peak (m/s²)
 
     // ── DOM refs ─────────────────────────────────────────────────
     let bodyEl  = null;
@@ -73,7 +76,21 @@ const VisualModule = (() => {
         const timeStart = elapsed < windowMs ? buffer[0].ts : now - windowMs;
         const timeEnd   = elapsed < windowMs ? buffer[0].ts + windowMs : now;
 
-        const range  = MAX_Z;
+        // ── Auto-scale Y axis ─────────────────────────────────────
+        // Find max |z| in visible window
+        let maxAbsZ = 0;
+        for (const pt of buffer) {
+            if (pt.ts >= timeStart && Math.abs(pt.z) > maxAbsZ)
+                maxAbsZ = Math.abs(pt.z);
+        }
+        // Scale up immediately, decay slowly
+        if (maxAbsZ * 1.2 > _peakZ) {
+            _peakZ = maxAbsZ * 1.2;
+        } else {
+            _peakZ = Math.max(_peakZ * DECAY_RATE, MIN_RANGE);
+        }
+
+        const range  = _peakZ;
         const midY   = h / 2;
         const yScale = h / (range * 2);
 
@@ -102,20 +119,28 @@ const VisualModule = (() => {
     }
 
     function _drawGrid(w, h, midY, range, yScale) {
+        // Pick a round grid step based on current range
+        const step = range <= 1   ? 0.25
+                   : range <= 3   ? 0.5
+                   : range <= 10  ? 1
+                   : range <= 30  ? 5
+                   : 10;
+
         ctx.strokeStyle = GRID_COLOR;
         ctx.lineWidth   = 1;
 
-        for (let v = -range; v <= range; v += 0.5) {
-            const y = midY - v * yScale;
+        for (let v = -range; v <= range; v += step) {
+            const vR = Math.round(v * 1000) / 1000; // float precision fix
+            const y  = midY - vR * yScale;
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(w, y);
             ctx.stroke();
 
-            if (v !== 0 && v % 1 === 0) {
+            if (vR !== 0) {
                 ctx.fillStyle = '#555';
                 ctx.font      = '10px sans-serif';
-                ctx.fillText(v, 4, y - 2);
+                ctx.fillText(vR.toFixed(2), 4, y - 2);
             }
         }
 
@@ -151,6 +176,7 @@ const VisualModule = (() => {
 
     function reset() {
         buffer.length = 0;
+        _peakZ = MIN_RANGE;
         if (bodyEl)  bodyEl.style.backgroundColor = '';
         if (labelEl) labelEl.textContent = '0.000';
     }
