@@ -11,7 +11,8 @@ const SensorModule = (() => {
     let _running   = false;
 
     // ── Calibration ───────────────────────────────────────────────
-    const CALIB_SAMPLES = 30;
+    // Take the first few samples at rest as the reference baseline.
+    const CALIB_SAMPLES = 5;
     let _calibBuf = [];          // raw samples during calibration
     let _baseline = null;        // { x, y, z } mean to subtract
 
@@ -24,10 +25,9 @@ const SensorModule = (() => {
     function _handleMotion(event) {
         if (!_running) return;
 
-        // Prefer gravity-removed acceleration; fall back to including-gravity
-        const a = (event.acceleration && event.acceleration.x != null)
-            ? event.acceleration
-            : event.accelerationIncludingGravity || {};
+        // Use accelerationIncludingGravity — raw sensor data, better for seismograph.
+        // Baseline subtraction removes gravity offset after calibration.
+        const a = event.accelerationIncludingGravity || {};
 
         const raw_x = a.x ?? 0;
         const raw_y = a.y ?? 0;

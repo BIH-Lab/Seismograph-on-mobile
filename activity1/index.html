@@ -60,11 +60,11 @@
                     statusMsg.textContent = '오류: ' + msg;
                 },
                 // onStatus — calibration progress
-                (state, current, total) => {
+                (state) => {
                     if (state === 'calibrating') {
-                        statusMsg.textContent = `기준선 측정 중... (${current}/${total})`;
+                        statusMsg.textContent = '기준값 설정 중...';
                     } else if (state === 'ready') {
-                        statusMsg.textContent = '측정 중...';
+                        statusMsg.textContent = '측정 중 — 시작 시점 대비 변화량을 표시합니다.';
                     }
                 }
             );
