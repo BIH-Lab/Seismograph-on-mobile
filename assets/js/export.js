@@ -1,7 +1,7 @@
 /**
  * export.js
  * Role   : Store collected data in memory and export as CSV
- * Output : timestamp, acc_x, acc_y, acc_z, magnitude
+ * Output : CSV columns are derived automatically from the first recorded row
  */
 
 const ExportModule = (() => {
@@ -12,8 +12,7 @@ const ExportModule = (() => {
 
     /**
      * Record one data point.
-     * Called by activity1/index.html for every sensor event.
-     * @param {{ timestamp, acc_x, acc_y, acc_z, magnitude }} data
+     * @param {Object} data  Any flat object (keys become CSV columns)
      */
     function record(data) {
         _rows.push(data);
@@ -29,9 +28,10 @@ const ExportModule = (() => {
             return;
         }
 
-        const header = 'timestamp,acc_x,acc_y,acc_z,magnitude\n';
+        const keys   = Object.keys(_rows[0]);
+        const header = keys.join(',') + '\n';
         const body   = _rows
-            .map(r => `${r.timestamp},${r.acc_x},${r.acc_y},${r.acc_z},${r.magnitude}`)
+            .map(r => keys.map(k => r[k]).join(','))
             .join('\n');
 
         const csvContent = header + body;

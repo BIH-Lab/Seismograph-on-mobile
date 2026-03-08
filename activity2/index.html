@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>지진파 기록하기</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="activity-page" id="activity-body">
+
+    <header class="activity-header">
+        <a href="../" class="btn btn--ghost btn--sm">← 목록</a>
+        <h1>지진파 기록하기</h1>
+    </header>
+
+    <main class="activity-main">
+
+        <!-- GPS 좌표 표시 -->
+        <div class="gps-display" id="gps-display">
+            <span class="gps-display__item">위도 <strong id="gps-lat">—</strong></span>
+            <span class="gps-display__item">경도 <strong id="gps-lng">—</strong></span>
+            <span class="gps-display__item gps-display__acc" id="gps-acc"></span>
+        </div>
+
+        <!-- 파형 그래프 -->
+        <div class="chart-wrapper">
+            <canvas id="waveChart"></canvas>
+        </div>
+
+        <!-- 컨트롤 -->
+        <div class="controls">
+            <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
+            <button class="btn btn--danger btn--lg" id="stop-btn" hidden>측정 정지</button>
+            <button class="btn btn--ghost btn--lg" id="download-btn" hidden>CSV 다운로드</button>
+        </div>
+
+        <!-- 상태 메시지 -->
+        <p class="status-msg" id="status-msg">버튼을 눌러 GPS 및 센서 권한을 요청하세요.</p>
+
+    </main>
+
+    <script src="../assets/js/sensor.js"></script>
+    <script src="../assets/js/visual.js"></script>
+    <script src="../assets/js/gps.js"></script>
+    <script src="../assets/js/export.js"></script>
+
+    <script>
+        const startBtn    = document.getElementById('start-btn');
+        const stopBtn     = document.getElementById('stop-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const statusMsg   = document.getElementById('status-msg');
+        const gpsLat      = document.getElementById('gps-lat');
+        const gpsLng      = document.getElementById('gps-lng');
+        const gpsAcc      = document.getElementById('gps-acc');
+
+        startBtn.addEventListener('click', () => {
+            startBtn.hidden  = true;
+            statusMsg.textContent = 'GPS 위치 확인 중...';
+            ExportModule.clear();
+
+            // 1. GPS 취득 → 2. 센서 시작
+            GpsModule.get()
+                .then((coords) => {
+                    gpsLat.textContent = coords.latitude;
+                    gpsLng.textContent = coords.longitude;
+                    gpsAcc.textContent = `(정확도 ±${coords.accuracy}m)`;
+
+                    statusMsg.textContent = 'GPS 확인 완료. 센서 권한 요청 중...';
+
+                    SensorModule.start(
+                        (data) => {
+                            if (typeof VisualModule !== 'undefined') VisualModule.update(data);
+                            ExportModule.record({
+                                timestamp : data.timestamp,
+                                latitude  : coords.latitude,
+                                longitude : coords.longitude,
+                                acc_z     : data.acc_z,
+                            });
+                        },
+                        (msg) => {
+                            statusMsg.textContent = '오류: ' + msg;
+                            startBtn.hidden = false;
+                            stopBtn.hidden  = true;
+                        },
+                        (state) => {
+                            if (state === 'calibrating') {
+                                statusMsg.textContent = '기준값 설정 중...';
+                            } else if (state === 'ready') {
+                                statusMsg.textContent = '측정 중 — Z축 변화량을 기록합니다.';
+                                stopBtn.hidden = false;
+                            } else if (state === 'unavailable') {
+                                statusMsg.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다. Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
+                            }
+                        }
+                    );
+                })
+                .catch((err) => {
+                    statusMsg.textContent = '⚠️ ' + err.message;
+                    startBtn.hidden = false;
+                });
+        });
+
+        stopBtn.addEventListener('click', () => {
+            SensorModule.stop();
+            stopBtn.hidden     = true;
+            startBtn.hidden    = false;
+            downloadBtn.hidden = false;
+            statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨.`;
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            ExportModule.download();
+        });
+    </script>
+
+</body>
+</html>
