@@ -82,3 +82,5 @@
 - Android 일부 기기에서 accelerationIncludingGravity가 null → acceleration으로 자동 폴백
 - 측정 시작 시 스마트폰을 평평하게 놓은 상태에서 버튼 눌러야 캘리브레이션 기준값이 정확함
 - GPS 정밀도는 기기/환경에 따라 수 미터 ~ 수십 미터 오차 발생 가능
+- iOS GPS 콜드 스타트는 실외 기준 10~20초 소요 — 실내/지하에서는 실패할 수 있음 (TIMEOUT)
+  → gps.js: timeout=20000, maximumAge=30000 으로 완화 처리, 에러 코드별 안내 메시지 제공

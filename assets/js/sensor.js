@@ -120,11 +120,6 @@ const SensorModule = (() => {
 
     /**
      * Start sensor.
-     * @param {function} onData  Called with each data point
-     * @param {function} onError Called if permission is denied
-     */
-    /**
-     * Start sensor.
      * @param {function} onData    Called with each calibrated data point
      * @param {function} onError   Called if permission is denied
      * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready')
