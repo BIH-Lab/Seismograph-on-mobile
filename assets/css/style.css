@@ -74,12 +74,10 @@ html, body {
 .station-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 12px var(--gap);
+    gap: 12px;
+    padding: 16px var(--gap);
     background: var(--surface);
+    border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
 .station-bar__label {
