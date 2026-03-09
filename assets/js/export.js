@@ -1,21 +1,41 @@
 /**
  * export.js
  * Role   : Store collected data in memory and export as CSV
- * Output : CSV columns are derived automatically from the first recorded row
+ * Format : # key: value  — metadata header lines (GPS, sample rate, etc.)
+ *          column1,column2,...  — data columns (derived from first recorded row)
  */
 
 const ExportModule = (() => {
 
     const _rows = [];   // Array of data objects
+    const _meta = {};   // Metadata key-value pairs → written as # key: value lines
 
     // ── Public API ────────────────────────────────────────────────
 
-    /**
-     * Record one data point.
-     * @param {Object} data  Any flat object (keys become CSV columns)
-     */
+    /** Record one data point. @param {Object} data  flat object */
     function record(data) {
         _rows.push(data);
+    }
+
+    /**
+     * Set metadata to be written as comment lines at the top of the CSV.
+     * @param {Object} obj  e.g. { latitude: 37.123, longitude: 127.456 }
+     */
+    function setMeta(obj) {
+        Object.assign(_meta, obj);
+    }
+
+    /**
+     * Calculate actual sample rate from recorded timestamps.
+     * @returns {number|null}  Hz, or null if insufficient data
+     */
+    function sampleRate() {
+        if (_rows.length < 2) return null;
+        const t0 = new Date(_rows[0].timestamp).getTime();
+        const t1 = new Date(_rows[_rows.length - 1].timestamp).getTime();
+        const durationSec = (t1 - t0) / 1000;
+        if (durationSec <= 0) return null;
+        return Math.round(_rows.length / durationSec);
     }
 
     /**
@@ -28,13 +48,19 @@ const ExportModule = (() => {
             return;
         }
 
+        // ── Metadata comment lines
+        const metaLines = Object.entries(_meta)
+            .map(([k, v]) => `# ${k}: ${v}`)
+            .join('\n');
+
+        // ── Data section
         const keys   = Object.keys(_rows[0]);
         const header = keys.join(',') + '\n';
         const body   = _rows
             .map(r => keys.map(k => r[k]).join(','))
             .join('\n');
 
-        const csvContent = header + body;
+        const csvContent = (metaLines ? metaLines + '\n' : '') + header + body;
         const filename   = _filename();
 
         // ── 1순위: File System Access API — 데스크톱 전용
@@ -51,7 +77,6 @@ const ExportModule = (() => {
                 await writable.close();
             })
             .catch(err => {
-                // 사용자가 취소한 경우(AbortError)는 무시
                 if (err.name !== 'AbortError') {
                     console.warn('showSaveFilePicker failed, falling back', err);
                     _shareOrDownload(csvContent, filename);
@@ -64,9 +89,10 @@ const ExportModule = (() => {
         _shareOrDownload(csvContent, filename);
     }
 
-    /** Clear stored data (call when starting a new session). */
+    /** Clear stored data and metadata (call when starting a new session). */
     function clear() {
         _rows.length = 0;
+        Object.keys(_meta).forEach(k => delete _meta[k]);
     }
 
     /** Number of recorded rows. */
@@ -111,5 +137,5 @@ const ExportModule = (() => {
         return `seismograph_${date}_${time}.csv`;
     }
 
-    return { record, download, clear, count };
+    return { record, download, clear, count, setMeta, sampleRate };
 })();

@@ -55,6 +55,8 @@
 
         // false = 측정 정지 모드, true = 초기화 모드
         let _pendingReset = false;
+        // 첫 번째 데이터에서 interval_ms를 한 번만 읽어 setMeta
+        let _metaRateSet  = false;
 
         function _resetStopBtn() {
             stopBtn.textContent = '측정 정지';
@@ -66,6 +68,7 @@
             startBtn.hidden      = true;
             stopBtn.hidden       = true;
             downloadBtn.hidden   = true;
+            _metaRateSet         = false;
             _resetStopBtn();
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
@@ -77,14 +80,26 @@
                     gpsLng.textContent = coords.longitude;
                     gpsAcc.textContent = `(정확도 ±${coords.accuracy}m)`;
 
+                    // GPS 정보를 CSV 메타데이터로 저장
+                    ExportModule.setMeta({
+                        latitude  : coords.latitude,
+                        longitude : coords.longitude,
+                        accuracy  : coords.accuracy + 'm',
+                    });
+
                     statusMsg.textContent = 'GPS 확인 완료. 센서 권한 요청 중...';
 
                     SensorModule.start(
                         (data) => {
+                            // 첫 번째 샘플에서 샘플레이트 메타데이터 기록
+                            if (!_metaRateSet && data.interval_ms) {
+                                const hz = Math.round(1000 / data.interval_ms);
+                                ExportModule.setMeta({ sample_rate: hz + ' Hz' });
+                                _metaRateSet = true;
+                            }
+                            // 데이터 행: timestamp + acc_z 만 기록
                             ExportModule.record({
                                 timestamp : data.timestamp,
-                                latitude  : coords.latitude,
-                                longitude : coords.longitude,
                                 acc_z     : data.acc_z,
                             });
                             if (typeof VisualModule !== 'undefined') VisualModule.update(data);
@@ -117,12 +132,18 @@
             if (!_pendingReset) {
                 // 1차 클릭: 측정 정지 — 그래프 유지, 다운로드 버튼 표시
                 SensorModule.stop();
+
+                // 실제 샘플레이트 재계산 후 메타데이터 갱신
+                const sr = ExportModule.sampleRate();
+                if (sr) ExportModule.setMeta({ sample_rate: sr + ' Hz' });
+
                 _pendingReset       = true;
                 stopBtn.textContent = '초기화';
                 stopBtn.className   = 'btn btn--ghost btn--lg';
                 startBtn.hidden     = false;
                 downloadBtn.hidden  = false;
-                statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨.`;
+                const srText = sr ? ` (${sr} Hz)` : '';
+                statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨${srText}.`;
             } else {
                 // 2차 클릭: 초기화 — 그래프·GPS·데이터 리셋
                 if (typeof VisualModule !== 'undefined') VisualModule.reset();

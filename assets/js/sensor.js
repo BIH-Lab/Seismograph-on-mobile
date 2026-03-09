@@ -1,8 +1,10 @@
 /**
  * sensor.js
  * Role    : DeviceMotionEvent reception and data normalization
- * Output  : { timestamp, acc_x, acc_y, acc_z, magnitude }
+ * Output  : { timestamp, acc_x, acc_y, acc_z, magnitude, interval_ms }
  * Note    : Includes iOS permission request handling
+ *           event.interval reports actual OS sampling interval (ms)
+ *           Android Chrome ~10ms (100Hz), iOS Safari ~16.67ms (60Hz)
  */
 
 const SensorModule = (() => {
@@ -80,11 +82,12 @@ const SensorModule = (() => {
         const magnitude = Math.sqrt(acc_x ** 2 + acc_y ** 2 + acc_z ** 2);
 
         const data = {
-            timestamp : new Date().toISOString(),
-            acc_x     : parseFloat(acc_x.toFixed(6)),
-            acc_y     : parseFloat(acc_y.toFixed(6)),
-            acc_z     : parseFloat(acc_z.toFixed(6)),
-            magnitude : parseFloat(magnitude.toFixed(6)),
+            timestamp   : new Date().toISOString(),
+            acc_x       : parseFloat(acc_x.toFixed(6)),
+            acc_y       : parseFloat(acc_y.toFixed(6)),
+            acc_z       : parseFloat(acc_z.toFixed(6)),
+            magnitude   : parseFloat(magnitude.toFixed(6)),
+            interval_ms : event.interval || null,   // actual OS sampling interval
         };
 
         if (_onData) _onData(data);
