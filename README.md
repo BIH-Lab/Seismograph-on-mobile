@@ -34,6 +34,35 @@
 
 ---
 
+## CSV 데이터 포맷 (Activity 2)
+
+측정 후 다운로드되는 CSV 파일의 구조입니다.
+
+```
+# station_id: STN-01
+# latitude: 37.491234
+# longitude: 127.012345
+# accuracy: 12m
+# sample_rate: 100 Hz
+timestamp,acc_z
+2026-03-09T10:00:00.123Z,0.003421
+2026-03-09T10:00:00.133Z,-0.001205
+...
+```
+
+| 항목 | 설명 |
+|------|------|
+| `# station_id` | 관측소 번호 (첫 화면에서 입력, localStorage 저장) |
+| `# latitude` / `# longitude` | GPS 위도·경도 (측정 시작 시 1회 고정) |
+| `# accuracy` | GPS 수평 정확도 (단위: m) |
+| `# sample_rate` | 실제 샘플링 레이트 (측정 종료 시 재계산) |
+| `timestamp` | ISO 8601 UTC 타임스탬프 |
+| `acc_z` | Z축 가속도 변화량 (단위: m/s², 기준값 대비 Δ) |
+
+> 향후 SAC 비교 시 `channel: HNZ`, `unit: m/s2` 메타데이터 추가 예정 (Activity 3 시점)
+
+---
+
 ## 기술 스택
 
 - **Vanilla JS** — 빌드 도구 없는 단일 파일 구조

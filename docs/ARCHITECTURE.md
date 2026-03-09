@@ -95,8 +95,24 @@ project-root/
 ```
 역할  : 수집된 데이터 메모리 저장 및 CSV 변환/다운로드
 특이  : 첫 번째 row의 키를 자동으로 CSV 컬럼으로 사용 (범용)
-현황  : Activity 2에서 사용 중 (데이터 컬럼: timestamp, acc_z)
-        메타데이터: station_id, latitude, longitude, accuracy, sample_rate
+현황  : Activity 2에서 사용 중
+
+CSV 포맷:
+  메타데이터 헤더 (# key: value 형식, 파일 상단):
+    # station_id   : 관측소 번호 (localStorage 저장값)
+    # latitude     : GPS 위도 (소수점 6자리)
+    # longitude    : GPS 경도 (소수점 6자리)
+    # accuracy     : GPS 수평 정확도 (단위 m)
+    # sample_rate  : 실제 샘플링 레이트 (측정 종료 시 재계산, 단위 Hz)
+  데이터 컬럼:
+    timestamp      : ISO 8601 UTC (예: 2026-03-09T10:00:00.123Z)
+    acc_z          : Z축 가속도 변화량 (단위 m/s², 캘리브레이션 기준값 대비 Δ)
+
+  SAC 헤더 대응:
+    station_id → KSTNM,  latitude → STLA,  longitude → STLO
+    sample_rate(Hz) → 1/DELTA,  timestamp → 참조 시각
+    * channel(KCMPNM: HNZ), unit(IDEP: m/s²) — Activity 3 시점에 추가 예정
+
 다운로드 우선순위:
   모바일(Android/iOS): 1. Web Share API — 공유 시트  2. <a download> — 폴백
   데스크톱:           1. showSaveFilePicker — 저장 위치 선택  2. Web Share API  3. <a download>
