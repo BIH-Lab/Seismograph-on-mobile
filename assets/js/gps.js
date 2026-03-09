@@ -37,7 +37,7 @@ const GpsModule = (() => {
                         : 'GPS 위치를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.';
                     reject(new Error(msg));
                 },
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
             );
         });
     }
