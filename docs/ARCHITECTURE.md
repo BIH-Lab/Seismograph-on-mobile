@@ -44,7 +44,8 @@ project-root/
 - GitHub 링크, 사용법 버튼 포함
 
 ### activity1/index.html — 지진파 색으로 보기
-- 센서 권한 요청 및 수집 시작/정지/초기화
+- 센서 권한 요청 및 수집 시작/정지
+- 정지 버튼: 센서 중단 + 그래프 초기화 + 초기 상태 복귀
 - 화면 배경색 실시간 변화 (Z축 진폭 → 색상 매핑)
 - Z축 실시간 파형 표시 (슬라이딩 윈도우 10초)
 - CSV 다운로드 없음 (시각화 확인 목적)
@@ -53,10 +54,10 @@ project-root/
 - GPS 권한 요청 → 위도·경도 1회 고정
 - 센서 캘리브레이션 후 Z축 가속도 실시간 수집
 - Z축 파형 그래프 + GPS 좌표 화면 표시
+- 정지 버튼: 센서 중단 + 그래프 초기화 + CSV 다운로드 버튼 표시
 - CSV 다운로드 (timestamp, latitude, longitude, acc_z)
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
-- 시작/정지/초기화 버튼 (초기화: 센서·그래프·GPS·데이터 전체 리셋)
 - 스펙트로그램 패널 추가 예정 (실시간 FFT)
 
 ---
@@ -94,9 +95,8 @@ project-root/
 특이  : 첫 번째 row의 키를 자동으로 CSV 컬럼으로 사용 (범용)
 현황  : Activity 2에서 사용 중 (timestamp, latitude, longitude, acc_z)
 다운로드 우선순위:
-  1. File System Access API (showSaveFilePicker) — 저장 위치 선택
-  2. Web Share API — iOS/Android 공유 시트
-  3. <a download> — 폴백
+  모바일(Android/iOS): 1. Web Share API — 공유 시트  2. <a download> — 폴백
+  데스크톱:           1. showSaveFilePicker — 저장 위치 선택  2. Web Share API  3. <a download>
 ```
 
 ---

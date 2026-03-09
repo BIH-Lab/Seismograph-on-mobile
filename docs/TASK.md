@@ -40,7 +40,7 @@
 - [x] 다운로드 버튼 (측정 정지 후 활성화)
 
 ### 6단계 : UX 개선 및 테스트
-- [x] 초기화(리셋) 버튼 추가 — 모든 Activity 공통 (센서 중단, 그래프·GPS·데이터 초기화)
+- [x] 정지 버튼에 초기화 통합 — 별도 버튼 없이 정지 클릭 시 센서 중단 + 그래프 초기화
 - [x] Android 모바일에서 CSV 다운로드 방식 개선 (showSaveFilePicker → Web Share API 우선)
 - [ ] Android Chrome 테스트
 - [ ] iOS Safari 테스트
