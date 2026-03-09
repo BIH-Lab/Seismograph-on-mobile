@@ -32,7 +32,6 @@
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
             <button class="btn btn--danger btn--lg" id="stop-btn" hidden>측정 정지</button>
             <button class="btn btn--ghost btn--lg" id="download-btn" hidden>CSV 다운로드</button>
-            <button class="btn btn--ghost btn--lg" id="reset-btn" hidden>초기화</button>
         </div>
 
         <!-- 상태 메시지 -->
@@ -49,7 +48,6 @@
         const startBtn    = document.getElementById('start-btn');
         const stopBtn     = document.getElementById('stop-btn');
         const downloadBtn = document.getElementById('download-btn');
-        const resetBtn    = document.getElementById('reset-btn');
         const statusMsg   = document.getElementById('status-msg');
         const gpsLat      = document.getElementById('gps-lat');
         const gpsLng      = document.getElementById('gps-lng');
@@ -58,7 +56,6 @@
         startBtn.addEventListener('click', () => {
             startBtn.hidden      = true;
             downloadBtn.hidden   = true;
-            resetBtn.hidden      = false;
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
 
@@ -83,8 +80,8 @@
                         },
                         (msg) => {
                             statusMsg.textContent = '오류: ' + msg;
-                            startBtn.hidden = false;
                             stopBtn.hidden  = true;
+                            startBtn.hidden = false;
                         },
                         (state) => {
                             if (state === 'calibrating') {
@@ -101,12 +98,13 @@
                 .catch((err) => {
                     statusMsg.textContent = '⚠️ ' + err.message;
                     startBtn.hidden = false;
-                    resetBtn.hidden = true;
                 });
         });
 
+        // 정지 = 센서 중단 + 그래프 초기화 + 다운로드 버튼 표시
         stopBtn.addEventListener('click', () => {
             SensorModule.stop();
+            if (typeof VisualModule !== 'undefined') VisualModule.reset();
             stopBtn.hidden     = true;
             startBtn.hidden    = false;
             downloadBtn.hidden = false;
@@ -115,20 +113,6 @@
 
         downloadBtn.addEventListener('click', () => {
             ExportModule.download();
-        });
-
-        resetBtn.addEventListener('click', () => {
-            SensorModule.stop();
-            if (typeof VisualModule !== 'undefined') VisualModule.reset();
-            ExportModule.clear();
-            gpsLat.textContent = '—';
-            gpsLng.textContent = '—';
-            gpsAcc.textContent = '';
-            resetBtn.hidden    = true;
-            stopBtn.hidden     = true;
-            downloadBtn.hidden = true;
-            startBtn.hidden    = false;
-            statusMsg.textContent = '버튼을 눌러 GPS 및 센서 권한을 요청하세요.';
         });
     </script>
 
