@@ -45,8 +45,19 @@
         const stopBtn   = document.getElementById('stop-btn');
         const statusMsg = document.getElementById('status-msg');
 
+        // false = 측정 정지 모드, true = 초기화 모드
+        let _pendingReset = false;
+
+        function _resetStopBtn() {
+            stopBtn.textContent = '측정 정지';
+            stopBtn.className   = 'btn btn--danger btn--lg';
+            _pendingReset       = false;
+        }
+
         startBtn.addEventListener('click', () => {
             startBtn.hidden = true;
+            stopBtn.hidden  = true;
+            _resetStopBtn();
             statusMsg.textContent = '측정 중...';
 
             SensorModule.start(
@@ -57,6 +68,7 @@
                     statusMsg.textContent = '오류: ' + msg;
                     stopBtn.hidden  = true;
                     startBtn.hidden = false;
+                    _resetStopBtn();
                 },
                 (state) => {
                     if (state === 'calibrating') {
@@ -71,13 +83,23 @@
             );
         });
 
-        // 정지 = 센서 중단 + 전체 초기화
         stopBtn.addEventListener('click', () => {
-            SensorModule.stop();
-            if (typeof VisualModule !== 'undefined') VisualModule.reset();
-            stopBtn.hidden  = true;
-            startBtn.hidden = false;
-            statusMsg.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
+            if (!_pendingReset) {
+                // 1차 클릭: 측정 정지 — 그래프 유지
+                SensorModule.stop();
+                _pendingReset       = true;
+                stopBtn.textContent = '초기화';
+                stopBtn.className   = 'btn btn--ghost btn--lg';
+                startBtn.hidden     = false;
+                statusMsg.textContent = '측정 정지됨. 초기화하려면 초기화 버튼을 누르세요.';
+            } else {
+                // 2차 클릭: 초기화 — 그래프 리셋
+                if (typeof VisualModule !== 'undefined') VisualModule.reset();
+                stopBtn.hidden  = true;
+                startBtn.hidden = false;
+                _resetStopBtn();
+                statusMsg.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
+            }
         });
     </script>
 

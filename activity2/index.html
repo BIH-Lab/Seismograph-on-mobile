@@ -53,9 +53,20 @@
         const gpsLng      = document.getElementById('gps-lng');
         const gpsAcc      = document.getElementById('gps-acc');
 
+        // false = 측정 정지 모드, true = 초기화 모드
+        let _pendingReset = false;
+
+        function _resetStopBtn() {
+            stopBtn.textContent = '측정 정지';
+            stopBtn.className   = 'btn btn--danger btn--lg';
+            _pendingReset       = false;
+        }
+
         startBtn.addEventListener('click', () => {
             startBtn.hidden      = true;
+            stopBtn.hidden       = true;
             downloadBtn.hidden   = true;
+            _resetStopBtn();
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
 
@@ -82,6 +93,7 @@
                             statusMsg.textContent = '오류: ' + msg;
                             stopBtn.hidden  = true;
                             startBtn.hidden = false;
+                            _resetStopBtn();
                         },
                         (state) => {
                             if (state === 'calibrating') {
@@ -101,14 +113,29 @@
                 });
         });
 
-        // 정지 = 센서 중단 + 그래프 초기화 + 다운로드 버튼 표시
         stopBtn.addEventListener('click', () => {
-            SensorModule.stop();
-            if (typeof VisualModule !== 'undefined') VisualModule.reset();
-            stopBtn.hidden     = true;
-            startBtn.hidden    = false;
-            downloadBtn.hidden = false;
-            statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨.`;
+            if (!_pendingReset) {
+                // 1차 클릭: 측정 정지 — 그래프 유지, 다운로드 버튼 표시
+                SensorModule.stop();
+                _pendingReset       = true;
+                stopBtn.textContent = '초기화';
+                stopBtn.className   = 'btn btn--ghost btn--lg';
+                startBtn.hidden     = false;
+                downloadBtn.hidden  = false;
+                statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨.`;
+            } else {
+                // 2차 클릭: 초기화 — 그래프·GPS·데이터 리셋
+                if (typeof VisualModule !== 'undefined') VisualModule.reset();
+                ExportModule.clear();
+                gpsLat.textContent = '—';
+                gpsLng.textContent = '—';
+                gpsAcc.textContent = '';
+                stopBtn.hidden     = true;
+                downloadBtn.hidden = true;
+                startBtn.hidden    = false;
+                _resetStopBtn();
+                statusMsg.textContent = '버튼을 눌러 GPS 및 센서 권한을 요청하세요.';
+            }
         });
 
         downloadBtn.addEventListener('click', () => {
