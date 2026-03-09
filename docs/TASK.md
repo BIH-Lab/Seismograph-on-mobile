@@ -40,8 +40,11 @@
 - [x] 다운로드 버튼 (측정 정지 후 활성화)
 
 ### 6단계 : UX 개선 및 테스트
-- [x] 정지 버튼에 초기화 통합 — 별도 버튼 없이 정지 클릭 시 센서 중단 + 그래프 초기화
+- [x] 정지 버튼에 초기화 통합 — 1차 클릭: 정지+그래프 유지, 2차 클릭: 초기화
 - [x] Android 모바일에서 CSV 다운로드 방식 개선 (showSaveFilePicker → Web Share API 우선)
+- [x] CSV 포맷 개선 — GPS 좌표를 메타데이터 헤더(# key: value)로 이동, 데이터 행 경량화
+- [x] 관측소 번호(station_id) 입력 — index.html에 입력 바 추가, localStorage 저장
+- [x] activity2에서 station_id를 CSV 메타데이터에 자동 포함
 - [ ] Android Chrome 테스트
 - [ ] iOS Safari 테스트
 - [ ] GPS 권한 요청 동작 확인

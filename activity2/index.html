@@ -73,6 +73,10 @@
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
 
+            // Include station ID from localStorage if set
+            const stationId = localStorage.getItem('station_id');
+            if (stationId) ExportModule.setMeta({ station_id: stationId });
+
             // 1. GPS 취득 → 2. 센서 시작
             GpsModule.get()
                 .then((coords) => {

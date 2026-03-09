@@ -39,6 +39,7 @@ project-root/
 
 ### index.html — 목차 페이지
 - 플랫폼 소개 및 제작 의도 표시
+- 관측소 번호 입력 바: 텍스트 입력 → localStorage 저장/불러오기
 - 각 Activity를 카드 형태로 나열
 - 완성된 Activity는 활성화, 미완성은 "준비중" 표시
 - GitHub 링크, 사용법 버튼 포함
@@ -55,7 +56,8 @@ project-root/
 - 센서 캘리브레이션 후 Z축 가속도 실시간 수집
 - Z축 파형 그래프 + GPS 좌표 화면 표시
 - 정지 버튼: 센서 중단 + 그래프 초기화 + CSV 다운로드 버튼 표시
-- CSV 다운로드 (timestamp, latitude, longitude, acc_z)
+- CSV 다운로드 (timestamp, acc_z)
+  - 메타데이터 헤더(# key: value): station_id, latitude, longitude, accuracy, sample_rate
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
 - 스펙트로그램 패널 추가 예정 (실시간 FFT)
@@ -93,7 +95,8 @@ project-root/
 ```
 역할  : 수집된 데이터 메모리 저장 및 CSV 변환/다운로드
 특이  : 첫 번째 row의 키를 자동으로 CSV 컬럼으로 사용 (범용)
-현황  : Activity 2에서 사용 중 (timestamp, latitude, longitude, acc_z)
+현황  : Activity 2에서 사용 중 (데이터 컬럼: timestamp, acc_z)
+        메타데이터: station_id, latitude, longitude, accuracy, sample_rate
 다운로드 우선순위:
   모바일(Android/iOS): 1. Web Share API — 공유 시트  2. <a download> — 폴백
   데스크톱:           1. showSaveFilePicker — 저장 위치 선택  2. Web Share API  3. <a download>

@@ -13,6 +13,15 @@
         <p class="subtitle">스마트폰 하나로 지진동을 측정하고 분석하는 웹 플랫폼</p>
     </header>
 
+    <!-- 관측소 번호 입력 -->
+    <div class="station-bar">
+        <label class="station-bar__label" for="station-input">관측소 번호</label>
+        <input class="station-bar__input" id="station-input" type="text"
+               maxlength="20" placeholder="예: STN-01">
+        <button class="btn btn--primary btn--sm" id="station-save-btn">저장</button>
+        <span class="station-bar__status" id="station-status"></span>
+    </div>
+
     <main class="activity-grid">
 
         <!-- Activity 1 : 활성화 -->
@@ -85,6 +94,33 @@
         howToBtn.addEventListener('click', () => { modal.hidden = false; });
         closeBtn.addEventListener('click', () => { modal.hidden = true; });
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+        // ── Station ID ────────────────────────────────────────────
+        const stationInput  = document.getElementById('station-input');
+        const stationSaveBtn = document.getElementById('station-save-btn');
+        const stationStatus = document.getElementById('station-status');
+
+        // Load saved value on page load
+        const saved = localStorage.getItem('station_id');
+        if (saved) stationInput.value = saved;
+
+        stationSaveBtn.addEventListener('click', () => {
+            const val = stationInput.value.trim();
+            if (!val) {
+                stationStatus.textContent = '번호를 입력해주세요.';
+                stationStatus.style.color = 'var(--danger)';
+                return;
+            }
+            localStorage.setItem('station_id', val);
+            stationStatus.textContent = '저장되었습니다.';
+            stationStatus.style.color = 'var(--primary)';
+            setTimeout(() => { stationStatus.textContent = ''; }, 2000);
+        });
+
+        // Save on Enter key
+        stationInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') stationSaveBtn.click();
+        });
     </script>
 
 </body>

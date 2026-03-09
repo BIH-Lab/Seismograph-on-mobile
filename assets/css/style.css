@@ -70,6 +70,40 @@ html, body {
     line-height: 1.5;
 }
 
+/* 관측소 번호 입력 바 */
+.station-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 12px var(--gap);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.station-bar__label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+.station-bar__input {
+    flex: 1;
+    min-width: 80px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    color: var(--text);
+    font-size: 0.92rem;
+    padding: 6px 14px;
+    outline: none;
+}
+.station-bar__input:focus { border-color: var(--primary); }
+.station-bar__status {
+    font-size: 0.8rem;
+    min-width: 80px;
+}
+
 .activity-grid {
     display: flex;
     flex-direction: column;
