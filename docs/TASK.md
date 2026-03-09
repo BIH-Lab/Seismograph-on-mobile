@@ -45,10 +45,10 @@
 - [x] CSV 포맷 개선 — GPS 좌표를 메타데이터 헤더(# key: value)로 이동, 데이터 행 경량화
 - [x] 관측소 번호(station_id) 입력 — index.html에 입력 바 추가, localStorage 저장
 - [x] activity2에서 station_id를 CSV 메타데이터에 자동 포함
-- [ ] Android Chrome 테스트
-- [ ] iOS Safari 테스트
-- [ ] GPS 권한 요청 동작 확인
-- [ ] CSV 다운로드 동작 확인
+- [x] Android Chrome 테스트
+- [x] iOS Safari 테스트
+- [x] GPS 권한 요청 동작 확인
+- [x] CSV 다운로드 동작 확인
 - [x] GitHub Pages 배포
 
 ---
