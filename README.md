@@ -108,6 +108,12 @@ Seismograph-on-mobile/
 
 ---
 
+## 커뮤니티
+
+사용 후기, 활용 사례, 아이디어는 **[GitHub Discussions](https://github.com/BIH-Lab/Seismograph-on-mobile/discussions)** 에서 공유해주세요.
+
+---
+
 ## 참고
 
 - [AstroHopper](https://artyom-beilis.github.io/astrohopper.html) — 단일 HTML 기반 웹앱 구조 참고
