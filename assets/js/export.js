@@ -37,9 +37,10 @@ const ExportModule = (() => {
         const csvContent = header + body;
         const filename   = _filename();
 
-        // ── 1순위: File System Access API — "다른 이름으로 저장" 다이얼로그
-        //    Chrome/Edge (Desktop + Android) 지원
-        if (window.showSaveFilePicker) {
+        // ── 1순위: File System Access API — 데스크톱 전용
+        //    모바일에서는 Web Share API가 더 안정적이므로 건너뜀
+        const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+        if (!isMobile && window.showSaveFilePicker) {
             window.showSaveFilePicker({
                 suggestedName: filename,
                 types: [{ description: 'CSV 파일', accept: { 'text/csv': ['.csv'] } }],

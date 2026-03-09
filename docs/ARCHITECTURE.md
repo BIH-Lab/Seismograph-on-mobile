@@ -44,7 +44,7 @@ project-root/
 - GitHub 링크, 사용법 버튼 포함
 
 ### activity1/index.html — 지진파 색으로 보기
-- 센서 권한 요청 및 수집 시작/정지
+- 센서 권한 요청 및 수집 시작/정지/초기화
 - 화면 배경색 실시간 변화 (Z축 진폭 → 색상 매핑)
 - Z축 실시간 파형 표시 (슬라이딩 윈도우 10초)
 - CSV 다운로드 없음 (시각화 확인 목적)
@@ -54,6 +54,9 @@ project-root/
 - 센서 캘리브레이션 후 Z축 가속도 실시간 수집
 - Z축 파형 그래프 + GPS 좌표 화면 표시
 - CSV 다운로드 (timestamp, latitude, longitude, acc_z)
+  - 모바일: Web Share API → `<a download>` 폴백
+  - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
+- 시작/정지/초기화 버튼 (초기화: 센서·그래프·GPS·데이터 전체 리셋)
 - 스펙트로그램 패널 추가 예정 (실시간 FFT)
 
 ---
