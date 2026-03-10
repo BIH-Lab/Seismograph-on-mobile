@@ -240,7 +240,10 @@
 
             SensorModule.start(
                 (data) => {
-                    if (data.interval_ms > 0) _sr = Math.round(1000 / data.interval_ms);
+                    if (data.interval_ms > 0) {
+                        const sr = Math.round(1000 / data.interval_ms);
+                        if (sr >= 50 && sr <= 250) _sr = sr;  // 비현실적 값(Firefox Android 버그 등) 무시
+                    }
                     VisualModule.update(data);
                     SpectrogramModule.push(data.acc_z, _sr);
                 },
