@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>주파수 분석 (스펙트로그램)</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="activity-page" id="activity-body">
+
+    <header class="activity-header">
+        <a href="../" class="btn btn--ghost btn--sm">← 목록</a>
+        <h1>주파수 분석 (스펙트로그램)</h1>
+    </header>
+
+    <!-- 모드 탭 -->
+    <div class="mode-tabs">
+        <button class="mode-tabs__btn mode-tabs__btn--active" id="tab-sensor">센서 측정</button>
+        <button class="mode-tabs__btn" id="tab-file">파일 선택</button>
+    </div>
+
+    <main class="activity-main" style="justify-content: flex-start; gap: 10px; padding-top: 10px;">
+
+        <!-- ── 센서 모드 패널 ─────────────────────────────── -->
+        <div id="panel-sensor">
+
+            <!-- 파형 그래프 -->
+            <div class="chart-wrapper" style="height: 20vh; max-height: 150px;">
+                <canvas id="waveChart"></canvas>
+            </div>
+
+            <!-- 스펙트로그램 -->
+            <div class="spectrogram-panel">
+                <canvas id="spectroChart"></canvas>
+                <div class="spectrogram-freq-overlay">
+                    <span>25Hz</span>
+                    <span>20Hz</span>
+                    <span>15Hz</span>
+                    <span>10Hz</span>
+                    <span>5Hz</span>
+                    <span>0Hz</span>
+                </div>
+            </div>
+
+            <!-- 컨트롤 -->
+            <div class="controls">
+                <button class="btn btn--primary btn--lg" id="sensor-start-btn">측정 시작</button>
+                <button class="btn btn--danger btn--lg" id="sensor-stop-btn" hidden>측정 정지</button>
+                <button class="btn btn--ghost btn--lg" id="sensor-reset-btn" hidden>초기화</button>
+            </div>
+            <p class="status-msg" id="sensor-status">버튼을 눌러 센서 권한을 요청하세요.</p>
+
+        </div>
+
+        <!-- ── 파일 선택 모드 패널 ─────────────────────────── -->
+        <div id="panel-file" hidden>
+
+            <!-- 드롭존 (파일 미로드 시) -->
+            <div class="drop-zone" id="drop-zone">
+                <p class="drop-zone__text">CSV 파일을 여기에 드래그하거나</p>
+                <label class="btn btn--primary" for="file-input">파일 선택</label>
+                <input type="file" id="file-input" accept=".csv" style="display:none;">
+            </div>
+
+            <!-- 파일 정보 (로드 후) -->
+            <div class="csv-file-info" id="csv-file-info" hidden>
+                <span id="csv-filename">—</span>
+                <span id="csv-duration">—</span>
+                <span id="csv-sr">—</span>
+            </div>
+
+            <!-- 스펙트로그램 (파일 모드 전용 캔버스) -->
+            <div class="spectrogram-panel" id="file-spectro-panel" hidden>
+                <canvas id="fileSpectroChart"></canvas>
+                <div class="spectrogram-freq-overlay">
+                    <span>25Hz</span>
+                    <span>20Hz</span>
+                    <span>15Hz</span>
+                    <span>10Hz</span>
+                    <span>5Hz</span>
+                    <span>0Hz</span>
+                </div>
+            </div>
+
+            <!-- 컨트롤 -->
+            <div class="controls" id="file-controls" hidden>
+                <button class="btn btn--primary btn--lg" id="file-play-btn">분석 시작</button>
+                <button class="btn btn--ghost btn--lg" id="file-reset-btn" hidden>초기화</button>
+            </div>
+            <p class="status-msg" id="file-status">CSV 파일을 선택하면 주파수 분석을 시작합니다.</p>
+
+        </div>
+
+    </main>
+
+    <script src="../assets/js/sensor.js"></script>
+    <script src="../assets/js/visual.js"></script>
+    <script src="../assets/js/spectrogram.js"></script>
+
+    <script>
+        // ── FFT constants (must match spectrogram.js) ──────────────
+        const FFT_SIZE = 256;
+        const HOP_SIZE = 26;
+        const MAX_FREQ = 25;
+        const LOG_MIN  = -4;
+        const LOG_MAX  =  0;
+        const ANIM_SEC = 7;
+
+        // ── Hann window (precomputed) ──────────────────────────────
+        const HANN = new Float32Array(FFT_SIZE);
+        for (let i = 0; i < FFT_SIZE; i++)
+            HANN[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+
+        // ── Viridis-style LUT (must match spectrogram.js) ──────────
+        const LUT = (() => {
+            const stops = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+            const lut = new Uint8Array(256 * 3);
+            for (let i = 0; i < 256; i++) {
+                const t = i / 255, r = t * 4;
+                const lo = Math.floor(r), hi = Math.min(lo + 1, 4), f = r - lo;
+                lut[i*3]   = Math.round(stops[lo][0] + f*(stops[hi][0]-stops[lo][0]));
+                lut[i*3+1] = Math.round(stops[lo][1] + f*(stops[hi][1]-stops[lo][1]));
+                lut[i*3+2] = Math.round(stops[lo][2] + f*(stops[hi][2]-stops[lo][2]));
+            }
+            return lut;
+        })();
+
+        // ── Cooley-Tukey FFT (duplicate for precompute, avoids module coupling) ──
+        function _fft(re, im) {
+            const N = re.length;
+            for (let i = 1, j = 0; i < N; i++) {
+                let bit = N >> 1;
+                for (; j & bit; bit >>= 1) j ^= bit;
+                j ^= bit;
+                if (i < j) {
+                    [re[i], re[j]] = [re[j], re[i]];
+                    [im[i], im[j]] = [im[j], im[i]];
+                }
+            }
+            for (let len = 2; len <= N; len <<= 1) {
+                const theta = -2 * Math.PI / len;
+                const wRe = Math.cos(theta), wIm = Math.sin(theta);
+                const half = len >> 1;
+                for (let i = 0; i < N; i += len) {
+                    let uRe = 1, uIm = 0;
+                    for (let k = 0; k < half; k++) {
+                        const aRe = re[i+k], aIm = im[i+k];
+                        const tRe = uRe*re[i+k+half] - uIm*im[i+k+half];
+                        const tIm = uRe*im[i+k+half] + uIm*re[i+k+half];
+                        re[i+k] = aRe+tRe; im[i+k] = aIm+tIm;
+                        re[i+k+half] = aRe-tRe; im[i+k+half] = aIm-tIm;
+                        const nRe = uRe*wRe - uIm*wIm;
+                        uIm = uRe*wIm + uIm*wRe; uRe = nRe;
+                    }
+                }
+            }
+        }
+
+        // ── Compute one pixel column from a Float32Array window ────
+        function computeColumn(samples, sr, canvasH) {
+            const re = new Float32Array(FFT_SIZE);
+            const im = new Float32Array(FFT_SIZE);
+            for (let i = 0; i < FFT_SIZE; i++) re[i] = samples[i] * HANN[i];
+            _fft(re, im);
+            const nyq    = sr / 2;
+            const topBin = Math.min(FFT_SIZE / 2, Math.ceil(MAX_FREQ / nyq * (FFT_SIZE / 2)));
+            const col    = new Uint8ClampedArray(canvasH * 4);
+            for (let y = 0; y < canvasH; y++) {
+                const bin  = Math.floor((1 - (y + 0.5) / canvasH) * topBin);
+                const amp  = Math.sqrt(re[bin] ** 2 + im[bin] ** 2) / (FFT_SIZE / 2);
+                const logA = amp > 1e-9 ? Math.log10(amp) : LOG_MIN;
+                const t    = Math.max(0, Math.min(1, (logA - LOG_MIN) / (LOG_MAX - LOG_MIN)));
+                const ci   = Math.round(t * 255);
+                col[y*4]   = LUT[ci*3]; col[y*4+1] = LUT[ci*3+1];
+                col[y*4+2] = LUT[ci*3+2]; col[y*4+3] = 255;
+            }
+            return col;
+        }
+
+        // ── CSV parser ─────────────────────────────────────────────
+        function parseCSV(text) {
+            const meta = {}, rows = [];
+            let keys = null;
+            for (const raw of text.split('\n')) {
+                const line = raw.trim();
+                if (!line) continue;
+                if (line.startsWith('#')) {
+                    const m = line.slice(1).trim().match(/^(\w+)\s*:\s*(.+)$/);
+                    if (m) meta[m[1]] = m[2].trim();
+                } else if (!keys) {
+                    keys = line.split(',');
+                } else {
+                    const vals = line.split(',');
+                    if (vals.length < keys.length) continue;
+                    const row = {};
+                    keys.forEach((k, i) => { row[k] = vals[i]; });
+                    rows.push(row);
+                }
+            }
+            // Parse sample_rate from "100 Hz" or "100"
+            let sr = meta.sample_rate ? parseInt(meta.sample_rate) : null;
+            if (!sr && rows.length >= 2) {
+                const dt = new Date(rows[1].timestamp) - new Date(rows[0].timestamp);
+                if (dt > 0) sr = Math.round(1000 / dt);
+            }
+            return { meta, rows, sr: sr || 100 };
+        }
+
+        // ── Format seconds as M:SS ─────────────────────────────────
+        function fmtTime(sec) {
+            const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // SENSOR MODE
+        // ═══════════════════════════════════════════════════════════
+        const sensorStartBtn = document.getElementById('sensor-start-btn');
+        const sensorStopBtn  = document.getElementById('sensor-stop-btn');
+        const sensorResetBtn = document.getElementById('sensor-reset-btn');
+        const sensorStatus   = document.getElementById('sensor-status');
+        let _sr = 100;
+
+        sensorStartBtn.addEventListener('click', () => {
+            sensorStartBtn.hidden = true;
+            sensorStopBtn.hidden  = true;
+            sensorResetBtn.hidden = true;
+            sensorStatus.textContent = '센서 권한 요청 중...';
+
+            SensorModule.start(
+                (data) => {
+                    if (data.interval_ms > 0) _sr = Math.round(1000 / data.interval_ms);
+                    VisualModule.update(data);
+                    SpectrogramModule.push(data.acc_z, _sr);
+                },
+                (msg) => {
+                    sensorStatus.textContent = '오류: ' + msg;
+                    sensorStartBtn.hidden = false;
+                },
+                (state) => {
+                    if (state === 'calibrating') {
+                        sensorStatus.textContent = '기준값 설정 중...';
+                    } else if (state === 'ready') {
+                        const spectroCanvas = document.getElementById('spectroChart');
+                        SpectrogramModule.init(spectroCanvas, _sr);
+                        sensorStatus.textContent = '측정 중 — Z축 진동의 주파수를 분석합니다.';
+                        sensorStopBtn.hidden = false;
+                    } else if (state === 'unavailable') {
+                        sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다.';
+                    }
+                }
+            );
+        });
+
+        sensorStopBtn.addEventListener('click', () => {
+            SensorModule.stop();
+            sensorStopBtn.hidden  = true;
+            sensorResetBtn.hidden = false;
+            sensorStartBtn.hidden = false;
+            sensorStatus.textContent = '측정 정지됨. 그래프가 유지됩니다.';
+        });
+
+        sensorResetBtn.addEventListener('click', () => {
+            VisualModule.reset();
+            SpectrogramModule.reset();
+            sensorResetBtn.hidden = true;
+            sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // FILE MODE
+        // ═══════════════════════════════════════════════════════════
+        const dropZone      = document.getElementById('drop-zone');
+        const fileInput     = document.getElementById('file-input');
+        const csvFileInfo   = document.getElementById('csv-file-info');
+        const fileSpectroPanel = document.getElementById('file-spectro-panel');
+        const fileControls  = document.getElementById('file-controls');
+        const filePlayBtn   = document.getElementById('file-play-btn');
+        const fileResetBtn  = document.getElementById('file-reset-btn');
+        const fileStatus    = document.getElementById('file-status');
+        const csvFilename   = document.getElementById('csv-filename');
+        const csvDuration   = document.getElementById('csv-duration');
+        const csvSr         = document.getElementById('csv-sr');
+
+        let _csvRows = null;
+        let _csvSr   = 100;
+        let _animRaf = null;
+
+        // Drag & drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drop-zone--hover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drop-zone--hover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone--hover');
+            const file = e.dataTransfer.files[0];
+            if (file) loadFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) loadFile(e.target.files[0]);
+        });
+
+        function loadFile(file) {
+            fileStatus.textContent = '파일 읽는 중...';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const { meta, rows, sr } = parseCSV(e.target.result);
+                if (rows.length === 0) {
+                    fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.';
+                    return;
+                }
+                _csvRows = rows;
+                _csvSr   = sr;
+
+                // Show file info
+                const durSec = rows.length / sr;
+                csvFilename.textContent = file.name;
+                csvDuration.textContent = `${fmtTime(durSec)} (${rows.length.toLocaleString()}샘플)`;
+                csvSr.textContent       = `${sr} Hz`;
+
+                dropZone.hidden        = true;
+                csvFileInfo.hidden     = false;
+                fileSpectroPanel.hidden = false;
+                fileControls.hidden    = false;
+                filePlayBtn.hidden     = false;
+                fileResetBtn.hidden    = true;
+                fileStatus.textContent = '분석 시작 버튼을 눌러 스펙트로그램을 생성합니다.';
+
+                // Init canvas
+                const canvas = document.getElementById('fileSpectroChart');
+                canvas.width  = canvas.clientWidth  || 300;
+                canvas.height = canvas.clientHeight || 150;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            };
+            reader.readAsText(file);
+        }
+
+        filePlayBtn.addEventListener('click', () => {
+            if (!_csvRows) return;
+            filePlayBtn.hidden  = true;
+            fileResetBtn.hidden = true;
+            fileStatus.textContent = '분석 중... (전처리)';
+
+            // Defer precompute to allow UI to update
+            setTimeout(() => {
+                const canvas  = document.getElementById('fileSpectroChart');
+                const ctx     = canvas.getContext('2d');
+                const W       = canvas.width;
+                const H       = canvas.height;
+                const sr      = _csvSr;
+                const rows    = _csvRows;
+
+                // ── 전처리: 모든 FFT 컬럼 계산 ─────────────────
+                const columns = [];
+                for (let i = 0; i + FFT_SIZE <= rows.length; i += HOP_SIZE) {
+                    const samples = new Float32Array(FFT_SIZE);
+                    for (let j = 0; j < FFT_SIZE; j++)
+                        samples[j] = parseFloat(rows[i + j].acc_z) || 0;
+                    columns.push(computeColumn(samples, sr, H));
+                }
+
+                fileStatus.textContent = '애니메이션 중...';
+
+                // ── requestAnimationFrame 애니메이션 ────────────
+                let drawn = 0;
+                const total = columns.length;
+                const start = performance.now();
+                // Off-screen buffer canvas for columns (avoids per-column drawImage flush)
+                // Draw directly: scroll + stamp
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, W, H);
+
+                function frame(now) {
+                    const progress = Math.min((now - start) / (ANIM_SEC * 1000), 1);
+                    const target   = Math.floor(progress * total);
+                    // Batch-draw all pending columns this frame
+                    while (drawn < target) {
+                        ctx.drawImage(canvas, -1, 0);
+                        ctx.putImageData(new ImageData(columns[drawn], 1, H), W - 1, 0);
+                        drawn++;
+                    }
+                    if (progress < 1) {
+                        _animRaf = requestAnimationFrame(frame);
+                    } else {
+                        fileStatus.textContent = '분석 완료.';
+                        fileResetBtn.hidden = false;
+                    }
+                }
+                _animRaf = requestAnimationFrame(frame);
+            }, 30);
+        });
+
+        fileResetBtn.addEventListener('click', () => {
+            if (_animRaf) { cancelAnimationFrame(_animRaf); _animRaf = null; }
+            _csvRows = null;
+
+            // Reset UI
+            dropZone.hidden         = false;
+            csvFileInfo.hidden      = true;
+            fileSpectroPanel.hidden = true;
+            fileControls.hidden     = true;
+            fileInput.value         = '';
+
+            const canvas = document.getElementById('fileSpectroChart');
+            const ctx = canvas.getContext('2d');
+            if (ctx) { ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+            fileStatus.textContent = 'CSV 파일을 선택하면 주파수 분석을 시작합니다.';
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // TAB SWITCHING
+        // ═══════════════════════════════════════════════════════════
+        const tabSensor = document.getElementById('tab-sensor');
+        const tabFile   = document.getElementById('tab-file');
+        const panelSensor = document.getElementById('panel-sensor');
+        const panelFile   = document.getElementById('panel-file');
+
+        function switchTab(mode) {
+            if (mode === 'sensor') {
+                tabSensor.classList.add('mode-tabs__btn--active');
+                tabFile.classList.remove('mode-tabs__btn--active');
+                panelSensor.hidden = false;
+                panelFile.hidden   = true;
+            } else {
+                tabFile.classList.add('mode-tabs__btn--active');
+                tabSensor.classList.remove('mode-tabs__btn--active');
+                panelFile.hidden   = false;
+                panelSensor.hidden = true;
+                // Stop sensor if running
+                if (SensorModule.isRunning()) {
+                    SensorModule.stop();
+                    VisualModule.reset();
+                    SpectrogramModule.reset();
+                    sensorStartBtn.hidden = false;
+                    sensorStopBtn.hidden  = true;
+                    sensorResetBtn.hidden = true;
+                    sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
+                }
+            }
+        }
+
+        tabSensor.addEventListener('click', () => switchTab('sensor'));
+        tabFile.addEventListener('click',   () => switchTab('file'));
+    </script>
+
+</body>
+</html>

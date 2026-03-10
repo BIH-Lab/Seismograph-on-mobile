@@ -5,10 +5,45 @@
 ---
 
 ## 현재 단계
-**Cycle 2 — Activity 2 : 지진파 기록하기**
+**Cycle 3 — Activity 3 : 주파수 분석 (스펙트로그램)**
 
-목표 : GPS 좌표 + 시간별 Z축 가속도를 기록하고
-       CSV로 다운로드할 수 있는 페이지 완성
+목표 : 실시간 FFT로 진동 신호의 주파수 성분을 스펙트로그램으로 시각화
+
+---
+
+## Cycle 3 작업 목록
+
+### 1단계 : spectrogram.js 수정
+- [x] Cooley-Tukey FFT 순수 JS 구현
+- [x] Hann 윈도우 함수 적용
+- [x] Viridis-style 컬러 LUT
+- [x] Canvas 스크롤 렌더링 (push 방식)
+- [x] HOP_SIZE 8 → 26 조정 (ObsPy 기준 90% 오버랩)
+
+### 2단계 : activity3/index.html 전면 재작성
+두 가지 모드 탭:
+- [x] **센서 모드**: 파형 + 스펙트로그램 실시간 표시
+  - [x] 측정 시작/정지/초기화 UX
+- [x] **파일 선택 모드**: CSV 로드 → 전처리 → 7초 애니메이션
+  - [x] 드래그 앤 드롭 (PC) + 파일 선택 버튼 (모바일)
+  - [x] CSV 파서 (# 메타데이터 + 데이터 행)
+  - [x] 전처리: 모든 FFT 컬럼 사전 계산
+  - [x] requestAnimationFrame 고정 7초 애니메이션
+  - [x] 파일 정보 표시 (이름, 길이, 샘플레이트)
+
+### 3단계 : style.css 추가
+- [x] `.mode-tabs` / `.mode-tabs__btn--active`
+- [x] `.drop-zone` / `.drop-zone--hover`
+- [x] `.csv-file-info`
+
+### 4단계 : index.html 카드 활성화
+- [x] Activity 3 카드 `card--disabled` → `card--active`로 변경
+
+### 5단계 : 테스트
+- [ ] PC Chrome 드래그 앤 드롭 테스트
+- [ ] Android Chrome 테스트 (센서 모드 + 파일 선택)
+- [ ] iOS Safari 테스트
+- [ ] GitHub Pages 배포
 
 ---
 
@@ -54,23 +89,20 @@
 ---
 
 ## 완료된 작업
+- Cycle 2 전체 완료 (2026-03-09)
+  - Activity 2: 지진파 기록하기 (GPS + Z축 가속도 + CSV 다운로드)
+  - Android Chrome / iOS Safari 테스트 완료
 - Cycle 1 전체 완료 (2026-03-08)
   - Activity 1: 지진파 색으로 보기 (Z축 진폭 → 배경색, 실시간 그래프)
 
 ---
 
-### 7단계 : 스펙트로그램 (Activity 2 화면에 추가, 테스트 완료 후 진행)
-- [ ] spectrogram.js 모듈 생성 (실시간 FFT → Canvas 렌더링)
-- [ ] activity2/index.html에 스펙트로그램 패널 추가
-- [ ] 주파수 범위 설정 (0~25Hz, 샘플링 레이트 기반 자동 계산)
-- [ ] 진폭 → 색상 매핑 (낮음: 어두운 파랑 → 높음: 노랑/흰색)
-
 ---
 
 ## 다음 Cycle 예정 (지금 건드리지 않음)
-- Cycle 3 : Activity 3 (다중 CSV 드롭 + 신호 비교 + 기본 통계)
-- Cycle 4 : 주시곡선 + GPS 진원 역산
-- Cycle 5 : 실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
+- Cycle 4 : Activity 4 (다중 CSV 드롭 + 신호 비교 + 기본 통계)
+- Cycle 5 : Activity 5 (주시곡선 + GPS 진원 역산)
+- Cycle 6 : 실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
 
 ---
 

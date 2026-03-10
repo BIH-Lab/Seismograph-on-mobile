@@ -8,7 +8,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 2 기준)
+## 전체 파일 구조 (Cycle 3 기준)
 
 ```
 project-root/
@@ -17,6 +17,8 @@ project-root/
 │   └── index.html          # Activity 1 - 지진파 색으로 보기
 ├── activity2/
 │   └── index.html          # Activity 2 - 지진파 기록하기
+├── activity3/
+│   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램)  [Cycle 3]
 ├── assets/
 │   ├── css/
 │   │   └── style.css
@@ -24,7 +26,8 @@ project-root/
 │       ├── sensor.js       # 센서 수집 모듈
 │       ├── visual.js       # 시각화 모듈 (파형 그래프)
 │       ├── gps.js          # GPS 좌표 수집 모듈
-│       └── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
+│       ├── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
+│       └── spectrogram.js  # 스펙트로그램 모듈 (실시간 FFT → Canvas)  [Cycle 3]
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -60,7 +63,12 @@ project-root/
   - 메타데이터 헤더(# key: value): station_id, latitude, longitude, accuracy, sample_rate
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
-- 스펙트로그램 패널 추가 예정 (실시간 FFT)
+### activity3/index.html — 주파수 분석 (스펙트로그램)  [Cycle 3]
+- 센서 권한 요청 및 실시간 수집 (sensor.js 재사용)
+- 실시간 FFT → 스펙트로그램 Canvas 렌더링 (spectrogram.js)
+- 주파수 범위: 0~25 Hz (샘플링 레이트 기반 자동 계산)
+- 진폭 → 색상 매핑 (낮음: 어두운 파랑 → 높음: 노랑/흰색)
+- 파형 그래프 + 스펙트로그램 패널 동시 표시
 
 ---
 
@@ -89,6 +97,17 @@ project-root/
 역할  : GPS 좌표 1회 취득
 출력  : { latitude, longitude, accuracy }
 특이  : HTTPS 필수, 측정 시작 시 좌표 고정 (이동 추적 아님)
+```
+
+### spectrogram.js  [Cycle 3]
+```
+역할  : 실시간 FFT 계산 및 스펙트로그램 Canvas 렌더링
+입력  : 센서 데이터 버퍼 (acc_z 배열)
+출력  : Canvas에 시간-주파수-진폭 2D 컬러맵 그래픽
+알고리즘 : Cooley-Tukey FFT (Vanilla JS 순수 구현)
+주파수 범위 : 0 ~ sr/2 Hz (나이퀴스트), 표시는 0~25Hz
+윈도우 함수 : Hann window (스펙트럼 누설 억제)
+색상 매핑 : 로그 스케일 진폭 → Viridis-style (어두운 파랑 → 노랑/흰색)
 ```
 
 ### export.js
@@ -136,13 +155,16 @@ CSV 포맷:
 ## 향후 Cycle 확장 방향
 
 ```
-Cycle 2 진행 중
-  → activity2 기본 완료 (GPS + Z축 + CSV)
-  → 테스트 후 스펙트로그램(실시간 FFT) activity2에 추가
+Cycle 2 완료
+  → activity2 완료 (GPS + Z축 + CSV, Android Chrome / iOS Safari 테스트 완료)
 
-Cycle 3  →  activity3/ 추가 (다중 CSV 드롭 + 신호 비교 + 기본 통계)
-Cycle 4  →  activity4/ (주시곡선), activity5/ (GPS 진원 찾기)
-Cycle 5  →  실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
+Cycle 3 진행 예정
+  → activity3/ 신규 (실시간 FFT 스펙트로그램)
+  → spectrogram.js 모듈 생성
+
+Cycle 4  →  activity4/ (다중 CSV 드롭 + 신호 비교 + 기본 통계)
+Cycle 5  →  activity5/ (주시곡선 + GPS 진원 역산)
+Cycle 6  →  실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
 ```
 
 ---
