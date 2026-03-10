@@ -389,11 +389,11 @@
                     const progress = Math.min((now - start) / (ANIM_SEC * 1000), 1);
                     const target   = Math.floor(progress * total);
                     while (drawn < target) {
-                        // Scroll spectrogram area down 1px
-                        ctx.save();
-                        ctx.beginPath(); ctx.rect(0, 0, W, DH); ctx.clip();
-                        ctx.drawImage(canvas, 0, 1);
-                        ctx.restore();
+                        // Scroll spectrogram area down 1px (getImageData avoids self-drawImage instability)
+                        if (DH > 1) {
+                            const existing = ctx.getImageData(0, 0, W, DH - 1);
+                            ctx.putImageData(existing, 0, 1);
+                        }
                         // Stamp new row at top
                         ctx.putImageData(new ImageData(wfRows[drawn], W, 1), 0, 0);
 

@@ -164,13 +164,12 @@ const SpectrogramModule = (() => {
         const imgBuf = new Uint8ClampedArray(W * rowH * 4);
         for (let y = 0; y < rowH; y++) imgBuf.set(rowData, y * W * 4);
 
-        // Scroll spectrogram area DOWN, stamp new row at top
-        _ctx.save();
-        _ctx.beginPath();
-        _ctx.rect(0, 0, W, DH);
-        _ctx.clip();
-        _ctx.drawImage(_canvas, 0, rowH);
-        _ctx.restore();
+        // Scroll spectrogram area DOWN using getImageData (avoids self-drawImage instability)
+        if (DH > rowH) {
+            const existing = _ctx.getImageData(0, 0, W, DH - rowH);
+            _ctx.putImageData(existing, 0, rowH);
+        }
+        // Stamp new row at top
         _ctx.putImageData(new ImageData(imgBuf, W, rowH), 0, 0);
 
         // Elapsed-time label every 2 seconds
