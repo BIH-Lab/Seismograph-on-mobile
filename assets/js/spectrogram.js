@@ -139,12 +139,8 @@ const SpectrogramModule = (() => {
         const DH = H - FREQ_AXIS_H;
         if (W < 2 || DH < 2) return;
 
-        // Measured sr from wall-clock (accurate after >5 hops and >500 ms)
-        const elapsedMs  = _initTime !== null ? performance.now() - _initTime : 0;
-        const measuredSr = (_hopTotal > 5 && elapsedMs > 500)
-            ? Math.max(20, Math.min(250, (_hopTotal * HOP_SIZE) / (elapsedMs / 1000)))
-            : _sr;
-        const finalM = (measuredSr * WINDOW_SEC) / HOP_SIZE;
+        // M = frames that fit in WINDOW_SEC at current sample rate
+        const M = (_sr * WINDOW_SEC) / HOP_SIZE;
 
         // Clear spectrogram area
         _ctx.fillStyle = '#0a0a0a';
@@ -153,15 +149,15 @@ const SpectrogramModule = (() => {
         // Draw history: index 0 = newest (top, y=0), oldest at bottom
         // Each entry: { rowData, label } — label scrolls down with its row
         const N = _history.length;
-        // During initial fill (N < finalM), stretch rows to fill canvas so waterfall
-        // is immediately visible. Once N reaches finalM, switch to correct time scale.
-        const M = Math.max(1, Math.min(N, finalM));
+        // During initial fill (N < M), stretch rows to fill canvas so waterfall
+        // is immediately visible. Once N reaches M, correct time scale applies.
+        const displayM = Math.max(1, Math.min(N, M));
         _ctx.fillStyle = 'rgba(255,255,255,0.55)';
         _ctx.font = '9px sans-serif';
         for (let i = 0; i < N; i++) {
             const { rowData, label } = _history[i];
-            const y0 = Math.round(i * DH / M);
-            const y1 = Math.round((i + 1) * DH / M);
+            const y0 = Math.round(i * DH / displayM);
+            const y1 = Math.round((i + 1) * DH / displayM);
             const h  = Math.max(1, y1 - y0);
             if (y0 >= DH) break;
             const imgBuf = new Uint8ClampedArray(W * h * 4);
@@ -239,11 +235,7 @@ const SpectrogramModule = (() => {
 
             _history.unshift({ rowData, label }); // newest first
 
-            // Measured sr from wall-clock (fallback to _sr if not enough data yet)
-            const measuredSr = (_hopTotal > 5 && elapsedMs > 500)
-                ? Math.max(20, Math.min(250, (_hopTotal * HOP_SIZE) / (elapsedMs / 1000)))
-                : _sr;
-            const maxFrames = Math.ceil(measuredSr * WINDOW_SEC / HOP_SIZE) + 1;
+            const maxFrames = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
             if (_history.length > maxFrames) _history.length = maxFrames;
 
             _redrawCanvas();
