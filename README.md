@@ -11,7 +11,7 @@
 
 1. 스마트폰 브라우저로 위 링크에 접속합니다.
    - iOS → **Safari** 권장
-   - Android → **Chrome** 권장
+   - Android → **Firefox** 권장 (Chrome은 센서 정밀도 제한 있음 — [아래 참고](#android-chrome-센서-정밀도-제한))
 2. 첫 화면에서 **관측소 번호**를 입력하고 저장합니다 (CSV 메타데이터에 자동 포함).
 3. Activity 카드를 선택합니다.
 4. **측정 시작** 버튼을 누르고 센서·GPS 권한을 허용합니다.
@@ -113,6 +113,26 @@ Seismograph-on-mobile/
 - [x] Cycle 3 완료 — Activity 3: 주파수 분석 (실시간 FFT 스펙트로그램 + CSV 파일 재생)
 - [ ] Cycle 4 예정 — Activity 4: 신호 비교하기 (다중 CSV 비교·통계)
 - [ ] Cycle 5 예정 — Activity 5: 주시곡선·진원 찾기
+
+---
+
+## Android Chrome 센서 정밀도 제한
+
+Android Chrome은 모든 센서 API(`DeviceMotionEvent` 및 `Generic Sensor API` 포함)에 **개인정보 보호 목적의 반올림 정책**을 적용합니다.
+이로 인해 가속도 값이 0.01 ~ 0.1 m/s² 단위로 양자화되어 지진파 분석에 필요한 정밀도를 얻기 어렵습니다.
+
+| 브라우저 | 가속도 정밀도 | 비고 |
+|----------|--------------|------|
+| iOS Safari | ~9자리 유효숫자 (`-0.005296172` 수준) | Apple이 반올림 정책 미적용 |
+| Android **Firefox** | ~9자리 유효숫자 | Mozilla가 반올림 정책 미적용 ✅ |
+| Android Chrome | ~1~2자리 (`0.17` 수준) | `RoundSensorReading()` 적용 ⚠️ |
+
+Chrome의 반올림은 PWA 설치, COOP/COEP 헤더 등으로 우회할 수 없는 **플랫폼 수준 정책**입니다.
+
+**관련 레퍼런스**
+- [Chromium — `platform_sensor_util.h` (RoundSensorReading 정책)](https://source.chromium.org/chromium/chromium/src/+/main:services/device/public/cpp/generic_sensor/platform_sensor_util.h)
+- [W3C Generic Sensor API — Security and Privacy 고려사항](https://www.w3.org/TR/generic-sensor/#security-and-privacy)
+- [W3C DeviceOrientation Event 명세](https://www.w3.org/TR/orientation-event/)
 
 ---
 

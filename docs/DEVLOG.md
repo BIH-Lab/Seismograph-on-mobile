@@ -146,6 +146,21 @@
 - **결론**: Android Chrome 정밀도 한계는 현재 웹 기술로 해결 불가.
   논문 데이터 수집 시 플랫폼 한계를 명시하고, iOS Safari 결과(9자리)를 주 데이터로 활용 권장.
 
+### [검증] Firefox Android DeviceMotionEvent 정밀도 — Chrome 우회 확인
+
+- **배경**: 위 항목에서 "Firefox Android는 Chrome과 정책이 다를 수 있음(미검증)"이라 기록
+- **검증 결과**: Firefox Android에서 실기기 테스트 수행
+  - Firefox는 `RoundSensorReading()` 정책을 적용하지 않음 → `DeviceMotionEvent`에서도 **9자리 수준 정밀도 확인**
+  - Firefox Android는 Generic Sensor API(`LinearAccelerationSensor`, `Accelerometer`)를 지원하지 않아 `DeviceMotionEvent` 경로를 사용하지만, 반올림 없이 하드웨어 풀 정밀도 제공
+- **결론**: Android에서 고정밀 센서 데이터 수집 시 **Firefox 사용 권장**
+  - iOS Safari / Android Firefox → 9자리 정밀도 (논문 데이터 수집 플랫폼)
+  - Android Chrome → 1~2자리 (데모/교육 목적으로만 사용)
+- **코드 반영**:
+  - `navigator.userAgent.includes('Firefox')` 검사로 상태 메시지 분기
+  - Firefox: `' (DeviceMotionEvent — 고정밀)'`
+  - Chrome/기타: `' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)'`
+- **파일**: `activity1/index.html`, `activity2/index.html`, `activity3/index.html`, `README.md`
+
 ---
 
 ## 기술 결정 기록
@@ -159,6 +174,7 @@
 | FFT overlap | HOP_SIZE=26 (~90%) | ObsPy 기본값 준수 |
 | 스펙트로그램 주파수 상한 | 25 Hz | 건물 진동 신뢰 대역(5~25 Hz) 커버 |
 | 스펙트로그램 LOG 범위 | [-3, -1] | 일상 건물 진동(0.001~0.1 m/s²) 최적화 |
+| Android 권장 브라우저 | **Firefox** | Chrome `RoundSensorReading()` 우회 가능, iOS Safari와 동등한 정밀도 |
 | Android Chrome 센서 정밀도 | ~0.01~0.1 m/s² (플랫폼 한계) | Chrome `RoundSensorReading()` 정책, 웹 기술로 우회 불가 |
 | CSV 소수점 자릿수 | `toFixed(9)` | 고정밀 센서 데이터 최하위 자릿수 보존 (iOS 9자리 활용) |
 | 캘리브레이션 샘플 수 | `CALIB_SAMPLES=100` (1초) | 기동 노이즈 제거, 안정화 시간 확보 |

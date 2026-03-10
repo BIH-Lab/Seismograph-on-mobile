@@ -253,14 +253,15 @@
                             peakFreqDisplay.hidden = false;
                             peakFreqVal.textContent = hz;
                         });
+                        const isFirefox = navigator.userAgent.includes('Firefox');
                         const srcLabel = source === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
                                        : source === 'accel'        ? ' (Accelerometer — 고정밀)'
-                                       : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반 · 0.1 m/s² 한계)'
+                                       : source === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                        : '';
                         sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;
                     } else if (state === 'unavailable') {
-                        sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다.';
+                        sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
                     }
                 }
             );
