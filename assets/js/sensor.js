@@ -83,10 +83,10 @@ const SensorModule = (() => {
 
         const data = {
             timestamp   : new Date().toISOString(),
-            acc_x       : parseFloat(acc_x.toFixed(6)),
-            acc_y       : parseFloat(acc_y.toFixed(6)),
-            acc_z       : parseFloat(acc_z.toFixed(6)),
-            magnitude   : parseFloat(magnitude.toFixed(6)),
+            acc_x       : acc_x,        // raw float64 — full sensor precision preserved
+            acc_y       : acc_y,
+            acc_z       : acc_z,
+            magnitude   : magnitude,
             interval_ms : event.interval || null,   // actual OS sampling interval
         };
 
