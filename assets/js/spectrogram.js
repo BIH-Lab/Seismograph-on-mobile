@@ -15,13 +15,14 @@ const SpectrogramModule = (() => {
     const FFT_SIZE = 256;   // must be power of 2; frequency resolution = sr / FFT_SIZE
     const HOP_SIZE = 26;    // new samples per spectrogram column (~90% overlap, per ObsPy default)
     const MAX_FREQ = 25;    // Hz — display ceiling (Nyquist of 50 Hz minimum sr)
-    const LOG_MIN  = -4;    // log10 amplitude floor  → darkest color (e.g. 0.0001 m/s²)
-    const LOG_MAX  =  0;    // log10 amplitude ceiling → brightest color (e.g. 1 m/s²)
+    const LOG_MIN  = -3;    // log10 amplitude floor  → darkest color (0.001 m/s², building micro-vibration)
+    const LOG_MAX  = -1;    // log10 amplitude ceiling → brightest color (0.1 m/s², typical daily vibration)
 
     // ── State ─────────────────────────────────────────────────────
     let _canvas   = null;
     let _ctx      = null;
     let _sr       = 100;    // estimated sample rate (Hz); updated via push()
+    let _onPeak   = null;   // callback(hz: string) for peak frequency display
     let _buf      = new Float32Array(FFT_SIZE);  // ring buffer of recent samples
     let _head     = 0;      // next write index in ring buffer
     let _hopCount = 0;      // samples accumulated since last FFT
@@ -132,6 +133,17 @@ const SpectrogramModule = (() => {
             colData[y * 4 + 3] = 255;
         }
 
+        // Peak frequency: find bin with max amplitude in the visible range
+        if (_onPeak) {
+            let maxAmp = 0, peakBin = 1;
+            for (let b = 1; b < topBin; b++) {
+                const a = Math.sqrt(re[b] ** 2 + im[b] ** 2);
+                if (a > maxAmp) { maxAmp = a; peakBin = b; }
+            }
+            const peakHz = (peakBin / (FFT_SIZE / 2)) * (_sr / 2);
+            _onPeak(peakHz.toFixed(1));
+        }
+
         // Scroll canvas left by 1 px, then stamp new column at right edge
         _ctx.drawImage(_canvas, -1, 0);
         _ctx.putImageData(new ImageData(colData, 1, H), W - 1, 0);
@@ -145,9 +157,10 @@ const SpectrogramModule = (() => {
      * @param {HTMLCanvasElement} canvasEl
      * @param {number} [sampleRate=100]  Initial sample rate estimate (Hz)
      */
-    function init(canvasEl, sampleRate) {
-        _canvas = canvasEl;
-        _ctx    = canvasEl.getContext('2d');
+    function init(canvasEl, sampleRate, onPeakHz) {
+        _canvas  = canvasEl;
+        _ctx     = canvasEl.getContext('2d');
+        _onPeak  = (typeof onPeakHz === 'function') ? onPeakHz : null;
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
 
         // Fix canvas pixel dimensions to current CSS display size

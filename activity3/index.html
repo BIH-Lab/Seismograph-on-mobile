@@ -42,6 +42,11 @@
                 </div>
             </div>
 
+            <!-- 피크 주파수 표시 -->
+            <div class="peak-freq-display" id="peak-freq-display" hidden>
+                주요 주파수: <span id="peak-freq-val">—</span> Hz
+            </div>
+
             <!-- 컨트롤 -->
             <div class="controls">
                 <button class="btn btn--primary btn--lg" id="sensor-start-btn">측정 시작</button>
@@ -102,8 +107,8 @@
         const FFT_SIZE = 256;
         const HOP_SIZE = 26;
         const MAX_FREQ = 25;
-        const LOG_MIN  = -4;
-        const LOG_MAX  =  0;
+        const LOG_MIN  = -3;
+        const LOG_MAX  = -1;
         const ANIM_SEC = 7;
 
         // ── Hann window (precomputed) ──────────────────────────────
@@ -215,10 +220,12 @@
         // ═══════════════════════════════════════════════════════════
         // SENSOR MODE
         // ═══════════════════════════════════════════════════════════
-        const sensorStartBtn = document.getElementById('sensor-start-btn');
-        const sensorStopBtn  = document.getElementById('sensor-stop-btn');
-        const sensorResetBtn = document.getElementById('sensor-reset-btn');
-        const sensorStatus   = document.getElementById('sensor-status');
+        const sensorStartBtn  = document.getElementById('sensor-start-btn');
+        const sensorStopBtn   = document.getElementById('sensor-stop-btn');
+        const sensorResetBtn  = document.getElementById('sensor-reset-btn');
+        const sensorStatus    = document.getElementById('sensor-status');
+        const peakFreqDisplay = document.getElementById('peak-freq-display');
+        const peakFreqVal     = document.getElementById('peak-freq-val');
         let _sr = 100;
 
         sensorStartBtn.addEventListener('click', () => {
@@ -242,7 +249,10 @@
                         sensorStatus.textContent = '기준값 설정 중...';
                     } else if (state === 'ready') {
                         const spectroCanvas = document.getElementById('spectroChart');
-                        SpectrogramModule.init(spectroCanvas, _sr);
+                        SpectrogramModule.init(spectroCanvas, _sr, (hz) => {
+                            peakFreqDisplay.hidden = false;
+                            peakFreqVal.textContent = hz;
+                        });
                         sensorStatus.textContent = '측정 중 — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;
                     } else if (state === 'unavailable') {
@@ -263,6 +273,8 @@
         sensorResetBtn.addEventListener('click', () => {
             VisualModule.reset();
             SpectrogramModule.reset();
+            peakFreqDisplay.hidden = true;
+            peakFreqVal.textContent = '—';
             sensorResetBtn.hidden = true;
             sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
         });

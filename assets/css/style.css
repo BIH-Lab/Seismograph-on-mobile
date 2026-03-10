@@ -384,3 +384,19 @@ html, body {
     color: var(--text);
     font-weight: 600;
 }
+
+/* ===================================
+   피크 주파수 표시 (activity3)
+=================================== */
+.peak-freq-display {
+    width: 100%;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+    padding: 4px 0;
+}
+.peak-freq-display span {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
