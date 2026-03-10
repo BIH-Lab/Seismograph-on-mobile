@@ -244,7 +244,7 @@
                     sensorStatus.textContent = '오류: ' + msg;
                     sensorStartBtn.hidden = false;
                 },
-                (state) => {
+                (state, source) => {
                     if (state === 'calibrating') {
                         sensorStatus.textContent = '기준값 설정 중...';
                     } else if (state === 'ready') {
@@ -253,7 +253,10 @@
                             peakFreqDisplay.hidden = false;
                             peakFreqVal.textContent = hz;
                         });
-                        sensorStatus.textContent = '측정 중 — Z축 진동의 주파수를 분석합니다.';
+                        const srcLabel = source === 'generic'      ? ' (Generic Sensor API — 고정밀)'
+                                       : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반)'
+                                       : '';
+                        sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;
                     } else if (state === 'unavailable') {
                         sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다.';

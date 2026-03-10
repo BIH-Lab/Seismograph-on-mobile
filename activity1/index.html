@@ -70,11 +70,14 @@
                     startBtn.hidden = false;
                     _resetStopBtn();
                 },
-                (state) => {
+                (state, source) => {
                     if (state === 'calibrating') {
                         statusMsg.textContent = '기준값 설정 중...';
                     } else if (state === 'ready') {
-                        statusMsg.textContent = '측정 중 — 시작 시점 대비 변화량을 표시합니다.';
+                        const srcLabel = source === 'generic'      ? ' (Generic Sensor API — 고정밀)'
+                                       : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반)'
+                                       : '';
+                        statusMsg.textContent = '측정 중' + srcLabel + ' — 시작 시점 대비 변화량을 표시합니다.';
                         stopBtn.hidden = false;
                     } else if (state === 'unavailable') {
                         statusMsg.textContent = '⚠️ 이 기기에서 센서 데이터를 읽을 수 없습니다. Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';

@@ -14,9 +14,10 @@
  */
 
 const SensorModule = (() => {
-    let _onData   = null;
-    let _onStatus = null;
-    let _running  = false;
+    let _onData       = null;
+    let _onStatus     = null;
+    let _running      = false;
+    let _sensorSource = null;   // 'generic' | 'devicemotion' | null
 
     // ── Calibration ───────────────────────────────────────────────
     const CALIB_SAMPLES = 5;
@@ -25,9 +26,10 @@ const SensorModule = (() => {
     let _lastTs   = null;   // for interval_ms estimation in Generic Sensor path
 
     function _resetCalib() {
-        _calibBuf = [];
-        _baseline = null;
-        _lastTs   = null;
+        _calibBuf     = [];
+        _baseline     = null;
+        _lastTs       = null;
+        _sensorSource = null;
     }
 
     // ── Generic Sensor API handle ─────────────────────────────────
@@ -50,7 +52,7 @@ const SensorModule = (() => {
                     y: sum.y / CALIB_SAMPLES,
                     z: sum.z / CALIB_SAMPLES,
                 };
-                if (_onStatus) _onStatus('ready');
+                if (_onStatus) _onStatus('ready', _sensorSource);
             }
             return;
         }
@@ -78,6 +80,7 @@ const SensorModule = (() => {
 
             _accelSensor.addEventListener('reading', () => {
                 if (!_running) return;
+                if (_sensorSource === null) _sensorSource = 'generic';
                 const now      = performance.now();
                 const interval = _lastTs !== null ? now - _lastTs : null;
                 _lastTs = now;
@@ -87,14 +90,10 @@ const SensorModule = (() => {
                 );
             });
 
-            _accelSensor.addEventListener('error', (e) => {
+            _accelSensor.addEventListener('error', () => {
+                // Any error (NotAllowedError, NotReadableError, etc.) → fall back to DeviceMotionEvent
                 _accelSensor = null;
-                if (e.error && e.error.name === 'NotAllowedError') {
-                    if (onError) onError('센서 권한이 거부되었습니다.');
-                } else {
-                    // Hardware unavailable — fall back to DeviceMotionEvent
-                    _startDeviceMotion(onError);
-                }
+                _startDeviceMotion(onError);
             });
 
             _accelSensor.start();
@@ -134,6 +133,7 @@ const SensorModule = (() => {
     function _startDeviceMotion(onError) {
         _requestiOSPermission()
             .then(() => {
+                _sensorSource = 'devicemotion';
                 _running = true;
                 window.addEventListener('devicemotion', _handleMotion);
             })
@@ -169,7 +169,8 @@ const SensorModule = (() => {
      * Tries Generic Sensor API first; falls back to DeviceMotionEvent.
      * @param {function} onData    Called with each calibrated data point
      * @param {function} onError   Called if permission is denied or sensor unavailable
-     * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready') | ('unavailable')
+     * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready', source) | ('unavailable')
+     *                             source: 'generic' (Generic Sensor API) | 'devicemotion' (DeviceMotionEvent)
      */
     function start(onData, onError, onStatus) {
         if (_running) return;
