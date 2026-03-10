@@ -29,17 +29,9 @@
                 <canvas id="waveChart"></canvas>
             </div>
 
-            <!-- 스펙트로그램 -->
+            <!-- 스펙트로그램 (주파수 축은 캔버스 내부에 렌더링) -->
             <div class="spectrogram-panel">
                 <canvas id="spectroChart"></canvas>
-                <div class="spectrogram-freq-overlay">
-                    <span>25Hz</span>
-                    <span>20Hz</span>
-                    <span>15Hz</span>
-                    <span>10Hz</span>
-                    <span>5Hz</span>
-                    <span>0Hz</span>
-                </div>
             </div>
 
             <!-- 피크 주파수 표시 -->
@@ -77,14 +69,6 @@
             <!-- 스펙트로그램 (파일 모드 전용 캔버스) -->
             <div class="spectrogram-panel" id="file-spectro-panel" hidden>
                 <canvas id="fileSpectroChart"></canvas>
-                <div class="spectrogram-freq-overlay">
-                    <span>25Hz</span>
-                    <span>20Hz</span>
-                    <span>15Hz</span>
-                    <span>10Hz</span>
-                    <span>5Hz</span>
-                    <span>0Hz</span>
-                </div>
             </div>
 
             <!-- 컨트롤 -->
@@ -104,12 +88,13 @@
 
     <script>
         // ── FFT constants (must match spectrogram.js) ──────────────
-        const FFT_SIZE = 256;
-        const HOP_SIZE = 26;
-        const MAX_FREQ = 25;
-        const LOG_MIN  = -3;
-        const LOG_MAX  = -1;
-        const ANIM_SEC = 7;
+        const FFT_SIZE    = 256;
+        const HOP_SIZE    = 26;
+        const MAX_FREQ    = 100;
+        const LOG_MIN     = -3;
+        const LOG_MAX     = -1;
+        const FREQ_AXIS_H = 18;
+        const ANIM_SEC    = 7;
 
         // ── Hann window (precomputed) ──────────────────────────────
         const HANN = new Float32Array(FFT_SIZE);
@@ -130,7 +115,7 @@
             return lut;
         })();
 
-        // ── Cooley-Tukey FFT (duplicate for precompute, avoids module coupling) ──
+        // ── Cooley-Tukey FFT (standalone for file-mode precompute) ──
         function _fft(re, im) {
             const N = re.length;
             for (let i = 1, j = 0; i < N; i++) {
@@ -161,25 +146,46 @@
             }
         }
 
-        // ── Compute one pixel column from a Float32Array window ────
-        function computeColumn(samples, sr, canvasH) {
+        // ── Compute one waterfall row (W pixels wide) ──────────────
+        // X axis = frequency (left: 0 Hz, right: dispFreq)
+        function computeRow(samples, sr, canvasW) {
             const re = new Float32Array(FFT_SIZE);
             const im = new Float32Array(FFT_SIZE);
             for (let i = 0; i < FFT_SIZE; i++) re[i] = samples[i] * HANN[i];
             _fft(re, im);
-            const nyq    = sr / 2;
-            const topBin = Math.min(FFT_SIZE / 2, Math.ceil(MAX_FREQ / nyq * (FFT_SIZE / 2)));
-            const col    = new Uint8ClampedArray(canvasH * 4);
-            for (let y = 0; y < canvasH; y++) {
-                const bin  = Math.floor((1 - (y + 0.5) / canvasH) * topBin);
-                const amp  = Math.sqrt(re[bin] ** 2 + im[bin] ** 2) / (FFT_SIZE / 2);
+            const nyq      = sr / 2;
+            const dispFreq = Math.min(MAX_FREQ, nyq);
+            const topBin   = Math.ceil(dispFreq / nyq * (FFT_SIZE / 2));
+            const row      = new Uint8ClampedArray(canvasW * 4);
+            for (let x = 0; x < canvasW; x++) {
+                const bin  = Math.min(Math.floor((x + 0.5) / canvasW * topBin), topBin - 1);
+                const amp  = Math.sqrt(re[bin]**2 + im[bin]**2) / (FFT_SIZE / 2);
                 const logA = amp > 1e-9 ? Math.log10(amp) : LOG_MIN;
                 const t    = Math.max(0, Math.min(1, (logA - LOG_MIN) / (LOG_MAX - LOG_MIN)));
                 const ci   = Math.round(t * 255);
-                col[y*4]   = LUT[ci*3]; col[y*4+1] = LUT[ci*3+1];
-                col[y*4+2] = LUT[ci*3+2]; col[y*4+3] = 255;
+                row[x*4]   = LUT[ci*3]; row[x*4+1] = LUT[ci*3+1];
+                row[x*4+2] = LUT[ci*3+2]; row[x*4+3] = 255;
             }
-            return col;
+            return row;
+        }
+
+        // ── Draw frequency axis for file-mode canvas ───────────────
+        function drawFileFreqAxis(ctx, W, H, sr) {
+            const DH = H - FREQ_AXIS_H;
+            const dispFreq = Math.min(MAX_FREQ, sr / 2);
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, DH, W, FREQ_AXIS_H);
+            ctx.fillStyle = '#666';
+            ctx.font = '9px sans-serif';
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            for (let f = 0; f <= dispFreq; f += 10) {
+                const x = Math.round((f / dispFreq) * (W - 1));
+                ctx.beginPath(); ctx.moveTo(x, DH); ctx.lineTo(x, DH + 4); ctx.stroke();
+                const label = f === 0 ? '0Hz' : `${f}`;
+                const tw = f === 0 ? 0 : ctx.measureText(label).width / 2;
+                ctx.fillText(label, Math.max(0, x - tw), H - 3);
+            }
         }
 
         // ── CSV parser ─────────────────────────────────────────────
@@ -202,7 +208,6 @@
                     rows.push(row);
                 }
             }
-            // Parse sample_rate from "100 Hz" or "100"
             let sr = meta.sample_rate ? parseInt(meta.sample_rate) : null;
             if (!sr && rows.length >= 2) {
                 const dt = new Date(rows[1].timestamp) - new Date(rows[0].timestamp);
@@ -211,7 +216,6 @@
             return { meta, rows, sr: sr || 100 };
         }
 
-        // ── Format seconds as M:SS ─────────────────────────────────
         function fmtTime(sec) {
             const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
             return `${m}:${String(s).padStart(2, '0')}`;
@@ -287,74 +291,60 @@
         // ═══════════════════════════════════════════════════════════
         // FILE MODE
         // ═══════════════════════════════════════════════════════════
-        const dropZone      = document.getElementById('drop-zone');
-        const fileInput     = document.getElementById('file-input');
-        const csvFileInfo   = document.getElementById('csv-file-info');
+        const dropZone         = document.getElementById('drop-zone');
+        const fileInput        = document.getElementById('file-input');
+        const csvFileInfo      = document.getElementById('csv-file-info');
         const fileSpectroPanel = document.getElementById('file-spectro-panel');
-        const fileControls  = document.getElementById('file-controls');
-        const filePlayBtn   = document.getElementById('file-play-btn');
-        const fileResetBtn  = document.getElementById('file-reset-btn');
-        const fileStatus    = document.getElementById('file-status');
-        const csvFilename   = document.getElementById('csv-filename');
-        const csvDuration   = document.getElementById('csv-duration');
-        const csvSr         = document.getElementById('csv-sr');
+        const fileControls     = document.getElementById('file-controls');
+        const filePlayBtn      = document.getElementById('file-play-btn');
+        const fileResetBtn     = document.getElementById('file-reset-btn');
+        const fileStatus       = document.getElementById('file-status');
+        const csvFilename      = document.getElementById('csv-filename');
+        const csvDuration      = document.getElementById('csv-duration');
+        const csvSr            = document.getElementById('csv-sr');
 
         let _csvRows = null;
         let _csvSr   = 100;
         let _animRaf = null;
 
-        // Drag & drop
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drop-zone--hover');
-        });
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drop-zone--hover');
-        });
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-zone--hover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drop-zone--hover'); });
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('drop-zone--hover');
             const file = e.dataTransfer.files[0];
             if (file) loadFile(file);
         });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) loadFile(e.target.files[0]);
-        });
+        fileInput.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
 
         function loadFile(file) {
             fileStatus.textContent = '파일 읽는 중...';
             const reader = new FileReader();
             reader.onload = (e) => {
                 const { meta, rows, sr } = parseCSV(e.target.result);
-                if (rows.length === 0) {
-                    fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.';
-                    return;
-                }
-                _csvRows = rows;
-                _csvSr   = sr;
+                if (rows.length === 0) { fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.'; return; }
+                _csvRows = rows; _csvSr = sr;
 
-                // Show file info
                 const durSec = rows.length / sr;
                 csvFilename.textContent = file.name;
                 csvDuration.textContent = `${fmtTime(durSec)} (${rows.length.toLocaleString()}샘플)`;
                 csvSr.textContent       = `${sr} Hz`;
 
-                dropZone.hidden        = true;
-                csvFileInfo.hidden     = false;
+                dropZone.hidden         = true;
+                csvFileInfo.hidden      = false;
                 fileSpectroPanel.hidden = false;
-                fileControls.hidden    = false;
-                filePlayBtn.hidden     = false;
-                fileResetBtn.hidden    = true;
-                fileStatus.textContent = '분석 시작 버튼을 눌러 스펙트로그램을 생성합니다.';
+                fileControls.hidden     = false;
+                filePlayBtn.hidden      = false;
+                fileResetBtn.hidden     = true;
+                fileStatus.textContent  = '분석 시작 버튼을 눌러 스펙트로그램을 생성합니다.';
 
-                // Init canvas
                 const canvas = document.getElementById('fileSpectroChart');
                 canvas.width  = canvas.clientWidth  || 300;
                 canvas.height = canvas.clientHeight || 150;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = '#0a0a0a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                drawFileFreqAxis(ctx, canvas.width, canvas.height, sr);
             };
             reader.readAsText(file);
         }
@@ -365,44 +355,62 @@
             fileResetBtn.hidden = true;
             fileStatus.textContent = '분석 중... (전처리)';
 
-            // Defer precompute to allow UI to update
             setTimeout(() => {
-                const canvas  = document.getElementById('fileSpectroChart');
-                const ctx     = canvas.getContext('2d');
-                const W       = canvas.width;
-                const H       = canvas.height;
-                const sr      = _csvSr;
-                const rows    = _csvRows;
+                const canvas = document.getElementById('fileSpectroChart');
+                const ctx    = canvas.getContext('2d');
+                const W      = canvas.width;
+                const H      = canvas.height;
+                const DH     = H - FREQ_AXIS_H;
+                const sr     = _csvSr;
+                const rows   = _csvRows;
 
-                // ── 전처리: 모든 FFT 컬럼 계산 ─────────────────
-                const columns = [];
+                // ── 전처리: 모든 FFT 행 계산 ───────────────────
+                const wfRows = [];
                 for (let i = 0; i + FFT_SIZE <= rows.length; i += HOP_SIZE) {
                     const samples = new Float32Array(FFT_SIZE);
                     for (let j = 0; j < FFT_SIZE; j++)
                         samples[j] = parseFloat(rows[i + j].acc_z) || 0;
-                    columns.push(computeColumn(samples, sr, H));
+                    wfRows.push(computeRow(samples, sr, W));
                 }
 
                 fileStatus.textContent = '애니메이션 중...';
-
-                // ── requestAnimationFrame 애니메이션 ────────────
-                let drawn = 0;
-                const total = columns.length;
-                const start = performance.now();
-                // Off-screen buffer canvas for columns (avoids per-column drawImage flush)
-                // Draw directly: scroll + stamp
                 ctx.fillStyle = '#0a0a0a';
                 ctx.fillRect(0, 0, W, H);
+                drawFileFreqAxis(ctx, W, H, sr);
+
+                // ── requestAnimationFrame 워터폴 애니메이션 ────
+                let drawn = 0;
+                const total = wfRows.length;
+                const start = performance.now();
+                // Elapsed-time label: 2-second intervals
+                let lastLabelSec = -2;
 
                 function frame(now) {
                     const progress = Math.min((now - start) / (ANIM_SEC * 1000), 1);
                     const target   = Math.floor(progress * total);
-                    // Batch-draw all pending columns this frame
                     while (drawn < target) {
-                        ctx.drawImage(canvas, -1, 0);
-                        ctx.putImageData(new ImageData(columns[drawn], 1, H), W - 1, 0);
+                        // Scroll spectrogram area down 1px
+                        ctx.save();
+                        ctx.beginPath(); ctx.rect(0, 0, W, DH); ctx.clip();
+                        ctx.drawImage(canvas, 0, 1);
+                        ctx.restore();
+                        // Stamp new row at top
+                        ctx.putImageData(new ImageData(wfRows[drawn], W, 1), 0, 0);
+
+                        // Elapsed-time label every 2 seconds
+                        const elapsedSec  = (drawn * HOP_SIZE) / sr;
+                        const labelSec    = Math.floor(elapsedSec / 2) * 2;
+                        if (labelSec > lastLabelSec) {
+                            lastLabelSec = labelSec;
+                            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                            ctx.font = '9px sans-serif';
+                            ctx.fillText(`${labelSec}s`, 2, 10);
+                        }
                         drawn++;
                     }
+                    // Freq axis always on top of bottom strip
+                    if (drawn > 0) drawFileFreqAxis(ctx, W, H, sr);
+
                     if (progress < 1) {
                         _animRaf = requestAnimationFrame(frame);
                     } else {
@@ -418,7 +426,6 @@
             if (_animRaf) { cancelAnimationFrame(_animRaf); _animRaf = null; }
             _csvRows = null;
 
-            // Reset UI
             dropZone.hidden         = false;
             csvFileInfo.hidden      = true;
             fileSpectroPanel.hidden = true;
@@ -435,8 +442,8 @@
         // ═══════════════════════════════════════════════════════════
         // TAB SWITCHING
         // ═══════════════════════════════════════════════════════════
-        const tabSensor = document.getElementById('tab-sensor');
-        const tabFile   = document.getElementById('tab-file');
+        const tabSensor   = document.getElementById('tab-sensor');
+        const tabFile     = document.getElementById('tab-file');
         const panelSensor = document.getElementById('panel-sensor');
         const panelFile   = document.getElementById('panel-file');
 
@@ -451,7 +458,6 @@
                 tabSensor.classList.remove('mode-tabs__btn--active');
                 panelFile.hidden   = false;
                 panelSensor.hidden = true;
-                // Stop sensor if running
                 if (SensorModule.isRunning()) {
                     SensorModule.stop();
                     VisualModule.reset();

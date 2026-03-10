@@ -19,6 +19,7 @@ const VisualModule = (() => {
     // ── State ────────────────────────────────────────────────────
     const buffer = [];      // [{ ts, z }]
     let _peakZ   = MIN_RANGE; // current auto-scale peak (m/s²)
+    let _startTs = null;      // timestamp of first sample (for elapsed-time axis)
 
     // ── DOM refs ─────────────────────────────────────────────────
     let bodyEl  = null;
@@ -163,6 +164,7 @@ const VisualModule = (() => {
     }
 
     function _drawTimeAxis(w, h, timeStart, timeEnd, windowMs) {
+        if (!_startTs) return;
         const stepMs = 2000; // 2-second tick interval
         ctx.fillStyle   = '#555';
         ctx.font        = '9px sans-serif';
@@ -171,9 +173,10 @@ const VisualModule = (() => {
 
         const firstTick = Math.ceil(timeStart / stepMs) * stepMs;
         for (let t = firstTick; t <= timeEnd; t += stepMs) {
-            const x      = ((t - timeStart) / windowMs) * w;
-            const relSec = Math.round((t - timeEnd) / 1000);
-            const label  = relSec === 0 ? '0s' : `${relSec}s`;
+            const x          = ((t - timeStart) / windowMs) * w;
+            const elapsedSec = Math.round((t - _startTs) / 1000);
+            if (elapsedSec < 0) continue;
+            const label = `${elapsedSec}s`;
             ctx.beginPath();
             ctx.moveTo(x, h - 14);
             ctx.lineTo(x, h);
@@ -193,7 +196,9 @@ const VisualModule = (() => {
     function update(data) {
         if (!bodyEl) _initDOM();
 
-        buffer.push({ ts: Date.now(), z: data.acc_z });
+        const now = Date.now();
+        if (!_startTs) _startTs = now;
+        buffer.push({ ts: now, z: data.acc_z });
         _trimBuffer();
 
         // Background color based on Z-axis
@@ -205,7 +210,8 @@ const VisualModule = (() => {
 
     function reset() {
         buffer.length = 0;
-        _peakZ = MIN_RANGE;
+        _peakZ   = MIN_RANGE;
+        _startTs = null;
         if (bodyEl)  bodyEl.style.backgroundColor = '';
         if (labelEl) labelEl.textContent = '0.000000';
     }
