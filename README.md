@@ -19,6 +19,11 @@
 6. **측정 정지** 버튼을 누르면 측정이 멈추고 그래프가 유지됩니다.
 7. CSV 다운로드 버튼으로 데이터를 저장하거나, 다시 **초기화** 버튼을 눌러 리셋합니다.
 
+**Activity 3 (주파수 분석) 추가 사용법:**
+
+- **센서 모드**: 위와 동일하게 측정 시작 → 파형과 스펙트로그램 동시 표시
+- **파일 선택 모드**: Activity 2에서 저장한 CSV 파일을 드래그 앤 드롭(PC) 또는 파일 선택 버튼(모바일)으로 불러온 후 **분석 시작** 버튼을 누르면 약 7초 애니메이션으로 스펙트로그램 재생
+
 > ⚠️ 센서 API와 GPS API는 **HTTPS 환경**에서만 동작합니다.
 
 ---
@@ -29,7 +34,7 @@
 |---|------|------|------|
 | 01 | 지진파 색으로 보기 | ✅ 완료 | Z축 진폭에 따라 화면 배경색이 변하고 실시간 파형 그래프 표시 |
 | 02 | 지진파 기록하기 | ✅ 완료 | GPS 좌표 + Z축 가속도를 시간별로 기록하고 CSV로 다운로드 |
-| 03 | 주파수 분석 (스펙트로그램) | 준비중 | 실시간 FFT로 진동 신호의 주파수 성분을 색상으로 표시 |
+| 03 | 주파수 분석 (스펙트로그램) | ✅ 완료 | 실시간 FFT 스펙트로그램 + CSV 파일 로드 후 7초 재생 애니메이션 |
 | 04 | 신호 비교하기 | 준비중 | 여러 기기의 CSV를 불러와 파형·통계 비교 |
 | 05 | 주시곡선·진원 찾기 | 준비중 | P파·S파 도달 시간 및 GPS 위치로 진원지 역산 |
 
@@ -60,14 +65,14 @@ timestamp,acc_z
 | `timestamp` | ISO 8601 UTC 타임스탬프 |
 | `acc_z` | Z축 가속도 변화량 (단위: m/s², 기준값 대비 Δ) |
 
-> 향후 SAC 비교 시 `channel: HNZ`, `unit: m/s2` 메타데이터 추가 예정 (Activity 3 시점)
+> Activity 3의 파일 선택 모드에서 이 CSV를 직접 불러와 스펙트로그램을 재생할 수 있습니다.
 
 ---
 
 ## 기술 스택
 
 - **Vanilla JS** — 빌드 도구 없는 단일 파일 구조
-- **Canvas API** — 실시간 파형 그래프
+- **Canvas API** — 실시간 파형 그래프 + 스펙트로그램
 - **DeviceMotionEvent API** — 스마트폰 가속도 센서
 - **Geolocation API** — GPS 좌표 수집
 - **GitHub Pages** — 정적 웹 배포 (HTTPS 자동 제공)
@@ -83,13 +88,16 @@ Seismograph-on-mobile/
 │   └── index.html          # Activity 1 — 지진파 색으로 보기
 ├── activity2/
 │   └── index.html          # Activity 2 — 지진파 기록하기
+├── activity3/
+│   └── index.html          # Activity 3 — 주파수 분석 (스펙트로그램)
 ├── assets/
 │   ├── css/style.css       # 공통 스타일 (모바일 퍼스트 다크 테마)
 │   └── js/
 │       ├── sensor.js       # 센서 수집 모듈 (iOS/Android 권한 처리)
 │       ├── visual.js       # 시각화 모듈 (배경색 + 파형 그래프)
 │       ├── gps.js          # GPS 좌표 수집 모듈
-│       └── export.js       # CSV 다운로드 모듈
+│       ├── export.js       # CSV 다운로드 모듈
+│       └── spectrogram.js  # FFT 스펙트로그램 모듈 (Hann 윈도우, Viridis 컬러맵)
 └── docs/
     ├── PRD.md
     ├── ARCHITECTURE.md
@@ -102,7 +110,7 @@ Seismograph-on-mobile/
 
 - [x] Cycle 1 완료 — Activity 1: 지진파 색으로 보기 (센서·그래프·배경색 시각화)
 - [x] Cycle 2 완료 — Activity 2: 지진파 기록하기 (GPS + CSV 다운로드, Android/iOS 테스트 완료)
-- [ ] Cycle 3 진행 예정 — Activity 3: 주파수 분석 (실시간 FFT 스펙트로그램)
+- [x] Cycle 3 완료 — Activity 3: 주파수 분석 (실시간 FFT 스펙트로그램 + CSV 파일 재생)
 - [ ] Cycle 4 예정 — Activity 4: 신호 비교하기 (다중 CSV 비교·통계)
 - [ ] Cycle 5 예정 — Activity 5: 주시곡선·진원 찾기
 
