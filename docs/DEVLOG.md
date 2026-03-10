@@ -118,13 +118,16 @@
   - **데이터 값은 전혀 수정 없음** — 순수 렌더링 개선
 - **파일**: `assets/js/visual.js`
 
-### [문제] FFT 스펙트로그램 표시 이상 (조사 중)
+### [문제] Android 파형 그래프 계단형 표시 (하드웨어 정밀도 저하)
 
-- **현상**: Android에서 스펙트로그램이 예상과 다르게 표시됨 (불규칙 패턴)
-- **현재 진단**: FFT 수학 구현 자체는 정확함 (ring buffer 시간 순서, Hann window, 정규화 검증 완료)
-- **유력 원인**: DeviceMotionEvent의 0.1 m/s² 양자화 입력 → FFT 아티팩트 발생
-  - 계단형 신호를 FFT하면 의도하지 않은 주파수 성분이 광대역으로 나타남
-- **진행 중**: Generic Sensor API 정상 동작 여부 확인 후 재평가
+- **현상**: Generic Sensor API 사용 중임에도 그래프가 계단형으로 표시됨 (phyphox 대비 유효숫자 적음)
+- **원인**: `Accelerometer` 클래스(`TYPE_ACCELEROMETER`)는 중력(~9.8 m/s²)을 포함한 원시 값을 반환하고, 앱이 5샘플 baseline을 빼서 동적 성분을 추출함
+  - phyphox는 `TYPE_LINEAR_ACCELERATION` (OS 센서 퓨전으로 중력 제거)을 사용 → 진동 성분이 0 근처 값으로 직접 표현되어 더 많은 유효숫자 확보
+- **해결**: `Accelerometer` → `LinearAccelerationSensor` 클래스로 교체
+  - `TYPE_LINEAR_ACCELERATION`에 직접 매핑 → Android OS 센서 퓨전이 중력을 정밀하게 제거
+  - DeviceMotionEvent fallback 경로도 `accelerationIncludingGravity` → `acceleration` 우선으로 변경 (일관성 확보)
+  - 캘리브레이션(CALIB_SAMPLES=5) 유지 — 센서 바이어스 오프셋 제거
+- **파일**: `assets/js/sensor.js`
 
 ---
 
@@ -133,7 +136,7 @@
 | 결정 사항 | 선택 | 이유 |
 |-----------|------|------|
 | GPS 정확도 모드 | `enableHighAccuracy: false` | 실내 타임아웃 방지 |
-| 센서 API 우선순위 | Generic Sensor API → DeviceMotionEvent | 하드웨어 ADC 직접 접근으로 정밀도 확보 |
+| 센서 API 우선순위 | LinearAccelerationSensor → DeviceMotionEvent | OS 센서 퓨전으로 중력 제거, 진동 성분 유효숫자 최대화 |
 | CSV 다운로드 방식 | Web Share API 우선 (모바일) | 모바일에서 `<a download>` 불안정 |
 | FFT 윈도우 함수 | Hann window | 스펙트럼 누설(spectral leakage) 억제 |
 | FFT overlap | HOP_SIZE=26 (~90%) | ObsPy 기본값 준수 |

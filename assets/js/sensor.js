@@ -4,9 +4,9 @@
  * Output  : { timestamp, acc_x, acc_y, acc_z, magnitude, interval_ms }
  *
  * Sensor source priority:
- *   1. Generic Sensor API (Accelerometer class)
- *        → Android Chrome 67+ — direct hardware ADC, no browser rounding
- *   2. DeviceMotionEvent (accelerationIncludingGravity)
+ *   1. Generic Sensor API (LinearAccelerationSensor class)
+ *        → Android Chrome 67+ — gravity removed by OS sensor fusion, full hardware precision
+ *   2. DeviceMotionEvent (acceleration)
  *        → iOS Safari, older browsers — limited to ~0.1 m/s² precision by Chrome policy
  *
  * Note: iOS DeviceMotionEvent requires user-gesture permission request (Safari 13+).
@@ -76,7 +76,7 @@ const SensorModule = (() => {
     // ── Path 1: Generic Sensor API (Android Chrome) ───────────────
     function _startGeneric(onError) {
         try {
-            _accelSensor = new Accelerometer({ frequency: 100 });
+            _accelSensor = new LinearAccelerationSensor({ frequency: 100 });
 
             _accelSensor.addEventListener('reading', () => {
                 if (!_running) return;
@@ -110,15 +110,15 @@ const SensorModule = (() => {
     function _handleMotion(event) {
         if (!_running) return;
 
-        // Prefer raw hardware values (accelerationIncludingGravity)
-        const aG = event.accelerationIncludingGravity;
+        // Prefer gravity-free values (consistent with LinearAccelerationSensor)
+        const a = event.acceleration;
         let raw = null;
-        if (aG && aG.x != null && aG.y != null && aG.z != null) {
-            raw = { x: aG.x, y: aG.y, z: aG.z };
+        if (a && a.x != null && a.y != null && a.z != null) {
+            raw = { x: a.x, y: a.y, z: a.z };
         } else {
-            const a = event.acceleration;
-            if (a && a.x != null && a.y != null && a.z != null) {
-                raw = { x: a.x, y: a.y, z: a.z };
+            const aG = event.accelerationIncludingGravity;
+            if (aG && aG.x != null && aG.y != null && aG.z != null) {
+                raw = { x: aG.x, y: aG.y, z: aG.z };
             }
         }
 
@@ -178,8 +178,8 @@ const SensorModule = (() => {
         _onStatus = onStatus || null;
         _resetCalib();
 
-        if (typeof Accelerometer !== 'undefined') {
-            _startGeneric(onError);     // Android Chrome — high precision
+        if (typeof LinearAccelerationSensor !== 'undefined') {
+            _startGeneric(onError);     // Android Chrome — high precision (gravity-free)
         } else {
             _startDeviceMotion(onError); // iOS Safari / fallback
         }
