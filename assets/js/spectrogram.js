@@ -2,34 +2,37 @@
  * spectrogram.js
  * Role   : Real-time FFT spectrogram Canvas rendering (waterfall)
  * Input  : acc_z samples via push()
- * Output : Canvas 2D waterfall — X axis = frequency, Y axis = time (newest top)
+ * Output : Canvas 2D waterfall — X axis = frequency (0 Hz left → dispFreq right)
+ *                               Y axis = time (newest top, oldest bottom = WINDOW_SEC ago)
  *
  * Algorithm  : Cooley-Tukey radix-2 DIT FFT
  * Window     : Hann (spectral leakage suppression)
  * Color map  : Viridis-style LUT (dark purple → blue → teal → yellow)
+ * Rendering  : History-based full redraw (pixel-accurate time scale, no scroll drift)
  */
 
 const SpectrogramModule = (() => {
 
     // ── Config ────────────────────────────────────────────────────
     const FFT_SIZE    = 256;  // must be power of 2
-    const HOP_SIZE    = 26;   // new samples per row (~90% overlap, ObsPy default)
-    const MAX_FREQ    = 100;  // Hz — display ceiling (clipped to Nyquist if sr < 200)
-    const WINDOW_SEC  = 10;   // must match visual.js WINDOW_SEC (row height sync)
+    const HOP_SIZE    = 26;   // new samples per FFT frame (~90% overlap, ObsPy default)
+    const MAX_FREQ    = 100;  // Hz display ceiling; clipped to Nyquist (sr/2) at runtime
+    const WINDOW_SEC  = 10;   // must match visual.js WINDOW_SEC
     const LOG_MIN     = -3;   // log10 amplitude floor  (0.001 m/s²)
-    const LOG_MAX     = -1;   // log10 amplitude ceiling (0.1 m/s²)
-    const FREQ_AXIS_H = 18;   // pixels reserved at canvas bottom for frequency axis
+    const LOG_MAX     = -1;   // log10 amplitude ceiling (0.1  m/s²)
+    const FREQ_AXIS_H = 18;   // px reserved at bottom for frequency-axis labels
 
     // ── State ─────────────────────────────────────────────────────
-    let _canvas       = null;
-    let _ctx          = null;
-    let _sr           = 100;
-    let _onPeak       = null;
-    let _buf          = new Float32Array(FFT_SIZE);
-    let _head         = 0;
-    let _hopCount     = 0;
-    let _hopTotal     = 0;    // hops since init (for elapsed-time labels)
-    let _lastLabelSec = -2;   // last 2-second boundary that received a label
+    let _canvas   = null;
+    let _ctx      = null;
+    let _sr       = 100;
+    let _onPeak   = null;
+    let _buf      = new Float32Array(FFT_SIZE);  // ring buffer
+    let _head     = 0;
+    let _hopCount = 0;
+    let _hopTotal = 0;      // total hops since init (for elapsed-time labels)
+    // History: array of 1-px row ImageData pixels (newest = index 0)
+    const _history = [];    // each entry: Uint8ClampedArray(W × 4)
 
     // ── Hann window (precomputed) ─────────────────────────────────
     const _hann = new Float32Array(FFT_SIZE);
@@ -56,13 +59,13 @@ const SpectrogramModule = (() => {
             for (let i = 0; i < N; i += len) {
                 let uRe = 1, uIm = 0;
                 for (let k = 0; k < half; k++) {
-                    const aRe = re[i + k], aIm = im[i + k];
-                    const tRe = uRe * re[i + k + half] - uIm * im[i + k + half];
-                    const tIm = uRe * im[i + k + half] + uIm * re[i + k + half];
-                    re[i + k]        = aRe + tRe;  im[i + k]        = aIm + tIm;
-                    re[i + k + half] = aRe - tRe;  im[i + k + half] = aIm - tIm;
-                    const nRe = uRe * wRe - uIm * wIm;
-                    uIm = uRe * wIm + uIm * wRe;  uRe = nRe;
+                    const aRe = re[i+k], aIm = im[i+k];
+                    const tRe = uRe*re[i+k+half] - uIm*im[i+k+half];
+                    const tIm = uRe*im[i+k+half] + uIm*re[i+k+half];
+                    re[i+k]        = aRe+tRe;  im[i+k]        = aIm+tIm;
+                    re[i+k+half]   = aRe-tRe;  im[i+k+half]   = aIm-tIm;
+                    const nRe = uRe*wRe - uIm*wIm;
+                    uIm = uRe*wIm + uIm*wRe;  uRe = nRe;
                 }
             }
         }
@@ -81,47 +84,16 @@ const SpectrogramModule = (() => {
         for (let i = 0; i < 256; i++) {
             const t = i / 255, raw = t * (stops.length - 1);
             const lo = Math.floor(raw), hi = Math.min(lo + 1, stops.length - 1), f = raw - lo;
-            lut[i*3]   = Math.round(stops[lo][0] + f * (stops[hi][0] - stops[lo][0]));
-            lut[i*3+1] = Math.round(stops[lo][1] + f * (stops[hi][1] - stops[lo][1]));
-            lut[i*3+2] = Math.round(stops[lo][2] + f * (stops[hi][2] - stops[lo][2]));
+            lut[i*3]   = Math.round(stops[lo][0] + f*(stops[hi][0]-stops[lo][0]));
+            lut[i*3+1] = Math.round(stops[lo][1] + f*(stops[hi][1]-stops[lo][1]));
+            lut[i*3+2] = Math.round(stops[lo][2] + f*(stops[hi][2]-stops[lo][2]));
         }
         return lut;
     })();
 
-    // ── Draw frequency axis at canvas bottom ──────────────────────
-    function _drawFreqAxis() {
-        if (!_canvas || !_ctx) return;
-        const W = _canvas.width, H = _canvas.height, DH = H - FREQ_AXIS_H;
-        const nyq = _sr / 2, dispFreq = Math.min(MAX_FREQ, nyq);
-
-        _ctx.fillStyle = '#111';
-        _ctx.fillRect(0, DH, W, FREQ_AXIS_H);
-
-        _ctx.fillStyle = '#666';
-        _ctx.font = '9px sans-serif';
-        _ctx.strokeStyle = '#444';
-        _ctx.lineWidth = 1;
-
-        // Tick every 10 Hz up to dispFreq
-        for (let f = 0; f <= dispFreq; f += 10) {
-            const x = Math.round((f / dispFreq) * (W - 1));
-            _ctx.beginPath();
-            _ctx.moveTo(x, DH);
-            _ctx.lineTo(x, DH + 4);
-            _ctx.stroke();
-            const label = f === 0 ? '0Hz' : `${f}`;
-            const tw = f === 0 ? 0 : _ctx.measureText(label).width / 2;
-            _ctx.fillText(label, Math.max(0, x - tw), H - 3);
-        }
-    }
-
-    // ── Compute FFT and draw one waterfall row ─────────────────────
-    function _drawRow() {
-        if (!_canvas || !_ctx) return;
-        const W = _canvas.width, H = _canvas.height, DH = H - FREQ_AXIS_H;
-        if (W < 2 || DH < 2) return;
-
-        // Windowed snapshot from ring buffer
+    // ── Compute 1-px row from current ring buffer ─────────────────
+    // Returns { rowData: Uint8ClampedArray(W×4), peakHz: number }
+    function _computeRow(W) {
         const re = new Float32Array(FFT_SIZE);
         const im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) {
@@ -129,15 +101,14 @@ const SpectrogramModule = (() => {
         }
         _fft(re, im);
 
-        // Frequency range: 0 → dispFreq (clipped to Nyquist)
-        const nyq = _sr / 2, dispFreq = Math.min(MAX_FREQ, nyq);
-        const topBin = Math.ceil(dispFreq / nyq * (FFT_SIZE / 2));
+        const nyq      = _sr / 2;
+        const dispFreq = Math.min(MAX_FREQ, nyq);
+        const topBin   = Math.ceil(dispFreq / nyq * (FFT_SIZE / 2));
 
-        // Build one-pixel-tall row: x maps linearly to frequency
         const rowData = new Uint8ClampedArray(W * 4);
         for (let x = 0; x < W; x++) {
             const bin  = Math.min(Math.floor((x + 0.5) / W * topBin), topBin - 1);
-            const amp  = Math.sqrt(re[bin] ** 2 + im[bin] ** 2) / (FFT_SIZE / 2);
+            const amp  = Math.sqrt(re[bin]**2 + im[bin]**2) / (FFT_SIZE / 2);
             const logA = amp > 1e-9 ? Math.log10(amp) : LOG_MIN;
             const t    = Math.max(0, Math.min(1, (logA - LOG_MIN) / (LOG_MAX - LOG_MIN)));
             const ci   = Math.round(t * 255);
@@ -147,54 +118,91 @@ const SpectrogramModule = (() => {
             rowData[x*4+3] = 255;
         }
 
-        // Peak frequency callback
-        if (_onPeak) {
-            let maxAmp = 0, peakBin = 1;
-            for (let b = 1; b < topBin; b++) {
-                const a = Math.sqrt(re[b] ** 2 + im[b] ** 2);
-                if (a > maxAmp) { maxAmp = a; peakBin = b; }
-            }
-            _onPeak(((peakBin / topBin) * dispFreq).toFixed(1));
+        // Peak frequency
+        let maxAmp = 0, peakBin = 1;
+        for (let b = 1; b < topBin; b++) {
+            const a = Math.sqrt(re[b]**2 + im[b]**2);
+            if (a > maxAmp) { maxAmp = a; peakBin = b; }
+        }
+        const peakHz = (peakBin / topBin) * dispFreq;
+
+        return { rowData, peakHz };
+    }
+
+    // ── Redraw entire canvas from history (pixel-accurate time scale) ─
+    function _redrawCanvas() {
+        if (!_canvas || !_ctx) return;
+        const W  = _canvas.width;
+        const H  = _canvas.height;
+        const DH = H - FREQ_AXIS_H;
+        if (W < 2 || DH < 2) return;
+
+        // M = total frames that fit in WINDOW_SEC (floating for pixel mapping)
+        const M = (_sr * WINDOW_SEC) / HOP_SIZE;
+
+        // Clear spectrogram area
+        _ctx.fillStyle = '#0a0a0a';
+        _ctx.fillRect(0, 0, W, DH);
+
+        // Draw history: index 0 = newest (top, y=0), oldest at bottom
+        const N = _history.length;
+        for (let i = 0; i < N; i++) {
+            const y0 = Math.round(i * DH / M);
+            const y1 = Math.round((i + 1) * DH / M);
+            const h  = Math.max(1, y1 - y0);
+            if (y0 >= DH) break;
+            const imgBuf = new Uint8ClampedArray(W * h * 4);
+            for (let row = 0; row < h; row++) imgBuf.set(_history[i], row * W * 4);
+            _ctx.putImageData(new ImageData(imgBuf, W, h), 0, y0);
         }
 
-        // Row height synced with waveform 10-second window
-        const rowH = Math.max(1, Math.round(DH * HOP_SIZE / (_sr * WINDOW_SEC)));
-
-        // Expand 1px row to rowH pixels
-        const imgBuf = new Uint8ClampedArray(W * rowH * 4);
-        for (let y = 0; y < rowH; y++) imgBuf.set(rowData, y * W * 4);
-
-        // Scroll spectrogram area DOWN using getImageData (avoids self-drawImage instability)
-        if (DH > rowH) {
-            const existing = _ctx.getImageData(0, 0, W, DH - rowH);
-            _ctx.putImageData(existing, 0, rowH);
-        }
-        // Stamp new row at top
-        _ctx.putImageData(new ImageData(imgBuf, W, rowH), 0, 0);
-
-        // Elapsed-time label every 2 seconds
-        _hopTotal++;
-        const elapsedSec  = (_hopTotal * HOP_SIZE) / _sr;
-        const labelSec    = Math.floor(elapsedSec / 2) * 2;
-        if (labelSec > _lastLabelSec) {
-            _lastLabelSec = labelSec;
-            _ctx.fillStyle = 'rgba(255,255,255,0.55)';
-            _ctx.font = '9px sans-serif';
-            _ctx.fillText(`${labelSec}s`, 2, rowH + 9);
+        // Elapsed-time labels every 2 seconds (right-aligned to avoid freq axis overlap)
+        const elapsedSec = (_hopTotal * HOP_SIZE) / _sr;
+        _ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        _ctx.font = '9px sans-serif';
+        for (let ago = 0; ago < WINDOW_SEC; ago += 2) {
+            const y = Math.round(ago * DH / WINDOW_SEC);
+            if (y + 9 >= DH) continue;
+            const labelSec = Math.round(elapsedSec - ago);
+            if (labelSec < 0) continue;
+            _ctx.fillText(`${labelSec}s`, 2, y + 9);
         }
 
-        // Redraw frequency axis (always visible at bottom)
         _drawFreqAxis();
+    }
+
+    // ── Draw frequency axis at canvas bottom ──────────────────────
+    function _drawFreqAxis() {
+        if (!_canvas || !_ctx) return;
+        const W  = _canvas.width;
+        const H  = _canvas.height;
+        const DH = H - FREQ_AXIS_H;
+        const dispFreq = Math.min(MAX_FREQ, _sr / 2);
+
+        _ctx.fillStyle = '#111';
+        _ctx.fillRect(0, DH, W, FREQ_AXIS_H);
+        _ctx.fillStyle  = '#666';
+        _ctx.font       = '9px sans-serif';
+        _ctx.strokeStyle = '#444';
+        _ctx.lineWidth  = 1;
+
+        for (let f = 0; f <= dispFreq; f += 10) {
+            const x = Math.round((f / dispFreq) * (W - 1));
+            _ctx.beginPath(); _ctx.moveTo(x, DH); _ctx.lineTo(x, DH + 4); _ctx.stroke();
+            const label = f === 0 ? '0Hz' : `${f}`;
+            const tw = f === 0 ? 0 : _ctx.measureText(label).width / 2;
+            _ctx.fillText(label, Math.max(0, x - tw), H - 3);
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────
 
     function init(canvasEl, sampleRate, onPeakHz) {
-        _canvas       = canvasEl;
-        _ctx          = canvasEl.getContext('2d');
-        _onPeak       = (typeof onPeakHz === 'function') ? onPeakHz : null;
-        _hopTotal     = 0;
-        _lastLabelSec = -2;
+        _canvas   = canvasEl;
+        _ctx      = canvasEl.getContext('2d');
+        _onPeak   = (typeof onPeakHz === 'function') ? onPeakHz : null;
+        _hopTotal = 0;
+        _history.length = 0;
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
 
         _canvas.width  = _canvas.clientWidth  || 300;
@@ -211,7 +219,19 @@ const SpectrogramModule = (() => {
         _head = (_head + 1) & (FFT_SIZE - 1);
         if (++_hopCount >= HOP_SIZE) {
             _hopCount = 0;
-            _drawRow();
+            if (!_canvas) return;
+
+            const { rowData, peakHz } = _computeRow(_canvas.width);
+            if (_onPeak) _onPeak(peakHz.toFixed(1));
+
+            _hopTotal++;
+            _history.unshift(rowData); // newest first
+
+            // Keep only frames that cover WINDOW_SEC (+ a small buffer)
+            const maxFrames = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
+            if (_history.length > maxFrames) _history.length = maxFrames;
+
+            _redrawCanvas();
         }
     }
 
@@ -220,7 +240,7 @@ const SpectrogramModule = (() => {
         _head         = 0;
         _hopCount     = 0;
         _hopTotal     = 0;
-        _lastLabelSec = -2;
+        _history.length = 0;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
