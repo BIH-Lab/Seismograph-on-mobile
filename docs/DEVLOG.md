@@ -38,10 +38,10 @@
 ### [문제] Android CSV 유효숫자 1개 (0.1 m/s² 단위 양자화)
 
 - **현상**: Android Chrome에서 측정한 CSV의 acc_z 값이 0.1, -0.1, 0.0 등 1자리 유효숫자만 기록
-- **원인**: W3C Device Orientation and Motion 표준의 **지문 방지(fingerprinting prevention) 정책**
+- **원인 (초기 진단 — 이후 정정됨)**: W3C 표준 권장에 따른 지문 방지(fingerprinting prevention) 정책으로 추정
   - Chrome은 `DeviceMotionEvent`의 `acceleration`과 `accelerationIncludingGravity` 모두 0.1 m/s² 단위로 반올림
-  - 이는 Chrome의 독자 정책이 아니라 W3C 표준에 명시된 사항
-  - iOS Safari도 동일 표준을 따르나 구현 방식에 따라 약간의 차이 있음
+  - ~~이는 Chrome의 독자 정책이 아니라 W3C 표준에 명시된 사항~~ ← **오류**: W3C는 반올림을 권장하나 구체적 수치는 Chrome 독자 구현
+  - → 정확한 원인은 아래 "[조사] Android Chrome Generic Sensor API 정밀도 한계" 항목 참고
 - **조사**: `acceleration`과 `accelerationIncludingGravity` 둘 다 동일한 제한을 받음 — 소스 변경으로는 해결 불가
 - **1차 해결 시도**: Generic Sensor API (`Accelerometer` 클래스) 우선 사용 구현
   - 당시 가설: Chrome 67+ Android에서 하드웨어 ADC 직접 접근, 브라우저 반올림 없음

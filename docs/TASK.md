@@ -5,9 +5,7 @@
 ---
 
 ## 현재 단계
-**Cycle 3 — Activity 3 : 주파수 분석 (스펙트로그램)**
-
-목표 : 실시간 FFT로 진동 신호의 주파수 성분을 스펙트로그램으로 시각화
+**Cycle 4 준비 중** — Cycle 3 완료 (2026-03-10)
 
 ---
 
@@ -40,10 +38,11 @@
 - [x] Activity 3 카드 `card--disabled` → `card--active`로 변경
 
 ### 5단계 : 테스트
-- [ ] PC Chrome 드래그 앤 드롭 테스트
-- [ ] Android Chrome 테스트 (센서 모드 + 파일 선택)
-- [ ] iOS Safari 테스트
-- [ ] GitHub Pages 배포
+- [x] PC Chrome 드래그 앤 드롭 테스트
+- [x] Android Chrome 테스트 (센서 모드 + 파일 선택) — 정밀도 한계 확인 (Chrome 정책)
+- [x] Android Firefox 테스트 (센서 모드) — 9자리 정밀도 확인 ✅ → Android 권장 브라우저로 변경
+- [x] iOS Safari 테스트 — 9자리 정밀도 확인 ✅
+- [x] GitHub Pages 배포
 
 ---
 
@@ -89,6 +88,10 @@
 ---
 
 ## 완료된 작업
+- Cycle 3 전체 완료 (2026-03-10)
+  - Activity 3: 주파수 분석 스펙트로그램 (실시간 FFT + CSV 파일 재생)
+  - sensor.js 정밀도 개선: 3단계 폴백, CALIB_SAMPLES=100, performance.now() 타임스탬프, toFixed(9)
+  - Android Firefox 검증: 9자리 정밀도 확인 → Android 권장 브라우저 Firefox로 변경
 - Cycle 2 전체 완료 (2026-03-09)
   - Activity 2: 지진파 기록하기 (GPS + Z축 가속도 + CSV 다운로드)
   - Android Chrome / iOS Safari 테스트 완료
@@ -111,7 +114,9 @@
 - GPS(Geolocation)도 마찬가지로 사용자 제스처 이후에 요청할 것
 - HTTPS 없이는 센서 API, GPS API 모두 동작 안 함 (GitHub Pages는 자동 HTTPS)
 - 데이터는 메모리에만 저장 (페이지 새로고침 시 초기화)
-- Android 일부 기기에서 accelerationIncludingGravity가 null → acceleration으로 자동 폴백
+- **Android 권장 브라우저: Firefox** — Chrome은 `RoundSensorReading()` 정책으로 0.01~0.1 m/s² 정밀도 한계
+  - sensor.js는 3단계 폴백 자동 처리: `LinearAccelerationSensor` → `Accelerometer` → `DeviceMotionEvent`
+  - Firefox Android는 Generic Sensor API 미지원 → `DeviceMotionEvent` 경로 사용, 9자리 정밀도
 - 측정 시작 시 스마트폰을 평평하게 놓은 상태에서 버튼 눌러야 캘리브레이션 기준값이 정확함
 - GPS 정밀도는 기기/환경에 따라 수 미터 ~ 수십 미터 오차 발생 가능
 - iOS GPS: enableHighAccuracy=true는 GPS 하드웨어 강제 사용 → 실내에서 타임아웃 발생
