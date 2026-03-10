@@ -1,67 +1,48 @@
 /**
  * sensor.js
- * Role    : DeviceMotionEvent reception and data normalization
+ * Role    : Accelerometer data collection and calibration
  * Output  : { timestamp, acc_x, acc_y, acc_z, magnitude, interval_ms }
- * Note    : Includes iOS permission request handling
- *           event.interval reports actual OS sampling interval (ms)
- *           Android Chrome ~10ms (100Hz), iOS Safari ~16.67ms (60Hz)
+ *
+ * Sensor source priority:
+ *   1. Generic Sensor API (Accelerometer class)
+ *        → Android Chrome 67+ — direct hardware ADC, no browser rounding
+ *   2. DeviceMotionEvent (accelerationIncludingGravity)
+ *        → iOS Safari, older browsers — limited to ~0.1 m/s² precision by Chrome policy
+ *
+ * Note: iOS DeviceMotionEvent requires user-gesture permission request (Safari 13+).
+ *       Android Chrome does not require explicit permission for Generic Sensor API.
  */
 
 const SensorModule = (() => {
-    let _onData    = null;
-    let _onStatus  = null;   // optional status callback ('calibrating' | 'ready')
-    let _running   = false;
+    let _onData   = null;
+    let _onStatus = null;
+    let _running  = false;
 
     // ── Calibration ───────────────────────────────────────────────
-    // Take the first few samples at rest as the reference baseline.
     const CALIB_SAMPLES = 5;
-    let _calibBuf = [];          // raw samples during calibration
-    let _baseline = null;        // { x, y, z } mean to subtract
+    let _calibBuf = [];
+    let _baseline = null;
+    let _lastTs   = null;   // for interval_ms estimation in Generic Sensor path
 
     function _resetCalib() {
         _calibBuf = [];
         _baseline = null;
+        _lastTs   = null;
     }
 
-    // ── Pick valid acceleration source ───────────────────────────
-    // Prefer accelerationIncludingGravity (raw hardware ADC values).
-    // Fallback to acceleration if unavailable (some Android devices).
-    function _readRaw(event) {
-        const aG = event.accelerationIncludingGravity;
-        if (aG && aG.x != null && aG.y != null && aG.z != null) {
-            return { x: aG.x, y: aG.y, z: aG.z };
-        }
-        const a = event.acceleration;
-        if (a && a.x != null && a.y != null && a.z != null) {
-            return { x: a.x, y: a.y, z: a.z };
-        }
-        return null;
-    }
+    // ── Generic Sensor API handle ─────────────────────────────────
+    let _accelSensor = null;
 
-    // ── Normalize one DeviceMotionEvent ──────────────────────────
-    function _handleMotion(event) {
-        if (!_running) return;
-
-        const raw = _readRaw(event);
-
-        // Sensor data unavailable — report once then skip
-        if (!raw) {
-            if (_onStatus) _onStatus('unavailable');
-            return;
-        }
-
-        const raw_x = raw.x;
-        const raw_y = raw.y;
-        const raw_z = raw.z;
-
-        // ── Calibration phase: collect baseline ──────────────────
+    // ── Shared processing (both paths call this) ──────────────────
+    function _processRaw(raw, interval_ms) {
+        // Calibration phase: accumulate baseline
         if (_baseline === null) {
-            _calibBuf.push({ x: raw_x, y: raw_y, z: raw_z });
+            _calibBuf.push(raw);
             if (_onStatus) _onStatus('calibrating', _calibBuf.length, CALIB_SAMPLES);
 
             if (_calibBuf.length >= CALIB_SAMPLES) {
                 const sum = _calibBuf.reduce(
-                    (acc, v) => ({ x: acc.x + v.x, y: acc.y + v.y, z: acc.z + v.z }),
+                    (s, v) => ({ x: s.x + v.x, y: s.y + v.y, z: s.z + v.z }),
                     { x: 0, y: 0, z: 0 }
                 );
                 _baseline = {
@@ -71,67 +52,87 @@ const SensorModule = (() => {
                 };
                 if (_onStatus) _onStatus('ready');
             }
-            return;   // don't emit data during calibration
+            return;
         }
 
-        // ── Normal phase: subtract baseline ──────────────────────
-        const acc_x = raw_x - _baseline.x;
-        const acc_y = raw_y - _baseline.y;
-        const acc_z = raw_z - _baseline.z;
-
+        // Normal phase: subtract baseline
+        const acc_x     = raw.x - _baseline.x;
+        const acc_y     = raw.y - _baseline.y;
+        const acc_z     = raw.z - _baseline.z;
         const magnitude = Math.sqrt(acc_x ** 2 + acc_y ** 2 + acc_z ** 2);
 
-        const data = {
+        if (_onData) _onData({
             timestamp   : new Date().toISOString(),
-            acc_x       : acc_x,        // raw float64 — full sensor precision preserved
-            acc_y       : acc_y,
-            acc_z       : acc_z,
-            magnitude   : magnitude,
-            interval_ms : event.interval || null,   // actual OS sampling interval
-        };
-
-        if (_onData) _onData(data);
-    }
-
-    // ── Request permission (iOS 13+) ─────────────────────────────
-    function _requestPermission() {
-        return new Promise((resolve, reject) => {
-            if (typeof DeviceMotionEvent === 'undefined') {
-                reject(new Error('DeviceMotionEvent를 지원하지 않는 브라우저입니다.'));
-                return;
-            }
-
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                // iOS Safari 13+
-                DeviceMotionEvent.requestPermission()
-                    .then(state => {
-                        if (state === 'granted') resolve();
-                        else reject(new Error('센서 권한이 거부되었습니다.\n설정 > Safari > 동작 및 방향 접근을 허용해주세요.'));
-                    })
-                    .catch(reject);
-            } else {
-                // Android Chrome / other browsers — no permission needed
-                resolve();
-            }
+            acc_x,
+            acc_y,
+            acc_z,
+            magnitude,
+            interval_ms,
         });
     }
 
-    // ── Public API ───────────────────────────────────────────────
+    // ── Path 1: Generic Sensor API (Android Chrome) ───────────────
+    function _startGeneric(onError) {
+        try {
+            _accelSensor = new Accelerometer({ frequency: 100 });
 
-    /**
-     * Start sensor.
-     * @param {function} onData    Called with each calibrated data point
-     * @param {function} onError   Called if permission is denied
-     * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready')
-     */
-    function start(onData, onError, onStatus) {
-        if (_running) return;
+            _accelSensor.addEventListener('reading', () => {
+                if (!_running) return;
+                const now      = performance.now();
+                const interval = _lastTs !== null ? now - _lastTs : null;
+                _lastTs = now;
+                _processRaw(
+                    { x: _accelSensor.x, y: _accelSensor.y, z: _accelSensor.z },
+                    interval
+                );
+            });
 
-        _onData   = onData;
-        _onStatus = onStatus || null;
-        _resetCalib();
+            _accelSensor.addEventListener('error', (e) => {
+                _accelSensor = null;
+                if (e.error && e.error.name === 'NotAllowedError') {
+                    if (onError) onError('센서 권한이 거부되었습니다.');
+                } else {
+                    // Hardware unavailable — fall back to DeviceMotionEvent
+                    _startDeviceMotion(onError);
+                }
+            });
 
-        _requestPermission()
+            _accelSensor.start();
+            _running = true;
+
+        } catch (e) {
+            // Accelerometer constructor failed (e.g. SecurityError) — fall back
+            _accelSensor = null;
+            _startDeviceMotion(onError);
+        }
+    }
+
+    // ── Path 2: DeviceMotionEvent (iOS Safari / fallback) ─────────
+    function _handleMotion(event) {
+        if (!_running) return;
+
+        // Prefer raw hardware values (accelerationIncludingGravity)
+        const aG = event.accelerationIncludingGravity;
+        let raw = null;
+        if (aG && aG.x != null && aG.y != null && aG.z != null) {
+            raw = { x: aG.x, y: aG.y, z: aG.z };
+        } else {
+            const a = event.acceleration;
+            if (a && a.x != null && a.y != null && a.z != null) {
+                raw = { x: a.x, y: a.y, z: a.z };
+            }
+        }
+
+        if (!raw) {
+            if (_onStatus) _onStatus('unavailable');
+            return;
+        }
+
+        _processRaw(raw, event.interval || null);
+    }
+
+    function _startDeviceMotion(onError) {
+        _requestiOSPermission()
             .then(() => {
                 _running = true;
                 window.addEventListener('devicemotion', _handleMotion);
@@ -141,20 +142,66 @@ const SensorModule = (() => {
             });
     }
 
-    /** Stop sensor. */
+    // ── iOS 13+ permission request ────────────────────────────────
+    function _requestiOSPermission() {
+        return new Promise((resolve, reject) => {
+            if (typeof DeviceMotionEvent === 'undefined') {
+                reject(new Error('DeviceMotionEvent를 지원하지 않는 브라우저입니다.'));
+                return;
+            }
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(state => {
+                        if (state === 'granted') resolve();
+                        else reject(new Error('센서 권한이 거부되었습니다.\n설정 > Safari > 동작 및 방향 접근을 허용해주세요.'));
+                    })
+                    .catch(reject);
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    // ── Public API ────────────────────────────────────────────────
+
+    /**
+     * Start sensor.
+     * Tries Generic Sensor API first; falls back to DeviceMotionEvent.
+     * @param {function} onData    Called with each calibrated data point
+     * @param {function} onError   Called if permission is denied or sensor unavailable
+     * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready') | ('unavailable')
+     */
+    function start(onData, onError, onStatus) {
+        if (_running) return;
+        _onData   = onData;
+        _onStatus = onStatus || null;
+        _resetCalib();
+
+        if (typeof Accelerometer !== 'undefined') {
+            _startGeneric(onError);     // Android Chrome — high precision
+        } else {
+            _startDeviceMotion(onError); // iOS Safari / fallback
+        }
+    }
+
+    /** Stop sensor and release all resources. */
     function stop() {
         if (!_running) return;
         _running = false;
+
+        if (_accelSensor) {
+            _accelSensor.stop();
+            _accelSensor = null;
+        }
         window.removeEventListener('devicemotion', _handleMotion);
+
         _onData   = null;
         _onStatus = null;
         _resetCalib();
     }
 
     /** Whether sensor is currently running. */
-    function isRunning() {
-        return _running;
-    }
+    function isRunning() { return _running; }
 
     return { start, stop, isRunning };
 })();
