@@ -118,8 +118,9 @@
                             if (state === 'calibrating') {
                                 statusMsg.textContent = '기준값 설정 중...';
                             } else if (state === 'ready') {
-                                const srcLabel = source === 'generic'      ? ' (Generic Sensor API — 고정밀)'
-                                               : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반)'
+                                const srcLabel = source === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
+                                               : source === 'accel'        ? ' (Accelerometer — 고정밀)'
+                                               : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반 · 0.1 m/s² 한계)'
                                                : '';
                                 statusMsg.textContent = '측정 중' + srcLabel + ' — Z축 변화량을 기록합니다.';
                                 stopBtn.hidden = false;

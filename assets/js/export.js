@@ -57,7 +57,7 @@ const ExportModule = (() => {
         const keys   = Object.keys(_rows[0]);
         const header = keys.join(',') + '\n';
         // Format floats to 6 decimal places to preserve sensor precision in CSV
-        const fmt    = v => (typeof v === 'number') ? v.toFixed(6) : (v ?? '');
+        const fmt    = v => (typeof v === 'number') ? v.toFixed(9) : (v ?? '');
         const body   = _rows
             .map(r => keys.map(k => fmt(r[k])).join(','))
             .join('\n');

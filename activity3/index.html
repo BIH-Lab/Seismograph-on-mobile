@@ -253,8 +253,9 @@
                             peakFreqDisplay.hidden = false;
                             peakFreqVal.textContent = hz;
                         });
-                        const srcLabel = source === 'generic'      ? ' (Generic Sensor API — 고정밀)'
-                                       : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반)'
+                        const srcLabel = source === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
+                                       : source === 'accel'        ? ' (Accelerometer — 고정밀)'
+                                       : source === 'devicemotion' ? ' (DeviceMotionEvent — 일반 · 0.1 m/s² 한계)'
                                        : '';
                         sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;

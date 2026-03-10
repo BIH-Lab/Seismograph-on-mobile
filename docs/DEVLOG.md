@@ -118,16 +118,18 @@
   - **데이터 값은 전혀 수정 없음** — 순수 렌더링 개선
 - **파일**: `assets/js/visual.js`
 
-### [문제] Android 파형 그래프 계단형 표시 (하드웨어 정밀도 저하)
+### [문제] Android CSV 정밀도 부족 + 센서 폴백 미흡
 
-- **현상**: Generic Sensor API 사용 중임에도 그래프가 계단형으로 표시됨 (phyphox 대비 유효숫자 적음)
-- **원인**: `Accelerometer` 클래스(`TYPE_ACCELEROMETER`)는 중력(~9.8 m/s²)을 포함한 원시 값을 반환하고, 앱이 5샘플 baseline을 빼서 동적 성분을 추출함
-  - phyphox는 `TYPE_LINEAR_ACCELERATION` (OS 센서 퓨전으로 중력 제거)을 사용 → 진동 성분이 0 근처 값으로 직접 표현되어 더 많은 유효숫자 확보
-- **해결**: `Accelerometer` → `LinearAccelerationSensor` 클래스로 교체
-  - `TYPE_LINEAR_ACCELERATION`에 직접 매핑 → Android OS 센서 퓨전이 중력을 정밀하게 제거
-  - DeviceMotionEvent fallback 경로도 `accelerationIncludingGravity` → `acceleration` 우선으로 변경 (일관성 확보)
-  - 캘리브레이션(CALIB_SAMPLES=5) 유지 — 센서 바이어스 오프셋 제거
-- **파일**: `assets/js/sensor.js`
+- **현상**: LinearAccelerationSensor가 일부 기기(자이로스코프 없음)에서 에러 → DeviceMotionEvent 폴백 → 0.1 m/s² 1자리만 기록
+- **추가 문제**:
+  - CALIB_SAMPLES=5 (50ms)는 기동 노이즈 포함 위험
+  - `new Date().toISOString()`은 JS 이벤트 큐 지연이 포함되어 실제 측정 시점과 오차 발생
+- **해결**: 3단계 센서 폴백 + 측정 품질 개선
+  1. LinearAccelerationSensor (최고정밀, 자이로 필요) → 2. Accelerometer (고정밀, 자이로 불필요) → 3. DeviceMotionEvent (0.1 m/s² 한계)
+  - CALIB_SAMPLES: 5 → 100 (1초 안정화)
+  - 타임스탬프: `performance.timeOrigin + performance.now()` 기반으로 변경 (센서 인터럽트 시점)
+  - export.js `toFixed(6)` → `toFixed(9)`
+- **파일**: `assets/js/sensor.js`, `assets/js/export.js`, activity HTML 3곳
 
 ---
 
@@ -136,7 +138,7 @@
 | 결정 사항 | 선택 | 이유 |
 |-----------|------|------|
 | GPS 정확도 모드 | `enableHighAccuracy: false` | 실내 타임아웃 방지 |
-| 센서 API 우선순위 | LinearAccelerationSensor → DeviceMotionEvent | OS 센서 퓨전으로 중력 제거, 진동 성분 유효숫자 최대화 |
+| 센서 API 우선순위 | LinearAccelerationSensor → Accelerometer → DeviceMotionEvent | 기기 지원 여부에 따라 최고 정밀도 자동 선택 |
 | CSV 다운로드 방식 | Web Share API 우선 (모바일) | 모바일에서 `<a download>` 불안정 |
 | FFT 윈도우 함수 | Hann window | 스펙트럼 누설(spectral leakage) 억제 |
 | FFT overlap | HOP_SIZE=26 (~90%) | ObsPy 기본값 준수 |
