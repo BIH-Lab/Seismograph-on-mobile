@@ -14,7 +14,7 @@ const SensorModule = (() => {
 
     // ── Calibration ───────────────────────────────────────────────
     // Take the first few samples at rest as the reference baseline.
-    const CALIB_SAMPLES = 30;  // ~300ms @ 100Hz — stable DC offset baseline
+    const CALIB_SAMPLES = 5;
     let _calibBuf = [];          // raw samples during calibration
     let _baseline = null;        // { x, y, z } mean to subtract
 
@@ -24,21 +24,18 @@ const SensorModule = (() => {
     }
 
     // ── Pick valid acceleration source ───────────────────────────
-    // Prefer `acceleration` (gravity already removed by hardware fusion):
-    //   - Baseline ≈ 0 at rest → quantization noise doesn't mask micro-vibrations
-    //   - Vibration detection floor ~0.001 m/s² vs ~0.01 m/s² with gravity-included
-    // Fallback to `accelerationIncludingGravity` if acceleration is unavailable
-    //   (rare on modern devices; baseline subtraction still removes gravity offset)
+    // Prefer accelerationIncludingGravity (raw hardware ADC values).
+    // Fallback to acceleration if unavailable (some Android devices).
     function _readRaw(event) {
-        const a = event.acceleration;
-        if (a && a.x != null && a.y != null && a.z != null) {
-            return { x: a.x, y: a.y, z: a.z };
-        }
         const aG = event.accelerationIncludingGravity;
         if (aG && aG.x != null && aG.y != null && aG.z != null) {
             return { x: aG.x, y: aG.y, z: aG.z };
         }
-        return null;   // sensor data not available on this device
+        const a = event.acceleration;
+        if (a && a.x != null && a.y != null && a.z != null) {
+            return { x: a.x, y: a.y, z: a.z };
+        }
+        return null;
     }
 
     // ── Normalize one DeviceMotionEvent ──────────────────────────
