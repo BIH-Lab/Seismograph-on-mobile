@@ -23,16 +23,18 @@ const SpectrogramModule = (() => {
     const FREQ_AXIS_H = 18;   // px reserved at bottom for frequency-axis labels
 
     // ── State ─────────────────────────────────────────────────────
-    let _canvas   = null;
-    let _ctx      = null;
-    let _sr       = 100;
-    let _onPeak   = null;
-    let _buf      = new Float32Array(FFT_SIZE);  // ring buffer
-    let _head     = 0;
-    let _hopCount = 0;
-    let _hopTotal = 0;      // total hops since init (for elapsed-time labels)
+    let _canvas       = null;
+    let _ctx          = null;
+    let _sr           = 100;
+    let _onPeak       = null;
+    let _buf          = new Float32Array(FFT_SIZE);  // ring buffer
+    let _head         = 0;
+    let _hopCount     = 0;
+    let _hopTotal     = 0;      // total hops since init
+    let _initTime     = null;   // performance.now() at init — wall-clock reference
+    let _lastLabelSec = -1;     // last 2-second boundary already labelled
     // History: array of 1-px row ImageData pixels (newest = index 0)
-    const _history = [];    // each entry: Uint8ClampedArray(W × 4)
+    const _history = [];    // each entry: { rowData: Uint8ClampedArray(W×4), label: string|null }
 
     // ── Hann window (precomputed) ─────────────────────────────────
     const _hann = new Float32Array(FFT_SIZE);
@@ -137,8 +139,12 @@ const SpectrogramModule = (() => {
         const DH = H - FREQ_AXIS_H;
         if (W < 2 || DH < 2) return;
 
-        // M = total frames that fit in WINDOW_SEC (floating for pixel mapping)
-        const M = (_sr * WINDOW_SEC) / HOP_SIZE;
+        // Measured sr from wall-clock (accurate after >5 hops and >500 ms)
+        const elapsedMs  = _initTime !== null ? performance.now() - _initTime : 0;
+        const measuredSr = (_hopTotal > 5 && elapsedMs > 500)
+            ? Math.max(20, Math.min(250, (_hopTotal * HOP_SIZE) / (elapsedMs / 1000)))
+            : _sr;
+        const finalM = (measuredSr * WINDOW_SEC) / HOP_SIZE;
 
         // Clear spectrogram area
         _ctx.fillStyle = '#0a0a0a';
@@ -147,6 +153,9 @@ const SpectrogramModule = (() => {
         // Draw history: index 0 = newest (top, y=0), oldest at bottom
         // Each entry: { rowData, label } — label scrolls down with its row
         const N = _history.length;
+        // During initial fill (N < finalM), stretch rows to fill canvas so waterfall
+        // is immediately visible. Once N reaches finalM, switch to correct time scale.
+        const M = Math.max(1, Math.min(N, finalM));
         _ctx.fillStyle = 'rgba(255,255,255,0.55)';
         _ctx.font = '9px sans-serif';
         for (let i = 0; i < N; i++) {
@@ -192,10 +201,12 @@ const SpectrogramModule = (() => {
     // ── Public API ────────────────────────────────────────────────
 
     function init(canvasEl, sampleRate, onPeakHz) {
-        _canvas   = canvasEl;
-        _ctx      = canvasEl.getContext('2d');
-        _onPeak   = (typeof onPeakHz === 'function') ? onPeakHz : null;
-        _hopTotal = 0;
+        _canvas       = canvasEl;
+        _ctx          = canvasEl.getContext('2d');
+        _onPeak       = (typeof onPeakHz === 'function') ? onPeakHz : null;
+        _hopTotal     = 0;
+        _initTime     = performance.now();
+        _lastLabelSec = -1;
         _history.length = 0;
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
 
@@ -219,16 +230,20 @@ const SpectrogramModule = (() => {
             if (_onPeak) _onPeak(peakHz.toFixed(1));
 
             _hopTotal++;
-            // Attach time label when crossing a 2-second boundary (scrolls with row)
-            const elapsedSec = (_hopTotal * HOP_SIZE) / _sr;
+            // Elapsed time from wall-clock (immune to wrong event.interval reporting)
+            const elapsedMs  = _initTime !== null ? performance.now() - _initTime : (_hopTotal * HOP_SIZE / _sr * 1000);
+            const elapsedSec = elapsedMs / 1000;
             const labelSec   = Math.floor(elapsedSec / 2) * 2;
             const label      = (labelSec > _lastLabelSec) ? `${labelSec}s` : null;
             if (label) _lastLabelSec = labelSec;
 
             _history.unshift({ rowData, label }); // newest first
 
-            // Keep only frames that cover WINDOW_SEC (+ a small buffer)
-            const maxFrames = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
+            // Measured sr from wall-clock (fallback to _sr if not enough data yet)
+            const measuredSr = (_hopTotal > 5 && elapsedMs > 500)
+                ? Math.max(20, Math.min(250, (_hopTotal * HOP_SIZE) / (elapsedMs / 1000)))
+                : _sr;
+            const maxFrames = Math.ceil(measuredSr * WINDOW_SEC / HOP_SIZE) + 1;
             if (_history.length > maxFrames) _history.length = maxFrames;
 
             _redrawCanvas();
@@ -240,6 +255,8 @@ const SpectrogramModule = (() => {
         _head         = 0;
         _hopCount     = 0;
         _hopTotal     = 0;
+        _initTime     = null;
+        _lastLabelSec = -1;
         _history.length = 0;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
