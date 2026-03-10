@@ -400,3 +400,21 @@ html, body {
     font-weight: 700;
     font-size: 1.1rem;
 }
+
+
+/* ===================================
+   PC 반응형 (768px+)
+=================================== */
+@media (min-width: 768px) {
+    .activity-main {
+        max-width: 860px;
+        margin: 0 auto;
+        width: 100%;
+    }
+    .chart-wrapper {
+        max-height: 360px;
+    }
+    .spectrogram-panel {
+        max-height: 300px;
+    }
+}

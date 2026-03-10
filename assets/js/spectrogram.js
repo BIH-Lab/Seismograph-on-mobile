@@ -15,6 +15,7 @@ const SpectrogramModule = (() => {
     const FFT_SIZE = 256;   // must be power of 2; frequency resolution = sr / FFT_SIZE
     const HOP_SIZE = 26;    // new samples per spectrogram column (~90% overlap, per ObsPy default)
     const MAX_FREQ = 25;    // Hz — display ceiling (Nyquist of 50 Hz minimum sr)
+    const WINDOW_SEC = 10;  // must match visual.js WINDOW_SEC (for colWidth sync)
     const LOG_MIN  = -3;    // log10 amplitude floor  → darkest color (0.001 m/s², building micro-vibration)
     const LOG_MAX  = -1;    // log10 amplitude ceiling → brightest color (0.1 m/s², typical daily vibration)
 
@@ -144,9 +145,20 @@ const SpectrogramModule = (() => {
             _onPeak(peakHz.toFixed(1));
         }
 
-        // Scroll canvas left by 1 px, then stamp new column at right edge
-        _ctx.drawImage(_canvas, -1, 0);
-        _ctx.putImageData(new ImageData(colData, 1, H), W - 1, 0);
+        // Dynamic column width: sync scroll speed with waveform 10-second window
+        const colWidth = Math.max(1, Math.round(W * HOP_SIZE / (_sr * WINDOW_SEC)));
+        const imgBuf = new Uint8ClampedArray(colWidth * H * 4);
+        for (let x = 0; x < colWidth; x++) {
+            for (let y = 0; y < H; y++) {
+                const dst = (y * colWidth + x) * 4;
+                imgBuf[dst]     = colData[y * 4];
+                imgBuf[dst + 1] = colData[y * 4 + 1];
+                imgBuf[dst + 2] = colData[y * 4 + 2];
+                imgBuf[dst + 3] = 255;
+            }
+        }
+        _ctx.drawImage(_canvas, -colWidth, 0);
+        _ctx.putImageData(new ImageData(imgBuf, colWidth, H), W - colWidth, 0);
     }
 
     // ── Public API ────────────────────────────────────────────────

@@ -17,7 +17,7 @@
 
         <!-- 배경색 시각화 영역 -->
         <div class="color-display" id="color-display">
-            <p class="color-display__label" id="magnitude-label">0.000</p>
+            <p class="color-display__label" id="magnitude-label">0.000000</p>
             <p class="color-display__unit">m/s²</p>
         </div>
 
@@ -70,14 +70,14 @@
                     startBtn.hidden = false;
                     _resetStopBtn();
                 },
-                (state, source) => {
+                (state, arg1, arg2) => {
                     if (state === 'calibrating') {
-                        statusMsg.textContent = '기준값 설정 중...';
+                        statusMsg.textContent = `기준값 설정 중... (${arg1}/${arg2})`;
                     } else if (state === 'ready') {
                         const isFirefox = navigator.userAgent.includes('Firefox');
-                        const srcLabel = source === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
-                                       : source === 'accel'        ? ' (Accelerometer — 고정밀)'
-                                       : source === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
+                        const srcLabel = arg1 === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
+                                       : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
+                                       : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                        : '';
                         statusMsg.textContent = '측정 중' + srcLabel + ' — 시작 시점 대비 변화량을 표시합니다.';
                         stopBtn.hidden = false;

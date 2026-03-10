@@ -244,9 +244,9 @@
                     sensorStatus.textContent = '오류: ' + msg;
                     sensorStartBtn.hidden = false;
                 },
-                (state, source) => {
+                (state, arg1, arg2) => {
                     if (state === 'calibrating') {
-                        sensorStatus.textContent = '기준값 설정 중...';
+                        sensorStatus.textContent = `기준값 설정 중... (${arg1}/${arg2})`;
                     } else if (state === 'ready') {
                         const spectroCanvas = document.getElementById('spectroChart');
                         SpectrogramModule.init(spectroCanvas, _sr, (hz) => {
@@ -254,9 +254,9 @@
                             peakFreqVal.textContent = hz;
                         });
                         const isFirefox = navigator.userAgent.includes('Firefox');
-                        const srcLabel = source === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
-                                       : source === 'accel'        ? ' (Accelerometer — 고정밀)'
-                                       : source === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
+                        const srcLabel = arg1 === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
+                                       : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
+                                       : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                        : '';
                         sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;

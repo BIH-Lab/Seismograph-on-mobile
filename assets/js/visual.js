@@ -119,6 +119,7 @@ const VisualModule = (() => {
         }
         if (prevPx !== null) ctx.lineTo(prevPx, prevPy);
         ctx.stroke();
+        _drawTimeAxis(w, h, timeStart, timeEnd, windowMs);
 
         // Label
         ctx.fillStyle = Z_COLOR;
@@ -161,6 +162,26 @@ const VisualModule = (() => {
         ctx.stroke();
     }
 
+    function _drawTimeAxis(w, h, timeStart, timeEnd, windowMs) {
+        const stepMs = 2000; // 2-second tick interval
+        ctx.fillStyle   = '#555';
+        ctx.font        = '9px sans-serif';
+        ctx.strokeStyle = '#2e2e2e';
+        ctx.lineWidth   = 1;
+
+        const firstTick = Math.ceil(timeStart / stepMs) * stepMs;
+        for (let t = firstTick; t <= timeEnd; t += stepMs) {
+            const x      = ((t - timeStart) / windowMs) * w;
+            const relSec = Math.round((t - timeEnd) / 1000);
+            const label  = relSec === 0 ? '0s' : `${relSec}s`;
+            ctx.beginPath();
+            ctx.moveTo(x, h - 14);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+            ctx.fillText(label, x + 2, h - 2);
+        }
+    }
+
     function _trimBuffer() {
         if (buffer.length === 0) return;
         const cutoff = buffer[buffer.length - 1].ts - (WINDOW_SEC + 2) * 1000;
@@ -179,14 +200,14 @@ const VisualModule = (() => {
         if (bodyEl)  bodyEl.style.backgroundColor = _zToHSL(data.acc_z);
 
         // Label shows Z value
-        if (labelEl) labelEl.textContent = data.acc_z.toFixed(3);
+        if (labelEl) labelEl.textContent = data.acc_z.toFixed(6);
     }
 
     function reset() {
         buffer.length = 0;
         _peakZ = MIN_RANGE;
         if (bodyEl)  bodyEl.style.backgroundColor = '';
-        if (labelEl) labelEl.textContent = '0.000';
+        if (labelEl) labelEl.textContent = '0.000000';
     }
 
     return { update, reset };
