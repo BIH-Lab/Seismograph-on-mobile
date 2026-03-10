@@ -43,10 +43,10 @@
   - 이는 Chrome의 독자 정책이 아니라 W3C 표준에 명시된 사항
   - iOS Safari도 동일 표준을 따르나 구현 방식에 따라 약간의 차이 있음
 - **조사**: `acceleration`과 `accelerationIncludingGravity` 둘 다 동일한 제한을 받음 — 소스 변경으로는 해결 불가
-- **해결**: **Generic Sensor API (`Accelerometer` 클래스) 우선 사용 구현**
-  - Chrome 67+ Android에서 하드웨어 ADC 직접 접근, 브라우저 반올림 없음
+- **1차 해결 시도**: Generic Sensor API (`Accelerometer` 클래스) 우선 사용 구현
+  - 당시 가설: Chrome 67+ Android에서 하드웨어 ADC 직접 접근, 브라우저 반올림 없음
   - `typeof Accelerometer !== 'undefined'` 체크로 지원 여부 판단 후 우선 사용
-  - 지원 불가 시 DeviceMotionEvent fallback
+  - → 추후 실기기 테스트에서 Generic Sensor API도 동일하게 Chrome 반올림 적용됨이 확인됨 (아래 항목 참고)
 - **파일**: `assets/js/sensor.js`
 
 ### [문제] CSV 소수점 정밀도 손실 (`parseFloat` + `toFixed` 이중 적용)
@@ -131,6 +131,21 @@
   - export.js `toFixed(6)` → `toFixed(9)`
 - **파일**: `assets/js/sensor.js`, `assets/js/export.js`, activity HTML 3곳
 
+### [조사] Android Chrome Generic Sensor API 정밀도 한계 (플랫폼 제약)
+
+- **현상**: Galaxy S21 Ultra(최고급 하드웨어)에서도 acc_z 값이 ~0.01~0.1 m/s² 수준으로 제한됨
+  - iPhone iOS Safari: `-0.005296172` m/s² (9자리 유효숫자 — phyphox 수준) ✅
+  - Android Chrome S21 Ultra: `0.17` 등 2자리 수준 ⚠️
+- **원인**: Chrome은 DeviceMotionEvent뿐 아니라 **Generic Sensor API 전체**에
+  `RoundSensorReading()` 함수(Chromium `platform_sensor_util.cc`)로 반올림 적용
+  - iOS Safari는 이 정책을 구현하지 않아 하드웨어 풀 정밀도 제공
+  - W3C 표준이 아닌 Chrome 독자 개인정보 보호 정책 (`platform_sensor_util.h`에 센서별 rounding 값 정의)
+- **PWA 설치 여부**: 해결 안 됨 — PWA도 Chrome WebView 엔진 사용 → 동일 반올림 정책 적용
+- **COOP/COEP 헤더**: 타이머 정밀도만 개선, 센서 반올림에는 영향 없음
+- **웹 기술 내 유일한 우회 가능성**: Firefox Android (Mozilla 정책 상이할 수 있음 — 미검증)
+- **결론**: Android Chrome 정밀도 한계는 현재 웹 기술로 해결 불가.
+  논문 데이터 수집 시 플랫폼 한계를 명시하고, iOS Safari 결과(9자리)를 주 데이터로 활용 권장.
+
 ---
 
 ## 기술 결정 기록
@@ -144,3 +159,7 @@
 | FFT overlap | HOP_SIZE=26 (~90%) | ObsPy 기본값 준수 |
 | 스펙트로그램 주파수 상한 | 25 Hz | 건물 진동 신뢰 대역(5~25 Hz) 커버 |
 | 스펙트로그램 LOG 범위 | [-3, -1] | 일상 건물 진동(0.001~0.1 m/s²) 최적화 |
+| Android Chrome 센서 정밀도 | ~0.01~0.1 m/s² (플랫폼 한계) | Chrome `RoundSensorReading()` 정책, 웹 기술로 우회 불가 |
+| CSV 소수점 자릿수 | `toFixed(9)` | 고정밀 센서 데이터 최하위 자릿수 보존 (iOS 9자리 활용) |
+| 캘리브레이션 샘플 수 | `CALIB_SAMPLES=100` (1초) | 기동 노이즈 제거, 안정화 시간 확보 |
+| 타임스탬프 기준 | `performance.timeOrigin + performance.now()` | JS 이벤트 큐 지연 배제, 센서 인터럽트 시점 기록 |
