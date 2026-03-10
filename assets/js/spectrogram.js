@@ -145,27 +145,21 @@ const SpectrogramModule = (() => {
         _ctx.fillRect(0, 0, W, DH);
 
         // Draw history: index 0 = newest (top, y=0), oldest at bottom
+        // Each entry: { rowData, label } — label scrolls down with its row
         const N = _history.length;
+        _ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        _ctx.font = '9px sans-serif';
         for (let i = 0; i < N; i++) {
+            const { rowData, label } = _history[i];
             const y0 = Math.round(i * DH / M);
             const y1 = Math.round((i + 1) * DH / M);
             const h  = Math.max(1, y1 - y0);
             if (y0 >= DH) break;
             const imgBuf = new Uint8ClampedArray(W * h * 4);
-            for (let row = 0; row < h; row++) imgBuf.set(_history[i], row * W * 4);
+            for (let row = 0; row < h; row++) imgBuf.set(rowData, row * W * 4);
             _ctx.putImageData(new ImageData(imgBuf, W, h), 0, y0);
-        }
-
-        // Elapsed-time labels every 2 seconds (right-aligned to avoid freq axis overlap)
-        const elapsedSec = (_hopTotal * HOP_SIZE) / _sr;
-        _ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        _ctx.font = '9px sans-serif';
-        for (let ago = 0; ago < WINDOW_SEC; ago += 2) {
-            const y = Math.round(ago * DH / WINDOW_SEC);
-            if (y + 9 >= DH) continue;
-            const labelSec = Math.round(elapsedSec - ago);
-            if (labelSec < 0) continue;
-            _ctx.fillText(`${labelSec}s`, 2, y + 9);
+            // Time label scrolls with its row (same behavior as file-select mode)
+            if (label && y0 + 9 < DH) _ctx.fillText(label, 2, y0 + 9);
         }
 
         _drawFreqAxis();
@@ -225,7 +219,13 @@ const SpectrogramModule = (() => {
             if (_onPeak) _onPeak(peakHz.toFixed(1));
 
             _hopTotal++;
-            _history.unshift(rowData); // newest first
+            // Attach time label when crossing a 2-second boundary (scrolls with row)
+            const elapsedSec = (_hopTotal * HOP_SIZE) / _sr;
+            const labelSec   = Math.floor(elapsedSec / 2) * 2;
+            const label      = (labelSec > _lastLabelSec) ? `${labelSec}s` : null;
+            if (label) _lastLabelSec = labelSec;
+
+            _history.unshift({ rowData, label }); // newest first
 
             // Keep only frames that cover WINDOW_SEC (+ a small buffer)
             const maxFrames = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
