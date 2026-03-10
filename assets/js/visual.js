@@ -96,20 +96,28 @@ const VisualModule = (() => {
 
         _drawGrid(w, h, midY, range, yScale);
 
-        // Z-axis waveform
+        // Z-axis waveform — smooth quadratic bezier through each data point
+        // (pure rendering change: data values are unmodified)
         ctx.beginPath();
         ctx.strokeStyle = Z_COLOR;
         ctx.lineWidth   = 2;
         ctx.lineJoin    = 'round';
 
-        let first = true;
+        let prevPx = null, prevPy = null;
         for (const pt of buffer) {
             if (pt.ts < timeStart) continue;
             const px = ((pt.ts - timeStart) / windowMs) * w;
             const py = midY - pt.z * yScale;
-            if (first) { ctx.moveTo(px, py); first = false; }
-            else          ctx.lineTo(px, py);
+            if (prevPx === null) {
+                ctx.moveTo(px, py);
+            } else {
+                const midX = (prevPx + px) / 2;
+                const midY2 = (prevPy + py) / 2;
+                ctx.quadraticCurveTo(prevPx, prevPy, midX, midY2);
+            }
+            prevPx = px; prevPy = py;
         }
+        if (prevPx !== null) ctx.lineTo(prevPx, prevPy);
         ctx.stroke();
 
         // Label
