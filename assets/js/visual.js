@@ -34,7 +34,6 @@ const VisualModule = (() => {
     const _fullBuffer = [];      // [{ ts, z }] — untrimmed, for review mode
     let _peakZ        = MIN_RANGE; // auto-scale peak (m/s²)
     let _peakMmiZ     = 0;         // max |acc_z| for MMI color (separate from _peakZ)
-    let _smoothZ      = 0;         // asymmetric EMA: fast up, slow down
     let _colorLocked  = false;
     let _startTs      = null;      // timestamp of first sample
 
@@ -218,11 +217,16 @@ const VisualModule = (() => {
         const absZ = Math.abs(data.acc_z);
         if (absZ > _peakMmiZ) _peakMmiZ = absZ;
 
-        // Asymmetric EMA: fast up, slow down (suppresses stationary noise)
-        _smoothZ = absZ > _smoothZ ? absZ : _smoothZ * 0.92 + absZ * 0.08;
+        // Sliding window PGA: max |acc_z| over last 300 ms
+        const WINDOW_MS = 300;
+        const cutoff    = now - WINDOW_MS;
+        let pgaZ = absZ;
+        for (const pt of buffer) {
+            if (pt.ts >= cutoff && Math.abs(pt.z) > pgaZ) pgaZ = Math.abs(pt.z);
+        }
 
         if (!_colorLocked) {
-            const mmi = _zToMMI(_smoothZ);
+            const mmi = _zToMMI(pgaZ);
             if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
             if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name}`;
         }
@@ -235,7 +239,6 @@ const VisualModule = (() => {
         _fullBuffer.length = 0;
         _peakZ        = MIN_RANGE;
         _peakMmiZ     = 0;
-        _smoothZ      = 0;
         _colorLocked  = false;
         _startTs      = null;
         if (bodyEl)     bodyEl.style.backgroundColor = '';
