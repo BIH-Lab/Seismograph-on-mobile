@@ -221,8 +221,7 @@ const ReviewModule = (() => {
 
     function _clampViewCenter(vc) {
         if (_data.length < 2) return vc;
-        const half = (WINDOW_SEC / 2) * 1000;
-        const minVC = _data[0].ts + half;
+        const minVC = _data[0].ts;
         const maxVC = _data[_data.length - 1].ts;
         return Math.max(minVC, Math.min(maxVC, vc));
     }
