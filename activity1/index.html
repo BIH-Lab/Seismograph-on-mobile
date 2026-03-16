@@ -17,6 +17,7 @@
 
         <!-- 배경색 시각화 영역 -->
         <div class="color-display" id="color-display">
+            <p class="color-display__mmi" id="mmi-level-text"></p>
             <p class="color-display__label" id="magnitude-label">0.000000</p>
             <p class="color-display__unit">m/s²</p>
         </div>
@@ -26,10 +27,18 @@
             <canvas id="waveChart"></canvas>
         </div>
 
+        <!-- 리뷰 모드 컨트롤 바 (측정 정지 후 표시) -->
+        <div class="review-bar" id="review-bar" hidden>
+            <span class="review-bar__time" id="review-time-label">구간: 0.0s ~ 2.0s</span>
+            <span class="review-bar__mmi" id="review-mmi-label"></span>
+        </div>
+
         <!-- 컨트롤 -->
         <div class="controls">
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
-            <button class="btn btn--danger btn--lg" id="stop-btn" hidden>측정 정지</button>
+            <button class="btn btn--danger btn--lg"  id="stop-btn"  hidden>측정 정지</button>
+            <button class="btn btn--ghost btn--sm"   id="lock-btn"  hidden>색 고정</button>
+            <button class="btn btn--ghost btn--sm"   id="mmi-info-btn">진도 안내</button>
         </div>
 
         <!-- 상태 메시지 -->
@@ -37,16 +46,68 @@
 
     </main>
 
+    <!-- MMI 진도 안내 모달 -->
+    <div class="modal" id="mmi-modal" hidden>
+        <div class="modal__box modal__box--wide">
+            <h3>수정 메르칼리 진도 (KMA)</h3>
+            <table class="mmi-table" id="mmi-table"></table>
+            <button class="btn btn--ghost" id="mmi-close-btn">닫기</button>
+        </div>
+    </div>
+
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js"></script>
+    <script src="../assets/js/review.js"></script>
 
     <script>
-        const startBtn  = document.getElementById('start-btn');
-        const stopBtn   = document.getElementById('stop-btn');
-        const statusMsg = document.getElementById('status-msg');
+        const startBtn    = document.getElementById('start-btn');
+        const stopBtn     = document.getElementById('stop-btn');
+        const lockBtn     = document.getElementById('lock-btn');
+        const statusMsg   = document.getElementById('status-msg');
+        const reviewBar   = document.getElementById('review-bar');
+        const reviewTime  = document.getElementById('review-time-label');
+        const reviewMmi   = document.getElementById('review-mmi-label');
+        const colorDisplay = document.getElementById('color-display');
+        const mmiLevelText = document.getElementById('mmi-level-text');
+        const mmiInfoBtn  = document.getElementById('mmi-info-btn');
+        const mmiModal    = document.getElementById('mmi-modal');
+        const mmiCloseBtn = document.getElementById('mmi-close-btn');
+        const mmiTable    = document.getElementById('mmi-table');
 
-        // false = 측정 정지 모드, true = 초기화 모드
+        // ── MMI 진도 안내 모달 ──────────────────────────────────────
+        // Build table from VisualModule.getMmiLevels()
+        VisualModule.getMmiLevels().forEach(m => {
+            const tr = document.createElement('tr');
+            const pgaStr = m.pgaMax === Infinity
+                ? `≥ ${m.pgaMin} m/s²`
+                : `${m.pgaMin} ~ ${m.pgaMax} m/s²`;
+            tr.innerHTML = `
+                <td style="background:${m.color};width:10px;border-radius:2px;"></td>
+                <td>${m.level}</td>
+                <td>${m.name}</td>
+                <td>${pgaStr}</td>`;
+            mmiTable.appendChild(tr);
+        });
+
+        mmiInfoBtn.addEventListener('click',  () => { mmiModal.hidden = false; });
+        mmiCloseBtn.addEventListener('click', () => { mmiModal.hidden = true; });
+        mmiModal.addEventListener('click', (e) => { if (e.target === mmiModal) mmiModal.hidden = true; });
+
+        // ── 색 고정 토글 ───────────────────────────────────────────
+        let _lockActive = false;
+
+        lockBtn.addEventListener('click', () => {
+            _lockActive = !_lockActive;
+            VisualModule.setColorLock(_lockActive);
+            lockBtn.textContent = _lockActive ? '색 고정 해제' : '색 고정';
+            lockBtn.className   = _lockActive
+                ? 'btn btn--accent btn--sm'
+                : 'btn btn--ghost btn--sm';
+        });
+
+        // ── 측정 제어 ──────────────────────────────────────────────
         let _pendingReset = false;
+        let _inReview     = false;
 
         function _resetStopBtn() {
             stopBtn.textContent = '측정 정지';
@@ -55,14 +116,25 @@
         }
 
         startBtn.addEventListener('click', () => {
+            // Clean up review mode if active
+            if (_inReview) {
+                ReviewModule.destroy();
+                _inReview = false;
+            }
+            reviewBar.hidden = true;
+
             startBtn.hidden = true;
             stopBtn.hidden  = true;
             _resetStopBtn();
+            _lockActive = false;
+            lockBtn.hidden    = true;
+            lockBtn.textContent = '색 고정';
+            lockBtn.className   = 'btn btn--ghost btn--sm';
             statusMsg.textContent = '측정 중...';
 
             SensorModule.start(
                 (data) => {
-                    if (typeof VisualModule !== 'undefined') VisualModule.update(data);
+                    VisualModule.update(data);
                 },
                 (msg) => {
                     statusMsg.textContent = '오류: ' + msg;
@@ -75,12 +147,13 @@
                         statusMsg.textContent = `기준값 설정 중... (${arg1}/${arg2})`;
                     } else if (state === 'ready') {
                         const isFirefox = navigator.userAgent.includes('Firefox');
-                        const srcLabel = arg1 === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
-                                       : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
-                                       : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
-                                       : '';
+                        const srcLabel  = arg1 === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
+                                        : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
+                                        : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
+                                        : '';
                         statusMsg.textContent = '측정 중' + srcLabel + ' — 시작 시점 대비 변화량을 표시합니다.';
                         stopBtn.hidden = false;
+                        lockBtn.hidden = false;
                     } else if (state === 'unavailable') {
                         statusMsg.textContent = '⚠️ 이 기기에서 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
                     }
@@ -90,18 +163,44 @@
 
         stopBtn.addEventListener('click', () => {
             if (!_pendingReset) {
-                // 1차 클릭: 측정 정지 — 그래프 유지
+                // 1차 클릭: 측정 정지 → 리뷰 모드 진입
                 SensorModule.stop();
-                _pendingReset       = true;
+                _pendingReset = true;
                 stopBtn.textContent = '초기화';
                 stopBtn.className   = 'btn btn--ghost btn--lg';
                 startBtn.hidden     = false;
-                statusMsg.textContent = '측정 정지됨. 초기화하려면 초기화 버튼을 누르세요.';
+                lockBtn.hidden      = true;
+                _lockActive         = false;
+                VisualModule.setColorLock(false);
+
+                // Enter review mode
+                const snapshot = VisualModule.startReview();
+                if (snapshot.length >= 2) {
+                    _inReview        = true;
+                    reviewBar.hidden = false;
+                    ReviewModule.init(
+                        document.getElementById('waveChart'),
+                        snapshot,
+                        (maxZ, level, name, timeLabel) => {
+                            mmiLevelText.textContent      = `진도 ${level} ${name}`;
+                            colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
+                            reviewTime.textContent        = timeLabel;
+                        }
+                    );
+                    statusMsg.textContent = '측정 정지됨. 그래프를 드래그하여 구간별 진도를 확인하세요.';
+                } else {
+                    statusMsg.textContent = '측정 정지됨. 초기화하려면 초기화 버튼을 누르세요.';
+                }
             } else {
-                // 2차 클릭: 초기화 — 그래프 리셋
-                if (typeof VisualModule !== 'undefined') VisualModule.reset();
-                stopBtn.hidden  = true;
-                startBtn.hidden = false;
+                // 2차 클릭: 초기화
+                if (_inReview) {
+                    ReviewModule.destroy();
+                    _inReview = false;
+                }
+                VisualModule.reset();
+                reviewBar.hidden = true;
+                stopBtn.hidden   = true;
+                startBtn.hidden  = false;
                 _resetStopBtn();
                 statusMsg.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
             }

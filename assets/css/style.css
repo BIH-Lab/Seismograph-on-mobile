@@ -403,6 +403,65 @@ html, body {
 
 
 /* ===================================
+   MMI 색상 오버레이 (activity1)
+=================================== */
+.color-display__mmi {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    min-height: 1.4em;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    margin-bottom: 4px;
+}
+
+.btn--accent { background: var(--accent); color: #000; }
+
+/* MMI 진도 안내 모달 */
+.modal__box--wide {
+    max-width: 440px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.mmi-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+}
+.mmi-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+.mmi-table td:first-child {
+    width: 10px;
+    padding: 0;
+}
+.mmi-table td:nth-child(2) { font-weight: 700; white-space: nowrap; }
+.mmi-table td:nth-child(4) { font-size: 0.76rem; color: var(--muted); }
+
+/* 리뷰 컨트롤 바 (activity1) */
+.review-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    justify-content: space-between;
+    padding: 6px 4px;
+}
+.review-bar__time {
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+.review-bar__mmi {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+
+/* ===================================
    PC 반응형 (768px+)
 =================================== */
 @media (min-width: 768px) {

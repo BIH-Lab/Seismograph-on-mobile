@@ -46,7 +46,6 @@ project-root/
 ## 코딩 컨벤션
 - 언어      : 주석 및 변수명 영어, UI 텍스트 한국어
 - 함수명    : camelCase
-- 파일당 라인 수 : 300줄 이하 유지
 - 모듈 패턴 : IIFE + 클로저 (const Module = (() => { ... })())
 
 ## 주의사항
@@ -59,16 +58,19 @@ project-root/
 - 새 기능 추가 전 반드시 TASK.md 확인
 
 ## 현재 개발 단계
-**Cycle 3 완료, Cycle 4 준비 중** — TASK.md 참고
+**Cycle 3 완료 + QA 개선 완료, Cycle 4 준비 중** — TASK.md 참고
 - Cycle 1 완료: Activity 1 (지진파 색으로 보기)
 - Cycle 2 완료: Activity 2 (GPS + Z축 + CSV, Android/iOS 테스트 완료)
 - Cycle 3 완료: Activity 3 (주파수 분석 스펙트로그램)
-  - 센서 모드: 실시간 FFT 스펙트로그램 + 피크 주파수 표시
-  - 파일 선택 모드: CSV 로드 → 전처리 → 7초 애니메이션
+  - 센서 모드: 실시간 FFT 스펙트로그램 (워터폴, 위→아래) + 피크 주파수 표시
+  - 파일 선택 모드: CSV 로드 → 전처리 → 7초 애니메이션 (워터폴)
   - PC 드래그 앤 드롭 지원
   - Android Firefox 검증 완료 (9자리 정밀도)
+- Cycle 3 QA 완료: UX 개선 8건 (캘리브레이션 진행률, 시간 축, PC 레이아웃 등)
 - Cycle 4 예정: Activity 4 — 신호 비교하기
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
-- FFT_SIZE = 256, HOP_SIZE = 26 (오버랩 ~90%), MAX_FREQ = 25 Hz
+- FFT_SIZE = 256, HOP_SIZE = 26 (오버랩 ~90%), MAX_FREQ = 100 Hz
 - 윈도우: Hann, 컬러맵: Viridis-style (log10 진폭 스케일)
+- 렌더링: 히스토리 기반 전체 재렌더 (워터폴, 최신 데이터 상단)
+- 알려진 이슈: Firefox Android DeviceMotionEvent.interval 오보고(100ms) → activity3에서 50~250Hz 범위 체크로 필터링

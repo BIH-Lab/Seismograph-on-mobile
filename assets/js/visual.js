@@ -1,48 +1,66 @@
 /**
  * visual.js — Activity 1
- * Feat 1 : Z-axis value → background color mapping (HSL: blue → green → red)
+ * Feat 1 : Z-axis value → MMI-based background color mapping
  * Feat 2 : Canvas-based real-time Z-axis waveform graph
- * Note   : X/Y axes are recorded in CSV but not displayed here
+ * Feat 3 : Color lock (freeze at peak MMI), full buffer for review mode
  */
 
 const VisualModule = (() => {
 
     // ── Config ───────────────────────────────────────────────────
     const WINDOW_SEC  = 10;    // seconds of data shown on graph
-    const MAX_Z       = 1.5;   // |acc_z| ceiling for background color mapping (m/s²)
     const MIN_RANGE   = 0.5;   // minimum Y-axis half-range (m/s²)
-    const DECAY_RATE  = 0.997; // per-frame peak decay (slower = stays zoomed out longer)
+    const DECAY_RATE  = 0.997; // per-frame peak decay
     const Z_COLOR     = '#00d2d3';
     const GRID_COLOR  = '#2e2e2e';
     const BG_CANVAS   = '#1c1c1c';
 
+    // ── MMI Scale (KMA, PGA m/s²) ────────────────────────────────
+    const MMI_LEVELS = [
+        { level: 'I',    name: '무감',     pgaMin: 0,      pgaMax: 0.0017,   color: '#303060' },
+        { level: 'II',   name: '미감',     pgaMin: 0.0017, pgaMax: 0.014,    color: '#1a6b8a' },
+        { level: 'III',  name: '약진',     pgaMin: 0.014,  pgaMax: 0.039,    color: '#1e90b0' },
+        { level: 'IV',   name: '경진',     pgaMin: 0.039,  pgaMax: 0.092,    color: '#2ecc71' },
+        { level: 'V',    name: '중진',     pgaMin: 0.092,  pgaMax: 0.18,     color: '#a0c820' },
+        { level: 'VI',   name: '강진',     pgaMin: 0.18,   pgaMax: 0.34,     color: '#f0d800' },
+        { level: 'VII',  name: '심한강진', pgaMin: 0.34,   pgaMax: 0.65,     color: '#f39c12' },
+        { level: 'VIII', name: '격진',     pgaMin: 0.65,   pgaMax: 1.24,     color: '#e74c3c' },
+        { level: 'IX',   name: '극렬',     pgaMin: 1.24,   pgaMax: 2.37,     color: '#c0392b' },
+        { level: 'X+',   name: '완전파괴', pgaMin: 2.37,   pgaMax: Infinity, color: '#7b241c' },
+    ];
+
     // ── State ────────────────────────────────────────────────────
-    const buffer = [];      // [{ ts, z }]
-    let _peakZ   = MIN_RANGE; // current auto-scale peak (m/s²)
-    let _startTs = null;      // timestamp of first sample (for elapsed-time axis)
+    const buffer      = [];      // [{ ts, z }] — trimmed live buffer for waveform
+    const _fullBuffer = [];      // [{ ts, z }] — untrimmed, for review mode
+    let _peakZ        = MIN_RANGE; // auto-scale peak (m/s²)
+    let _peakMmiZ     = 0;         // max |acc_z| for MMI color (separate from _peakZ)
+    let _colorLocked  = false;
+    let _startTs      = null;      // timestamp of first sample
 
     // ── DOM refs ─────────────────────────────────────────────────
-    let bodyEl  = null;
-    let labelEl = null;
-    let canvas  = null;
-    let ctx     = null;
+    let bodyEl      = null;
+    let labelEl     = null;
+    let mmiLevelEl  = null;
+    let canvas      = null;
+    let ctx         = null;
 
     function _initDOM() {
-        bodyEl  = document.getElementById('activity-body');
-        labelEl = document.getElementById('magnitude-label');
-        canvas  = document.getElementById('waveChart');
+        bodyEl     = document.getElementById('activity-body');
+        labelEl    = document.getElementById('magnitude-label');
+        mmiLevelEl = document.getElementById('mmi-level-text');
+        canvas     = document.getElementById('waveChart');
         if (canvas) {
             ctx = canvas.getContext('2d');
             _startLoop();
         }
     }
 
-    // ── Color mapping ─────────────────────────────────────────────
-    // |acc_z| 0 → hue 240 (blue) … MAX_Z → hue 0 (red)
-    function _zToHSL(z) {
-        const ratio = Math.min(Math.abs(z) / MAX_Z, 1);
-        const hue   = Math.round(240 - ratio * 240);
-        return `hsl(${hue}, 90%, 45%)`;
+    // ── MMI mapping ───────────────────────────────────────────────
+    function _zToMMI(absZ) {
+        for (let i = MMI_LEVELS.length - 1; i >= 0; i--) {
+            if (absZ >= MMI_LEVELS[i].pgaMin) return MMI_LEVELS[i];
+        }
+        return MMI_LEVELS[0];
     }
 
     // ── Rendering loop ────────────────────────────────────────────
@@ -69,8 +87,8 @@ const VisualModule = (() => {
 
         if (buffer.length < 2) return;
 
-        const now     = buffer[buffer.length - 1].ts;
-        const elapsed = now - buffer[0].ts;
+        const now      = buffer[buffer.length - 1].ts;
+        const elapsed  = now - buffer[0].ts;
         const windowMs = WINDOW_SEC * 1000;
 
         // Anchor left until window is full; then slide
@@ -78,13 +96,11 @@ const VisualModule = (() => {
         const timeEnd   = elapsed < windowMs ? buffer[0].ts + windowMs : now;
 
         // ── Auto-scale Y axis ─────────────────────────────────────
-        // Find max |z| in visible window
         let maxAbsZ = 0;
         for (const pt of buffer) {
             if (pt.ts >= timeStart && Math.abs(pt.z) > maxAbsZ)
                 maxAbsZ = Math.abs(pt.z);
         }
-        // Scale up immediately, decay slowly
         if (maxAbsZ * 1.2 > _peakZ) {
             _peakZ = maxAbsZ * 1.2;
         } else {
@@ -97,8 +113,7 @@ const VisualModule = (() => {
 
         _drawGrid(w, h, midY, range, yScale);
 
-        // Z-axis waveform — smooth quadratic bezier through each data point
-        // (pure rendering change: data values are unmodified)
+        // Z-axis waveform
         ctx.beginPath();
         ctx.strokeStyle = Z_COLOR;
         ctx.lineWidth   = 2;
@@ -112,7 +127,7 @@ const VisualModule = (() => {
             if (prevPx === null) {
                 ctx.moveTo(px, py);
             } else {
-                const midX = (prevPx + px) / 2;
+                const midX  = (prevPx + px) / 2;
                 const midY2 = (prevPy + py) / 2;
                 ctx.quadraticCurveTo(prevPx, prevPy, midX, midY2);
             }
@@ -122,14 +137,12 @@ const VisualModule = (() => {
         ctx.stroke();
         _drawTimeAxis(w, h, timeStart, timeEnd, windowMs);
 
-        // Label
         ctx.fillStyle = Z_COLOR;
         ctx.font      = 'bold 11px sans-serif';
         ctx.fillText('Z', 8, 14);
     }
 
     function _drawGrid(w, h, midY, range, yScale) {
-        // Pick a round grid step based on current range
         const step = range <= 1   ? 0.25
                    : range <= 3   ? 0.5
                    : range <= 10  ? 1
@@ -140,7 +153,7 @@ const VisualModule = (() => {
         ctx.lineWidth   = 1;
 
         for (let v = -range; v <= range; v += step) {
-            const vR = Math.round(v * 1000) / 1000; // float precision fix
+            const vR = Math.round(v * 1000) / 1000;
             const y  = midY - vR * yScale;
             ctx.beginPath();
             ctx.moveTo(0, y);
@@ -154,7 +167,6 @@ const VisualModule = (() => {
             }
         }
 
-        // Center line
         ctx.strokeStyle = '#444';
         ctx.lineWidth   = 1.5;
         ctx.beginPath();
@@ -165,7 +177,7 @@ const VisualModule = (() => {
 
     function _drawTimeAxis(w, h, timeStart, timeEnd, windowMs) {
         if (!_startTs) return;
-        const stepMs = 2000; // 2-second tick interval
+        const stepMs = 2000;
         ctx.fillStyle   = '#555';
         ctx.font        = '9px sans-serif';
         ctx.strokeStyle = '#2e2e2e';
@@ -199,22 +211,62 @@ const VisualModule = (() => {
         const now = Date.now();
         if (!_startTs) _startTs = now;
         buffer.push({ ts: now, z: data.acc_z });
+        _fullBuffer.push({ ts: now, z: data.acc_z });
         _trimBuffer();
 
-        // Background color based on Z-axis
-        if (bodyEl)  bodyEl.style.backgroundColor = _zToHSL(data.acc_z);
+        const absZ = Math.abs(data.acc_z);
+        if (absZ > _peakMmiZ) _peakMmiZ = absZ;
 
-        // Label shows Z value
+        if (!_colorLocked) {
+            const mmi = _zToMMI(absZ);
+            if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
+            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name}`;
+        }
+
         if (labelEl) labelEl.textContent = data.acc_z.toFixed(6);
     }
 
     function reset() {
-        buffer.length = 0;
-        _peakZ   = MIN_RANGE;
-        _startTs = null;
-        if (bodyEl)  bodyEl.style.backgroundColor = '';
-        if (labelEl) labelEl.textContent = '0.000000';
+        buffer.length      = 0;
+        _fullBuffer.length = 0;
+        _peakZ        = MIN_RANGE;
+        _peakMmiZ     = 0;
+        _colorLocked  = false;
+        _startTs      = null;
+        if (bodyEl)     bodyEl.style.backgroundColor = '';
+        if (labelEl)    labelEl.textContent = '0.000000';
+        if (mmiLevelEl) mmiLevelEl.textContent = '';
     }
 
-    return { update, reset };
+    // Color lock: freeze background at current peak MMI
+    function setColorLock(locked) {
+        _colorLocked = locked;
+        if (locked) {
+            const mmi = _zToMMI(_peakMmiZ);
+            if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
+            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name} (고정)`;
+        }
+    }
+
+    // Return MMI color for a given |acc_z| (used by ReviewModule)
+    function getMmiColor(absZ) {
+        return _zToMMI(absZ).color;
+    }
+
+    // Return MMI level info for a given |acc_z|
+    function getMmiInfo(absZ) {
+        return _zToMMI(absZ);
+    }
+
+    // Return MMI_LEVELS array for info modal table
+    function getMmiLevels() {
+        return MMI_LEVELS;
+    }
+
+    // Return snapshot of full buffer for review mode
+    function startReview() {
+        return _fullBuffer.slice();
+    }
+
+    return { update, reset, setColorLock, getMmiColor, getMmiInfo, getMmiLevels, startReview };
 })();
