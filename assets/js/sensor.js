@@ -19,12 +19,15 @@ const SensorModule = (() => {
     let _sensorSource = null;   // 'linear' | 'accel' | 'devicemotion' | null
 
     // ── Calibration ───────────────────────────────────────────────
+    const WARMUP_MS     = 3000; // discard samples for 3 s after start (absorb touch vibration)
     const CALIB_SAMPLES = 100;  // 100Hz × 1s — stabilisation window to exclude startup noise
+    let _warmupStart = null;
     let _calibBuf = [];
     let _baseline = null;
     let _lastTs   = null;   // for interval_ms estimation in Generic Sensor path
 
     function _resetCalib() {
+        _warmupStart  = null;
         _calibBuf     = [];
         _baseline     = null;
         _lastTs       = null;
@@ -36,6 +39,14 @@ const SensorModule = (() => {
 
     // ── Shared processing (both paths call this) ──────────────────
     function _processRaw(raw, interval_ms, tsMs) {
+        // Warm-up phase: discard samples for WARMUP_MS after first reading
+        if (_warmupStart === null) _warmupStart = tsMs;
+        const elapsed = tsMs - _warmupStart;
+        if (elapsed < WARMUP_MS) {
+            if (_onStatus) _onStatus('warmup', Math.ceil((WARMUP_MS - elapsed) / 1000));
+            return;
+        }
+
         // Calibration phase: accumulate baseline
         if (_baseline === null) {
             _calibBuf.push(raw);
@@ -180,7 +191,7 @@ const SensorModule = (() => {
      * Priority: LinearAccelerationSensor → Accelerometer → DeviceMotionEvent
      * @param {function} onData    Called with each calibrated data point
      * @param {function} onError   Called if permission is denied or sensor unavailable
-     * @param {function} onStatus  Called with ('calibrating', current, total) | ('ready', source) | ('unavailable')
+     * @param {function} onStatus  Called with ('warmup', remainingSec) | ('calibrating', current, total) | ('ready', source) | ('unavailable')
      *                             source: 'linear' | 'accel' | 'devicemotion'
      */
     function start(onData, onError, onStatus) {

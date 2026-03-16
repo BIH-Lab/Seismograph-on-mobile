@@ -161,7 +161,9 @@
                     _resetStopBtn();
                 },
                 (state, arg1, arg2) => {
-                    if (state === 'calibrating') {
+                    if (state === 'warmup') {
+                        statusMsg.textContent = `측정 준비 중... (${arg1}초 후 시작)`;
+                    } else if (state === 'calibrating') {
                         statusMsg.textContent = `기준값 설정 중... (${arg1}/${arg2})`;
                     } else if (state === 'ready') {
                         const isFirefox = navigator.userAgent.includes('Firefox');
