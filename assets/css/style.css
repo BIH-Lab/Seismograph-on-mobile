@@ -441,13 +441,9 @@ html, body {
 .mmi-table td:nth-child(2) { font-weight: 700; white-space: nowrap; }
 .mmi-table td:nth-child(4) { font-size: 0.76rem; color: var(--muted); }
 
-/* 진도 안내 버튼 — 하단 고정 (activity1) */
-.mmi-info-fixed {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
+/* 진도 안내 버튼 (activity1) */
+.mmi-info-btn {
+    align-self: center;
     backdrop-filter: blur(4px);
     background: rgba(28,28,28,0.85);
     border: 1px solid var(--border);

@@ -50,10 +50,10 @@
         <!-- 상태 메시지 -->
         <p class="status-msg" id="status-msg">버튼을 눌러 센서 권한을 요청하세요.</p>
 
-    </main>
+        <!-- 진도 안내 버튼 -->
+        <button class="btn btn--sm mmi-info-btn" id="mmi-info-btn">진도 안내</button>
 
-    <!-- 진도 안내 버튼 — 하단 고정 -->
-    <button class="btn btn--sm mmi-info-fixed" id="mmi-info-btn">진도 안내</button>
+    </main>
 
     <!-- MMI 진도 안내 모달 -->
     <div class="modal" id="mmi-modal" hidden>
@@ -78,10 +78,12 @@
         const reviewTime   = document.getElementById('review-time-label');
         const colorDisplay = document.getElementById('color-display');
         const mmiLevelText = document.getElementById('mmi-level-text');
-        const mmiInfoBtn   = document.getElementById('mmi-info-btn');
-        const mmiModal     = document.getElementById('mmi-modal');
-        const mmiCloseBtn  = document.getElementById('mmi-close-btn');
-        const mmiTable     = document.getElementById('mmi-table');
+        const mmiInfoBtn      = document.getElementById('mmi-info-btn');
+        const mmiModal        = document.getElementById('mmi-modal');
+        const mmiCloseBtn     = document.getElementById('mmi-close-btn');
+        const mmiTable        = document.getElementById('mmi-table');
+        const bodyEl          = document.getElementById('activity-body');
+        const magnitudeLabel  = document.getElementById('magnitude-label');
 
         // ── MMI 진도 안내 모달 ──────────────────────────────────────
         let _mmiTableBuilt = false;
@@ -143,6 +145,7 @@
                 ReviewModule.destroy();
                 _inReview = false;
             }
+            VisualModule.reset();
             reviewBar.hidden = true;
             _reviewPeakZ     = 0;
 
@@ -209,12 +212,16 @@
                                 if (maxZ > _reviewPeakZ) {
                                     _reviewPeakZ = maxZ;
                                     mmiLevelText.textContent           = `진도 ${level} ${name}`;
-                                    colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
+                                    magnitudeLabel.textContent         = maxZ.toFixed(6);
+                                    bodyEl.style.backgroundColor       = VisualModule.getMmiColor(maxZ);
+                                    colorDisplay.style.backgroundColor = '';
                                 }
                             } else {
                                 // 실시간 모드: 현재 구간 진도 표시
                                 mmiLevelText.textContent           = `진도 ${level} ${name}`;
-                                colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
+                                magnitudeLabel.textContent         = maxZ.toFixed(6);
+                                bodyEl.style.backgroundColor       = VisualModule.getMmiColor(maxZ);
+                                colorDisplay.style.backgroundColor = '';
                             }
                         }
                     );
