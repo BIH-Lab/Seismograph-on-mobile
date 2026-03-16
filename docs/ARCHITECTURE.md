@@ -8,7 +8,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 기준)
+## 전체 파일 구조 (Cycle 3 + Activity 1 개선 기준)
 
 ```
 project-root/
@@ -23,8 +23,9 @@ project-root/
 │   ├── css/
 │   │   └── style.css
 │   └── js/
-│       ├── sensor.js       # 센서 수집 모듈
-│       ├── visual.js       # 시각화 모듈 (파형 그래프)
+│       ├── sensor.js       # 센서 수집 모듈 (3초 워밍업 + 캘리브레이션)
+│       ├── visual.js       # 시각화 모듈 (파형 그래프 + MMI 색상)
+│       ├── review.js       # 리뷰 모드 모듈 (드래그 탐색, activity1 전용)
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
 │       └── spectrogram.js  # 스펙트로그램 모듈 (실시간 FFT → Canvas)  [Cycle 3]
@@ -49,9 +50,13 @@ project-root/
 
 ### activity1/index.html — 지진파 색으로 보기
 - 센서 권한 요청 및 수집 시작/정지
-- 정지 버튼: 센서 중단 + 그래프 초기화 + 초기 상태 복귀
-- 화면 배경색 실시간 변화 (Z축 진폭 → 색상 매핑)
+- 화면 배경색: 300ms 슬라이딩 윈도우 PGA → KMA MMI 10단계 색상 실시간 변화
+- 진도 레벨 텍스트 표시 (예: 진도 III 약진)
+- 실시간/고정 토글 스위치: 배경색 피크 고정 또는 실시간 갱신
+- MMI 진도 안내 모달 (하단 고정 버튼, lazy 빌드)
 - Z축 실시간 파형 표시 (슬라이딩 윈도우 10초)
+- 정지 버튼 1차: 센서 중단 + 리뷰 모드 진입 (전체 파형 드래그 탐색, 1초 구간 진도)
+- 정지 버튼 2차: 전체 초기화
 - CSV 다운로드 없음 (시각화 확인 목적)
 
 ### activity2/index.html — 지진파 기록하기
@@ -64,11 +69,11 @@ project-root/
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
 ### activity3/index.html — 주파수 분석 (스펙트로그램)  [Cycle 3]
-- 센서 권한 요청 및 실시간 수집 (sensor.js 재사용)
-- 실시간 FFT → 스펙트로그램 Canvas 렌더링 (spectrogram.js)
-- 주파수 범위: 0~25 Hz (샘플링 레이트 기반 자동 계산)
-- 진폭 → 색상 매핑 (낮음: 어두운 파랑 → 높음: 노랑/흰색)
-- 파형 그래프 + 스펙트로그램 패널 동시 표시
+- 두 가지 모드 탭: 센서 측정 / 파일 선택
+- **센서 모드**: sensor.js 재사용, 실시간 파형 + 스펙트로그램 워터폴 + 피크 주파수 표시
+- **파일 선택 모드**: CSV 드래그 앤 드롭(PC) + 파일 선택(모바일) → 7초 애니메이션 재생
+- 주파수 범위: 0~100 Hz (MAX_FREQ=100), 진폭: Viridis-style 컬러맵 (log 스케일)
+- Firefox Android interval 오보고 대응: 50~250Hz 범위 필터로 샘플레이트 오인식 방지
 
 ---
 
@@ -76,20 +81,33 @@ project-root/
 
 ### sensor.js
 ```
-역할  : DeviceMotionEvent 수신 및 데이터 정규화
-입력  : 브라우저 센서 이벤트
-출력  : { timestamp, acc_x, acc_y, acc_z, magnitude }
-특이  : iOS 권한 요청 처리, Android null 폴백, 캘리브레이션 5샘플
+역할  : 가속도 센서 수집, 워밍업, 캘리브레이션
+입력  : 브라우저 센서 이벤트 (Generic Sensor API 또는 DeviceMotionEvent)
+출력  : { timestamp(ISO), acc_x, acc_y, acc_z, magnitude, interval_ms }
+흐름  : 3초 워밍업(터치 진동 폐기) → 100샘플 baseline 평균 계산 → Δ값 스트리밍
+콜백  : onStatus('warmup', 남은초) | ('calibrating', n, 100) | ('ready', 소스) | ('unavailable')
+소스  : LinearAccelerationSensor → Accelerometer → DeviceMotionEvent (자동 폴백)
+특이  : iOS 13+ requestPermission() 처리
 ```
 
 ### visual.js
 ```
-역할  : 센서 데이터를 시각화
-기능1 : Z축 진폭 → 배경색 매핑 (HSL: 파랑→초록→빨강)
-        MAX_Z = 1.5 m/s², 명도 45%, 채도 90%
+역할  : Activity 1 센서 데이터 시각화
+기능1 : 300ms 슬라이딩 윈도우 PGA → KMA MMI 10단계 배경색 매핑 (I~X+)
 기능2 : Canvas 기반 Z축 실시간 파형 그래프
         - 왼쪽 앵커 → 슬라이딩 윈도우 전환 (10초)
         - Y축 자동 스케일: 즉시 확장, 천천히 축소 (decay 0.997)
+기능3 : 색 고정 모드 (setColorLock), 리뷰 스냅샷 반환 (startReview)
+API   : update(data), reset(), setColorLock(bool), getMmiColor(z), getMmiInfo(z), getMmiLevels(), startReview()
+```
+
+### review.js
+```
+역할  : Activity 1 측정 후 리뷰 모드 (activity1 전용)
+입력  : visual.js의 _fullBuffer 스냅샷
+기능  : 10초 뷰포트 드래그 탐색, 1초 중앙 구간 하이라이트
+출력  : onRegion(maxAbsZ, level, name, timeLabel) 콜백
+API   : init(canvasEl, data, onRegion), destroy()
 ```
 
 ### gps.js
@@ -103,11 +121,14 @@ project-root/
 ```
 역할  : 실시간 FFT 계산 및 스펙트로그램 Canvas 렌더링
 입력  : 센서 데이터 버퍼 (acc_z 배열)
-출력  : Canvas에 시간-주파수-진폭 2D 컬러맵 그래픽
+출력  : Canvas에 시간-주파수-진폭 2D 워터폴 컬러맵 (최신 데이터 상단)
 알고리즘 : Cooley-Tukey FFT (Vanilla JS 순수 구현)
-주파수 범위 : 0 ~ sr/2 Hz (나이퀴스트), 표시는 0~25Hz
+주파수 범위 : 0 ~ min(100Hz, sr/2) — X축, 캔버스 하단 10Hz 간격 레이블
+시간 범위 : WINDOW_SEC=10초 — Y축, 2초 간격 경과 시간 레이블 (wall-clock 기반)
 윈도우 함수 : Hann window (스펙트럼 누설 억제)
-색상 매핑 : 로그 스케일 진폭 → Viridis-style (어두운 파랑 → 노랑/흰색)
+색상 매핑 : 로그 스케일 진폭 → Viridis-style (어두운 보라 → 노랑)
+렌더링 : 히스토리 배열 기반 전체 재렌더 (push-scroll 방식 대비 시간 축 정확)
+주의 : Firefox Android DeviceMotionEvent.interval 오보고 → activity3에서 50~250Hz 범위 필터링
 ```
 
 ### export.js
@@ -139,7 +160,7 @@ CSV 포맷:
 
 ---
 
-## 기술 스택 (Cycle 2)
+## 기술 스택 (Cycle 3)
 
 | 항목 | 선택 | 이유 |
 |------|------|------|
@@ -155,12 +176,9 @@ CSV 포맷:
 ## 향후 Cycle 확장 방향
 
 ```
-Cycle 2 완료
-  → activity2 완료 (GPS + Z축 + CSV, Android Chrome / iOS Safari 테스트 완료)
-
-Cycle 3 진행 예정
-  → activity3/ 신규 (실시간 FFT 스펙트로그램)
-  → spectrogram.js 모듈 생성
+Cycle 1 완료  →  activity1/ (지진파 색으로 보기 + MMI 시각화 + 리뷰 모드)
+Cycle 2 완료  →  activity2/ (GPS + Z축 + CSV)
+Cycle 3 완료  →  activity3/ (실시간 FFT 스펙트로그램 + CSV 파일 재생)
 
 Cycle 4  →  activity4/ (다중 CSV 드롭 + 신호 비교 + 기본 통계)
 Cycle 5  →  activity5/ (주시곡선 + GPS 진원 역산)

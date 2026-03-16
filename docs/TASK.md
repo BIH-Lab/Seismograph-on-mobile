@@ -5,7 +5,7 @@
 ---
 
 ## 현재 단계
-**Cycle 4 준비 중** — Cycle 3 완료 (2026-03-10)
+**Cycle 4 준비 중** — Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + Activity 1 개선 완료 (2026-03-17)
 
 ---
 
@@ -87,6 +87,36 @@
 
 ---
 
+## Cycle 3 QA 개선 (2026-03-11 완료)
+
+- [x] **Issue 2** : PC 레이아웃 최적화 — `style.css` 768px+ 미디어 쿼리 추가
+- [x] **Issue 3** : index.html 모달 브라우저 안내 수정 (Android: Firefox 명시)
+- [x] **Issue 4** : Firefox Android GPS timeout 20초 / maximumAge 300초 (`gps.js`)
+- [x] **Issue 5** : 캘리브레이션 진행률 표시 — `(state, arg1, arg2)` 콜백으로 통일 (activity1/2/3)
+- [x] **Issue 6** : 가속도 수치 소수점 6자리 표시 — `toFixed(6)` (`visual.js`)
+- [x] **Issue 7** : 스펙트로그램 워터폴 — 위→아래 스크롤, MAX_FREQ=100Hz, 히스토리 기반 재렌더
+- [x] **Issue 8** : 파형 시간 축 레이블 — 2초 간격 경과 시간 표시 (`visual.js`)
+- [x] 스펙트로그램 시간 레이블 wall-clock 기반으로 변경 (Firefox Android interval 오보고 대응)
+- [x] Firefox Android `_sr` 오인식 버그 수정 — 50~250Hz 범위 필터 (`activity3/index.html`)
+
+### 알려진 미해결 이슈
+- [ ] 스펙트로그램 센서 모드 시간 스케일 미세 조정 (추후 개선 예정)
+
+---
+
+## Activity 1 추가 개선 (2026-03-17 완료)
+
+- [x] MMI 진도 안내 모달 — 버튼 클릭 시 KMA 수정 메르칼리 진도 표 팝업 (lazy 빌드)
+- [x] MMI 기반 배경색 — HSL 선형 매핑 → KMA MMI 10단계 고정 색상으로 교체
+- [x] 실시간/고정 토글 스위치 — 배경색을 피크 MMI에 고정하거나 실시간으로 전환
+- [x] 리뷰 모드 — 측정 정지 후 전체 파형 드래그 탐색, 1초 중앙 구간 진도 표시
+- [x] startBtn 먹통 버그 수정 — 캐시 버스팅(v=4.1) + MMI 테이블 lazy 빌드
+- [x] 비대칭 EMA → 300ms 슬라이딩 윈도우 PGA 교체 (지진학적 정확도 개선)
+- [x] 3초 워밍업 딜레이 — 터치 진동이 캘리브레이션에 포함되는 오차 제거 (activity1~3 공통)
+- [x] activity1 sensor.js 캐시 버전 v4.1 → v4.2 갱신
+
+---
+
 ## 완료된 작업
 - Cycle 3 전체 완료 (2026-03-10)
   - Activity 3: 주파수 분석 스펙트로그램 (실시간 FFT + CSV 파일 재생)
@@ -117,7 +147,7 @@
 - **Android 권장 브라우저: Firefox** — Chrome은 `RoundSensorReading()` 정책으로 0.01~0.1 m/s² 정밀도 한계
   - sensor.js는 3단계 폴백 자동 처리: `LinearAccelerationSensor` → `Accelerometer` → `DeviceMotionEvent`
   - Firefox Android는 Generic Sensor API 미지원 → `DeviceMotionEvent` 경로 사용, 9자리 정밀도
-- 측정 시작 시 스마트폰을 평평하게 놓은 상태에서 버튼 눌러야 캘리브레이션 기준값이 정확함
+- 측정 시작 후 3초 워밍업 구간에는 기기를 움직이지 않는 것이 권장 (워밍업 종료 후 캘리브레이션 시작)
 - GPS 정밀도는 기기/환경에 따라 수 미터 ~ 수십 미터 오차 발생 가능
 - iOS GPS: enableHighAccuracy=true는 GPS 하드웨어 강제 사용 → 실내에서 타임아웃 발생
   → enableHighAccuracy=false(WiFi/셀 위치)로 변경, 2~3초 내 응답, 정확도 10~100m (관측소 위치 기록 용도로 충분)
