@@ -447,6 +447,7 @@ html, body {
     backdrop-filter: blur(4px);
     background: rgba(28,28,28,0.85);
     border: 1px solid var(--border);
+    color: var(--muted);
     white-space: nowrap;
 }
 
