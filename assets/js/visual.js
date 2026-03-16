@@ -33,9 +33,10 @@ const VisualModule = (() => {
     const buffer      = [];      // [{ ts, z }] — trimmed live buffer for waveform
     const _fullBuffer = [];      // [{ ts, z }] — untrimmed, for review mode
     let _peakZ        = MIN_RANGE; // auto-scale peak (m/s²)
-    let _peakMmiZ     = 0;         // max |acc_z| for MMI color (separate from _peakZ)
-    let _colorLocked  = false;
-    let _startTs      = null;      // timestamp of first sample
+    let _peakMmiZ        = 0;         // max |acc_z| for MMI color (separate from _peakZ)
+    let _colorLocked     = false;
+    let _renderingPaused = false;    // true while ReviewModule owns the canvas
+    let _startTs         = null;     // timestamp of first sample
 
     // ── DOM refs ─────────────────────────────────────────────────
     let bodyEl      = null;
@@ -73,6 +74,7 @@ const VisualModule = (() => {
     }
 
     function _drawWaveform() {
+        if (_renderingPaused) return;
         if (!ctx || !canvas) return;
 
         const w = canvas.clientWidth;
@@ -237,10 +239,11 @@ const VisualModule = (() => {
     function reset() {
         buffer.length      = 0;
         _fullBuffer.length = 0;
-        _peakZ        = MIN_RANGE;
-        _peakMmiZ     = 0;
-        _colorLocked  = false;
-        _startTs      = null;
+        _peakZ           = MIN_RANGE;
+        _peakMmiZ        = 0;
+        _colorLocked     = false;
+        _renderingPaused = false;
+        _startTs         = null;
         if (bodyEl)     bodyEl.style.backgroundColor = '';
         if (labelEl)    labelEl.textContent = '0.000000';
         if (mmiLevelEl) mmiLevelEl.textContent = '';
@@ -271,8 +274,9 @@ const VisualModule = (() => {
         return MMI_LEVELS;
     }
 
-    // Return snapshot of full buffer for review mode
+    // Return snapshot of full buffer for review mode; pause live rendering
     function startReview() {
+        _renderingPaused = true;
         return _fullBuffer.slice();
     }
 
