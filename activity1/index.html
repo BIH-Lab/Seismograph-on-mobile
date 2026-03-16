@@ -55,9 +55,9 @@
         </div>
     </div>
 
-    <script src="../assets/js/sensor.js"></script>
-    <script src="../assets/js/visual.js"></script>
-    <script src="../assets/js/review.js"></script>
+    <script src="../assets/js/sensor.js?v=4.0"></script>
+    <script src="../assets/js/visual.js?v=4.0"></script>
+    <script src="../assets/js/review.js?v=4.0"></script>
 
     <script>
         const startBtn    = document.getElementById('start-btn');
@@ -75,21 +75,26 @@
         const mmiTable    = document.getElementById('mmi-table');
 
         // ── MMI 진도 안내 모달 ──────────────────────────────────────
-        // Build table from VisualModule.getMmiLevels()
-        VisualModule.getMmiLevels().forEach(m => {
-            const tr = document.createElement('tr');
-            const pgaStr = m.pgaMax === Infinity
-                ? `≥ ${m.pgaMin} m/s²`
-                : `${m.pgaMin} ~ ${m.pgaMax} m/s²`;
-            tr.innerHTML = `
-                <td style="background:${m.color};width:10px;border-radius:2px;"></td>
-                <td>${m.level}</td>
-                <td>${m.name}</td>
-                <td>${pgaStr}</td>`;
-            mmiTable.appendChild(tr);
+        // Build table lazily on first open
+        let _mmiTableBuilt = false;
+        mmiInfoBtn.addEventListener('click', () => {
+            if (!_mmiTableBuilt) {
+                VisualModule.getMmiLevels().forEach(m => {
+                    const tr = document.createElement('tr');
+                    const pgaStr = m.pgaMax === Infinity
+                        ? `≥ ${m.pgaMin} m/s²`
+                        : `${m.pgaMin} ~ ${m.pgaMax} m/s²`;
+                    tr.innerHTML = `
+                        <td style="background:${m.color};width:10px;border-radius:2px;"></td>
+                        <td>${m.level}</td>
+                        <td>${m.name}</td>
+                        <td>${pgaStr}</td>`;
+                    mmiTable.appendChild(tr);
+                });
+                _mmiTableBuilt = true;
+            }
+            mmiModal.hidden = false;
         });
-
-        mmiInfoBtn.addEventListener('click',  () => { mmiModal.hidden = false; });
         mmiCloseBtn.addEventListener('click', () => { mmiModal.hidden = true; });
         mmiModal.addEventListener('click', (e) => { if (e.target === mmiModal) mmiModal.hidden = true; });
 
