@@ -441,6 +441,51 @@ html, body {
 .mmi-table td:nth-child(2) { font-weight: 700; white-space: nowrap; }
 .mmi-table td:nth-child(4) { font-size: 0.76rem; color: var(--muted); }
 
+/* 진도 안내 버튼 — 하단 고정 (activity1) */
+.mmi-info-fixed {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    backdrop-filter: blur(4px);
+    background: rgba(28,28,28,0.85);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+/* MMI 토글 스위치 (activity1) */
+.mmi-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.mmi-toggle__label { font-size: 0.82rem; color: var(--muted); }
+.mmi-toggle__track {
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+.mmi-toggle input:checked ~ .mmi-toggle__track { background: var(--accent); }
+.mmi-toggle__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.2s;
+}
+.mmi-toggle input:checked ~ .mmi-toggle__track .mmi-toggle__thumb { left: 23px; }
+.mmi-toggle input { display: none; }
+
 /* 리뷰 컨트롤 바 (activity1) */
 .review-bar {
     display: flex;

@@ -34,6 +34,7 @@ const VisualModule = (() => {
     const _fullBuffer = [];      // [{ ts, z }] — untrimmed, for review mode
     let _peakZ        = MIN_RANGE; // auto-scale peak (m/s²)
     let _peakMmiZ     = 0;         // max |acc_z| for MMI color (separate from _peakZ)
+    let _smoothZ      = 0;         // asymmetric EMA: fast up, slow down
     let _colorLocked  = false;
     let _startTs      = null;      // timestamp of first sample
 
@@ -217,8 +218,11 @@ const VisualModule = (() => {
         const absZ = Math.abs(data.acc_z);
         if (absZ > _peakMmiZ) _peakMmiZ = absZ;
 
+        // Asymmetric EMA: fast up, slow down (suppresses stationary noise)
+        _smoothZ = absZ > _smoothZ ? absZ : _smoothZ * 0.92 + absZ * 0.08;
+
         if (!_colorLocked) {
-            const mmi = _zToMMI(absZ);
+            const mmi = _zToMMI(_smoothZ);
             if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
             if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name}`;
         }
@@ -231,6 +235,7 @@ const VisualModule = (() => {
         _fullBuffer.length = 0;
         _peakZ        = MIN_RANGE;
         _peakMmiZ     = 0;
+        _smoothZ      = 0;
         _colorLocked  = false;
         _startTs      = null;
         if (bodyEl)     bodyEl.style.backgroundColor = '';

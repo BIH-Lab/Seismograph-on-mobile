@@ -29,7 +29,7 @@
 
         <!-- 리뷰 모드 컨트롤 바 (측정 정지 후 표시) -->
         <div class="review-bar" id="review-bar" hidden>
-            <span class="review-bar__time" id="review-time-label">구간: 0.0s ~ 2.0s</span>
+            <span class="review-bar__time" id="review-time-label">구간: 0.0s ~ 1.0s</span>
             <span class="review-bar__mmi" id="review-mmi-label"></span>
         </div>
 
@@ -37,14 +37,23 @@
         <div class="controls">
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
             <button class="btn btn--danger btn--lg"  id="stop-btn"  hidden>측정 정지</button>
-            <button class="btn btn--ghost btn--sm"   id="lock-btn"  hidden>색 고정</button>
-            <button class="btn btn--ghost btn--sm"   id="mmi-info-btn">진도 안내</button>
+
+            <!-- 토글 스위치 (측정 ready + 리뷰 모드에서 표시) -->
+            <label class="mmi-toggle" id="lock-toggle" hidden>
+                <span class="mmi-toggle__label">실시간</span>
+                <input type="checkbox" id="lock-checkbox">
+                <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+                <span class="mmi-toggle__label">고정</span>
+            </label>
         </div>
 
         <!-- 상태 메시지 -->
         <p class="status-msg" id="status-msg">버튼을 눌러 센서 권한을 요청하세요.</p>
 
     </main>
+
+    <!-- 진도 안내 버튼 — 하단 고정 -->
+    <button class="btn btn--sm mmi-info-fixed" id="mmi-info-btn">진도 안내</button>
 
     <!-- MMI 진도 안내 모달 -->
     <div class="modal" id="mmi-modal" hidden>
@@ -55,27 +64,26 @@
         </div>
     </div>
 
-    <script src="../assets/js/sensor.js?v=4.0"></script>
-    <script src="../assets/js/visual.js?v=4.0"></script>
-    <script src="../assets/js/review.js?v=4.0"></script>
+    <script src="../assets/js/sensor.js?v=4.1"></script>
+    <script src="../assets/js/visual.js?v=4.1"></script>
+    <script src="../assets/js/review.js?v=4.1"></script>
 
     <script>
-        const startBtn    = document.getElementById('start-btn');
-        const stopBtn     = document.getElementById('stop-btn');
-        const lockBtn     = document.getElementById('lock-btn');
-        const statusMsg   = document.getElementById('status-msg');
-        const reviewBar   = document.getElementById('review-bar');
-        const reviewTime  = document.getElementById('review-time-label');
-        const reviewMmi   = document.getElementById('review-mmi-label');
+        const startBtn     = document.getElementById('start-btn');
+        const stopBtn      = document.getElementById('stop-btn');
+        const lockToggle   = document.getElementById('lock-toggle');
+        const lockCheckbox = document.getElementById('lock-checkbox');
+        const statusMsg    = document.getElementById('status-msg');
+        const reviewBar    = document.getElementById('review-bar');
+        const reviewTime   = document.getElementById('review-time-label');
         const colorDisplay = document.getElementById('color-display');
         const mmiLevelText = document.getElementById('mmi-level-text');
-        const mmiInfoBtn  = document.getElementById('mmi-info-btn');
-        const mmiModal    = document.getElementById('mmi-modal');
-        const mmiCloseBtn = document.getElementById('mmi-close-btn');
-        const mmiTable    = document.getElementById('mmi-table');
+        const mmiInfoBtn   = document.getElementById('mmi-info-btn');
+        const mmiModal     = document.getElementById('mmi-modal');
+        const mmiCloseBtn  = document.getElementById('mmi-close-btn');
+        const mmiTable     = document.getElementById('mmi-table');
 
         // ── MMI 진도 안내 모달 ──────────────────────────────────────
-        // Build table lazily on first open
         let _mmiTableBuilt = false;
         mmiInfoBtn.addEventListener('click', () => {
             if (!_mmiTableBuilt) {
@@ -98,16 +106,20 @@
         mmiCloseBtn.addEventListener('click', () => { mmiModal.hidden = true; });
         mmiModal.addEventListener('click', (e) => { if (e.target === mmiModal) mmiModal.hidden = true; });
 
-        // ── 색 고정 토글 ───────────────────────────────────────────
-        let _lockActive = false;
+        // ── 토글 스위치 ────────────────────────────────────────────
+        let _lockActive   = false;
+        let _reviewPeakZ  = 0;
 
-        lockBtn.addEventListener('click', () => {
-            _lockActive = !_lockActive;
-            VisualModule.setColorLock(_lockActive);
-            lockBtn.textContent = _lockActive ? '색 고정 해제' : '색 고정';
-            lockBtn.className   = _lockActive
-                ? 'btn btn--accent btn--sm'
-                : 'btn btn--ghost btn--sm';
+        lockCheckbox.addEventListener('change', () => {
+            _lockActive = lockCheckbox.checked;
+
+            if (!_inReview) {
+                // 라이브 모드: VisualModule 색 고정/해제
+                VisualModule.setColorLock(_lockActive);
+            } else {
+                // 리뷰 모드: 고정 해제 시 reviewPeak 초기화
+                if (!_lockActive) _reviewPeakZ = 0;
+            }
         });
 
         // ── 측정 제어 ──────────────────────────────────────────────
@@ -120,28 +132,29 @@
             _pendingReset       = false;
         }
 
+        function _resetToggle() {
+            lockCheckbox.checked = false;
+            _lockActive          = false;
+            lockToggle.hidden    = true;
+        }
+
         startBtn.addEventListener('click', () => {
-            // Clean up review mode if active
             if (_inReview) {
                 ReviewModule.destroy();
                 _inReview = false;
             }
             reviewBar.hidden = true;
+            _reviewPeakZ     = 0;
 
             startBtn.hidden = true;
             stopBtn.hidden  = true;
             _resetStopBtn();
-            _lockActive = false;
-            lockBtn.hidden    = true;
-            lockBtn.textContent = '색 고정';
-            lockBtn.className   = 'btn btn--ghost btn--sm';
+            _resetToggle();
             statusMsg.textContent = '측정 중...';
 
             SensorModule.start(
-                (data) => {
-                    VisualModule.update(data);
-                },
-                (msg) => {
+                (data) => { VisualModule.update(data); },
+                (msg)  => {
                     statusMsg.textContent = '오류: ' + msg;
                     stopBtn.hidden  = true;
                     startBtn.hidden = false;
@@ -157,8 +170,8 @@
                                         : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                         : '';
                         statusMsg.textContent = '측정 중' + srcLabel + ' — 시작 시점 대비 변화량을 표시합니다.';
-                        stopBtn.hidden = false;
-                        lockBtn.hidden = false;
+                        stopBtn.hidden     = false;
+                        lockToggle.hidden  = false;
                     } else if (state === 'unavailable') {
                         statusMsg.textContent = '⚠️ 이 기기에서 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
                     }
@@ -174,26 +187,38 @@
                 stopBtn.textContent = '초기화';
                 stopBtn.className   = 'btn btn--ghost btn--lg';
                 startBtn.hidden     = false;
-                lockBtn.hidden      = true;
-                _lockActive         = false;
+                _reviewPeakZ        = 0;
                 VisualModule.setColorLock(false);
 
-                // Enter review mode
                 const snapshot = VisualModule.startReview();
                 if (snapshot.length >= 2) {
                     _inReview        = true;
                     reviewBar.hidden = false;
+                    lockToggle.hidden = false;  // 리뷰 모드에서도 스위치 유지
+
                     ReviewModule.init(
                         document.getElementById('waveChart'),
                         snapshot,
                         (maxZ, level, name, timeLabel) => {
-                            mmiLevelText.textContent      = `진도 ${level} ${name}`;
-                            colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
-                            reviewTime.textContent        = timeLabel;
+                            reviewTime.textContent = timeLabel;
+
+                            if (_lockActive) {
+                                // 고정 모드: 최대 진도만 갱신
+                                if (maxZ > _reviewPeakZ) {
+                                    _reviewPeakZ = maxZ;
+                                    mmiLevelText.textContent           = `진도 ${level} ${name}`;
+                                    colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
+                                }
+                            } else {
+                                // 실시간 모드: 현재 구간 진도 표시
+                                mmiLevelText.textContent           = `진도 ${level} ${name}`;
+                                colorDisplay.style.backgroundColor = VisualModule.getMmiColor(maxZ);
+                            }
                         }
                     );
                     statusMsg.textContent = '측정 정지됨. 그래프를 드래그하여 구간별 진도를 확인하세요.';
                 } else {
+                    lockToggle.hidden = true;
                     statusMsg.textContent = '측정 정지됨. 초기화하려면 초기화 버튼을 누르세요.';
                 }
             } else {
@@ -207,6 +232,7 @@
                 stopBtn.hidden   = true;
                 startBtn.hidden  = false;
                 _resetStopBtn();
+                _resetToggle();
                 statusMsg.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
             }
         });

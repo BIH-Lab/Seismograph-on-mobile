@@ -10,7 +10,7 @@ const ReviewModule = (() => {
 
     // ── Config ────────────────────────────────────────────────────
     const WINDOW_SEC  = 10;     // seconds visible on canvas at once
-    const REGION_SEC  = 2.0;    // center highlight window width (seconds)
+    const REGION_SEC  = 1.0;    // center highlight window width (seconds)
     const Z_COLOR     = '#00d2d3';
     const GRID_COLOR  = '#2e2e2e';
     const BG_CANVAS   = '#1c1c1c';
