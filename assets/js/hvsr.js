@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.1
+ * hvsr.js  v1.2
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -25,7 +25,7 @@ const HvsrModule = (() => {
     const FFT_SIZE    = 256;
     const HOP_SIZE    = 26;
     const F_MIN       = 0.5;    // Hz: left edge of plot
-    const F_MAX       = 20;     // Hz: right edge of plot
+    const F_MAX       = 50;     // Hz: right edge of plot
     const HV_MAX      = 10;     // maximum H/V ratio displayed
     const MIN_WINDOWS = 50;     // below this, show low-reliability warning
     const SMOOTH_HALF = 2;      // ±2 bins moving average
@@ -166,7 +166,7 @@ const HvsrModule = (() => {
             const y = hvy(hv);
             _ctx.beginPath(); _ctx.moveTo(PAD_L, y); _ctx.lineTo(PAD_L + PW, y); _ctx.stroke();
         }
-        [1, 2, 5, 10, 20].forEach(f => {
+        [1, 2, 5, 10, 20, 50].forEach(f => {
             if (f < F_MIN || f > fMax) return;
             const x = fx(f);
             _ctx.beginPath(); _ctx.moveTo(x, PAD_T); _ctx.lineTo(x, PAD_T + PH); _ctx.stroke();
@@ -188,7 +188,7 @@ const HvsrModule = (() => {
 
         // X axis labels
         _ctx.textAlign = 'center';
-        [1, 2, 5, 10, 20].forEach(f => {
+        [1, 2, 5, 10, 20, 50].forEach(f => {
             if (f < F_MIN || f > fMax) return;
             _ctx.fillText(`${f}Hz`, fx(f), PAD_T + PH + PAD_B - 4);
         });
