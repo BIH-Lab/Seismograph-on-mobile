@@ -44,8 +44,7 @@
         <div class="controls">
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
             <button class="btn btn--danger btn--lg"  id="stop-btn"         hidden>측정 정지</button>
-            <button class="btn btn--ghost btn--lg"   id="download-btn"     hidden>전체 다운로드</button>
-            <button class="btn btn--primary btn--lg" id="range-download-btn" hidden>선택 구간 다운로드</button>
+            <button class="btn btn--primary btn--lg" id="range-download-btn" hidden>CSV 다운로드</button>
         </div>
 
         <!-- 상태 메시지 -->
@@ -54,15 +53,14 @@
     </main>
 
     <script src="../assets/js/sensor.js?v=4.2"></script>
-    <script src="../assets/js/visual.js?v=4.7"></script>
-    <script src="../assets/js/review2.js?v=1.0"></script>
+    <script src="../assets/js/visual.js?v=4.8"></script>
+    <script src="../assets/js/review2.js?v=1.1"></script>
     <script src="../assets/js/gps.js"></script>
     <script src="../assets/js/export.js"></script>
 
     <script>
-        const startBtn        = document.getElementById('start-btn');
-        const stopBtn         = document.getElementById('stop-btn');
-        const downloadBtn     = document.getElementById('download-btn');
+        const startBtn         = document.getElementById('start-btn');
+        const stopBtn          = document.getElementById('stop-btn');
         const rangeDownloadBtn = document.getElementById('range-download-btn');
         const statusMsg       = document.getElementById('status-msg');
         const gpsLat          = document.getElementById('gps-lat');
@@ -116,7 +114,6 @@
 
             startBtn.hidden         = true;
             stopBtn.hidden          = true;
-            downloadBtn.hidden      = true;
             rangeDownloadBtn.hidden = true;
             reviewBar.hidden        = true;
             _metaRateSet            = false;
@@ -126,8 +123,8 @@
             ExportModule.clear();
 
             if (typeof VisualModule !== 'undefined') {
-                VisualModule.setAxisMode(_axisMode);
                 VisualModule.reset();
+                VisualModule.setAxisMode(_axisMode);
             }
 
             // Include station ID from localStorage if set
@@ -221,7 +218,6 @@
                 stopBtn.textContent = '초기화';
                 stopBtn.className   = 'btn btn--ghost btn--lg';
                 startBtn.hidden     = false;
-                downloadBtn.hidden  = false;
 
                 const snapshot = (typeof VisualModule !== 'undefined') ? VisualModule.startReview() : [];
                 if (snapshot.length >= 2) {
@@ -238,7 +234,8 @@
                             const durSec  = ((endTs - startTs) / 1000).toFixed(1);
                             reviewRangeLabel.textContent =
                                 `${_fmt(startTs)} ~ ${_fmt(endTs)}  ·  ${durSec}초  ·  ${count}샘플`;
-                        }
+                        },
+                        _axisMode
                     );
                     const srText = sr ? ` (${sr} Hz)` : '';
                     statusMsg.textContent = `측정 정지됨. 마커를 드래그하여 내보낼 구간을 선택하세요.${srText}`;
@@ -258,7 +255,6 @@
                 gpsLng.textContent      = '—';
                 gpsAcc.textContent      = '';
                 stopBtn.hidden          = true;
-                downloadBtn.hidden      = true;
                 rangeDownloadBtn.hidden = true;
                 reviewBar.hidden        = true;
                 startBtn.hidden         = false;
@@ -273,10 +269,6 @@
         });
 
         // ── 다운로드 ─────────────────────────────────────────────
-        downloadBtn.addEventListener('click', () => {
-            ExportModule.download();
-        });
-
         rangeDownloadBtn.addEventListener('click', () => {
             if (_rangeStartTs !== null && _rangeEndTs !== null) {
                 ExportModule.downloadRange(_rangeStartTs, _rangeEndTs);

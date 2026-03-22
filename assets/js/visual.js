@@ -252,7 +252,7 @@ const VisualModule = (() => {
     function update(data) {
         if (!bodyEl) _initDOM();
 
-        const now = Date.now();
+        const now = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
         if (!_startTs) _startTs = now;
         const entry = {
             ts:  now,

@@ -501,6 +501,8 @@ html, body {
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--text);
+    text-align: center;
+    width: 100%;
 }
 
 

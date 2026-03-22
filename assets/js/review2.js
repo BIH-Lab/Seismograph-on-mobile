@@ -330,12 +330,12 @@ const Review2Module = (() => {
      * @param {Array} data  [{ts, z, x?, y?, mag?}] from VisualModule.startReview()
      * @param {Function} onRange  (startTs, endTs, count) callback
      */
-    function init(canvasEl, data, onRange) {
+    function init(canvasEl, data, onRange, axisMode) {
         _canvas   = canvasEl;
         _ctx      = canvasEl.getContext('2d');
         _data     = data;
         _onRange  = onRange;
-        _has3axis = data.length > 0 && (data[0].mag !== undefined) && (data[0].mag !== 0 || data[0].x !== 0);
+        _has3axis = (axisMode === '3axis');
 
         _markerA   = _data[0].ts;
         _markerB   = _data[_data.length - 1].ts;
