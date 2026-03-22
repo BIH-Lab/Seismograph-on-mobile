@@ -220,8 +220,9 @@ const VisualModule = (() => {
         _fullBuffer.push({ ts: now, z: data.acc_z });
         _trimBuffer();
 
-        const absZ = Math.abs(data.acc_z);
-        if (absZ > _peakMmiZ) _peakMmiZ = absZ;
+        const absZ      = Math.abs(data.acc_z);
+        const isNewPeak = absZ > _peakMmiZ;
+        if (isNewPeak) _peakMmiZ = absZ;
 
         // Sliding window PGA: max |acc_z| over last 300 ms
         const WINDOW_MS = 300;
@@ -231,7 +232,15 @@ const VisualModule = (() => {
             if (pt.ts >= cutoff && Math.abs(pt.z) > pgaZ) pgaZ = Math.abs(pt.z);
         }
 
-        if (!_colorLocked) {
+        if (_colorLocked) {
+            // Peak-hold mode: update display only when a new all-time peak is detected
+            if (isNewPeak) {
+                const mmi = _zToMMI(_peakMmiZ);
+                if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
+                if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} (고정)`;
+            }
+        } else {
+            // Real-time mode: update display with 300ms sliding window PGA
             const mmi = _zToMMI(pgaZ);
             if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
             if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level}`;
