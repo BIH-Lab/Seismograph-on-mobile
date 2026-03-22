@@ -422,6 +422,18 @@
 
         // ── Sensor start ──────────────────────────────────────────────
         sensorStartBtn.addEventListener('click', () => {
+            // Clean up previous state (handles re-start after stop, and file→sensor transition)
+            _detachReviewEvents();
+            _detachWaveEvents();
+            SpectrogramModule.reset();
+            PsdModule.reset();
+            HvsrModule.reset();
+            VisualModule.reset();
+            _sensorInited = false;
+            _reviewTotal = 0; _reviewCols = 0; _reviewOffset = 0;
+            peakFreqDisplay.hidden = true;
+            peakFreqVal.textContent = '—';
+
             sensorStartBtn.hidden = true;
             sensorStopBtn.hidden  = true;
             sensorResetBtn.hidden = true;
@@ -674,6 +686,7 @@
         function switchTab(mode) {
             if (mode === 'sensor') {
                 _detachReviewEvents();  // 파일 모드 리뷰 이벤트 정리
+                _detachWaveEvents();    // 파일 모드 wave 이벤트 정리
                 tabSensor.classList.add('mode-tabs__btn--active');
                 tabFile.classList.remove('mode-tabs__btn--active');
                 panelSensor.hidden = false;
@@ -683,9 +696,9 @@
                 tabSensor.classList.remove('mode-tabs__btn--active');
                 panelFile.hidden   = false;
                 panelSensor.hidden = true;
+                _detachReviewEvents();  // 항상 정리 (센서 정지 상태 포함)
                 if (SensorModule.isRunning()) {
                     SensorModule.stop();
-                    _detachReviewEvents();
                     VisualModule.reset();
                     SpectrogramModule.reset();
                     PsdModule.reset();
