@@ -212,12 +212,8 @@ const ReviewModule = (() => {
                 if (Math.abs(pt.z) > maxAbsZ) maxAbsZ = Math.abs(pt.z);
             }
         }
-        const mmi      = VisualModule.getMmiInfo(maxAbsZ);
-        const originTs = _data[0].ts;
-        const s1       = ((rStart - originTs) / 1000).toFixed(1);
-        const s2       = ((rEnd   - originTs) / 1000).toFixed(1);
-        const timeLabel = `구간: ${s1}s ~ ${s2}s`;
-        _onRegion(maxAbsZ, mmi.level, mmi.name, timeLabel);
+        const mmi = VisualModule.getMmiInfo(maxAbsZ);
+        _onRegion(maxAbsZ, mmi.level, mmi.name);
     }
 
     // ── Drag / Pan ────────────────────────────────────────────────

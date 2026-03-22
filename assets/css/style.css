@@ -455,6 +455,7 @@ html, body {
 .mmi-toggle {
     display: flex;
     align-items: center;
+    align-self: center;
     gap: 8px;
     cursor: pointer;
     user-select: none;

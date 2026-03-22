@@ -29,22 +29,21 @@
 
         <!-- 리뷰 모드 컨트롤 바 (측정 정지 후 표시) -->
         <div class="review-bar" id="review-bar" hidden>
-            <span class="review-bar__time" id="review-time-label">구간: 0.0s ~ 1.0s</span>
             <span class="review-bar__mmi" id="review-mmi-label"></span>
         </div>
+
+        <!-- 토글 스위치 (측정 ready + 리뷰 모드에서 표시) -->
+        <label class="mmi-toggle" id="lock-toggle" hidden>
+            <span class="mmi-toggle__label">실시간</span>
+            <input type="checkbox" id="lock-checkbox">
+            <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+            <span class="mmi-toggle__label">고정</span>
+        </label>
 
         <!-- 컨트롤 -->
         <div class="controls">
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
             <button class="btn btn--danger btn--lg"  id="stop-btn"  hidden>측정 정지</button>
-
-            <!-- 토글 스위치 (측정 ready + 리뷰 모드에서 표시) -->
-            <label class="mmi-toggle" id="lock-toggle" hidden>
-                <span class="mmi-toggle__label">실시간</span>
-                <input type="checkbox" id="lock-checkbox">
-                <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
-                <span class="mmi-toggle__label">고정</span>
-            </label>
         </div>
 
         <!-- 상태 메시지 -->
@@ -75,7 +74,6 @@
         const lockCheckbox = document.getElementById('lock-checkbox');
         const statusMsg    = document.getElementById('status-msg');
         const reviewBar    = document.getElementById('review-bar');
-        const reviewTime   = document.getElementById('review-time-label');
         const colorDisplay = document.getElementById('color-display');
         const mmiLevelText = document.getElementById('mmi-level-text');
         const mmiInfoBtn      = document.getElementById('mmi-info-btn');
@@ -204,9 +202,7 @@
                     ReviewModule.init(
                         document.getElementById('waveChart'),
                         snapshot,
-                        (maxZ, level, name, timeLabel) => {
-                            reviewTime.textContent = timeLabel;
-
+                        (maxZ, level, name) => {
                             if (_lockActive) {
                                 // 고정 모드: 최대 진도만 갱신
                                 if (maxZ > _reviewPeakZ) {
