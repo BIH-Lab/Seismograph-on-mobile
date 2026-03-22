@@ -29,13 +29,6 @@
                 <canvas id="waveChart"></canvas>
             </div>
 
-            <!-- 축 선택 (센서 모드) -->
-            <div class="axis-selector" id="sensor-axis-selector">
-                <button class="axis-btn axis-btn--active" data-axis="z">Z</button>
-                <button class="axis-btn" data-axis="x">X</button>
-                <button class="axis-btn" data-axis="y">Y</button>
-            </div>
-
             <!-- 스펙트로그램 (주파수 축은 캔버스 내부에 렌더링) -->
             <div class="spectrogram-panel">
                 <canvas id="spectroChart"></canvas>
@@ -244,24 +237,6 @@
         const peakFreqDisplay = document.getElementById('peak-freq-display');
         const peakFreqVal     = document.getElementById('peak-freq-val');
         let _sr = 100;
-        let _sensorAxisMode = 'z';
-
-        // ── Axis selector (sensor) ─────────────────────────────────
-        const sensorAxisSelector = document.getElementById('sensor-axis-selector');
-        sensorAxisSelector.querySelectorAll('.axis-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                sensorAxisSelector.querySelectorAll('.axis-btn').forEach(b => b.classList.remove('axis-btn--active'));
-                btn.classList.add('axis-btn--active');
-                _sensorAxisMode = btn.dataset.axis;
-            });
-        });
-
-        function _setSensorAxisLocked(locked) {
-            sensorAxisSelector.querySelectorAll('.axis-btn').forEach(b => {
-                if (locked) b.setAttribute('disabled', '');
-                else        b.removeAttribute('disabled');
-            });
-        }
 
         // ── Review mode state ──────────────────────────────────────
         const _reviewPointers = new Map();
@@ -362,7 +337,6 @@
             sensorStopBtn.hidden  = true;
             sensorResetBtn.hidden = true;
             sensorStatus.textContent = '센서 권한 요청 중...';
-            _setSensorAxisLocked(true);
 
             SensorModule.start(
                 (data) => {
@@ -371,15 +345,11 @@
                         if (sr >= 50 && sr <= 250) _sr = sr;
                     }
                     VisualModule.update(data);
-                    const sample = _sensorAxisMode === 'x' ? data.acc_x
-                                 : _sensorAxisMode === 'y' ? data.acc_y
-                                 : data.acc_z;
-                    SpectrogramModule.push(sample, _sr);
+                    SpectrogramModule.push(data.acc_z, _sr);
                 },
                 (msg) => {
                     sensorStatus.textContent = '오류: ' + msg;
                     sensorStartBtn.hidden = false;
-                    _setSensorAxisLocked(false);
                 },
                 (state, arg1, arg2) => {
                     if (state === 'warmup') {
@@ -397,8 +367,7 @@
                                        : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
                                        : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                        : '';
-                        const axisLabel = _sensorAxisMode.toUpperCase() + '축 진동의 주파수를 분석합니다.';
-                        sensorStatus.textContent = '측정 중' + srcLabel + ' — ' + axisLabel;
+                        sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
                         sensorStopBtn.hidden = false;
                     } else if (state === 'unavailable') {
                         sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
@@ -433,7 +402,6 @@
             peakFreqDisplay.hidden = true;
             peakFreqVal.textContent = '—';
             sensorResetBtn.hidden = true;
-            _setSensorAxisLocked(false);
             _reviewTotal = 0; _reviewRows = 0; _reviewOffset = 0;
             sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
         });
@@ -646,7 +614,6 @@
                     sensorStartBtn.hidden = false;
                     sensorStopBtn.hidden  = true;
                     sensorResetBtn.hidden = true;
-                    _setSensorAxisLocked(false);
                     sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
                 }
             }
