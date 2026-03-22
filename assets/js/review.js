@@ -176,6 +176,22 @@ const ReviewModule = (() => {
         _ctx.moveTo(rX, 0); _ctx.lineTo(rX, h);
         _ctx.moveTo(rX + rW, 0); _ctx.lineTo(rX + rW, h);
         _ctx.stroke();
+
+        // Actual clock time label below region
+        const fmt = ts => {
+            const d  = new Date(ts);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            const ms = String(d.getMilliseconds()).padStart(3, '0');
+            return `${hh}:${mm}:${ss}.${ms}`;
+        };
+        const label = `${fmt(_viewCenter - regionMs / 2)} ~ ${fmt(_viewCenter + regionMs / 2)}`;
+        _ctx.font      = '9px sans-serif';
+        _ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        _ctx.textAlign = 'center';
+        _ctx.fillText(label, w / 2, h - 20);
+        _ctx.textAlign = 'left';
     }
 
     function _drawTimeAxis(w, h, timeStart, timeEnd, windowMs) {
