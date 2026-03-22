@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.0
+ * hvsr.js  v1.1
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -92,12 +92,19 @@ const HvsrModule = (() => {
         const reY = new Float32Array(FFT_SIZE), imY = new Float32Array(FFT_SIZE);
         const reZ = new Float32Array(FFT_SIZE), imZ = new Float32Array(FFT_SIZE);
 
+        // DC offset removal per window
+        let mX = 0, mY = 0, mZ = 0;
+        for (let i = 0; i < FFT_SIZE; i++) {
+            const idx = (_head + i) & (FFT_SIZE - 1);
+            mX += _bufX[idx]; mY += _bufY[idx]; mZ += _bufZ[idx];
+        }
+        mX /= FFT_SIZE; mY /= FFT_SIZE; mZ /= FFT_SIZE;
         for (let i = 0; i < FFT_SIZE; i++) {
             const idx = (_head + i) & (FFT_SIZE - 1);
             const w   = _hann[i];
-            reX[i] = _bufX[idx] * w;
-            reY[i] = _bufY[idx] * w;
-            reZ[i] = _bufZ[idx] * w;
+            reX[i] = (_bufX[idx] - mX) * w;
+            reY[i] = (_bufY[idx] - mY) * w;
+            reZ[i] = (_bufZ[idx] - mZ) * w;
         }
         _fft(reX, imX);
         _fft(reY, imY);
@@ -313,12 +320,21 @@ const HvsrModule = (() => {
             reX.fill(0); imX.fill(0);
             reY.fill(0); imY.fill(0);
             reZ.fill(0); imZ.fill(0);
+            // DC offset removal
+            let mX = 0, mY = 0, mZ = 0;
+            for (let i = 0; i < FFT_SIZE; i++) {
+                const r = rows[start + i];
+                mX += parseFloat(r.acc_x) || 0;
+                mY += parseFloat(r.acc_y) || 0;
+                mZ += parseFloat(r.acc_z) || 0;
+            }
+            mX /= FFT_SIZE; mY /= FFT_SIZE; mZ /= FFT_SIZE;
             for (let i = 0; i < FFT_SIZE; i++) {
                 const r = rows[start + i];
                 const w = _hann[i];
-                reX[i] = (parseFloat(r.acc_x) || 0) * w;
-                reY[i] = (parseFloat(r.acc_y) || 0) * w;
-                reZ[i] = (parseFloat(r.acc_z) || 0) * w;
+                reX[i] = ((parseFloat(r.acc_x) || 0) - mX) * w;
+                reY[i] = ((parseFloat(r.acc_y) || 0) - mY) * w;
+                reZ[i] = ((parseFloat(r.acc_z) || 0) - mZ) * w;
             }
             _fft(reX, imX); _fft(reY, imY); _fft(reZ, imZ);
             for (let b = 0; b < FFT_SIZE / 2; b++) {

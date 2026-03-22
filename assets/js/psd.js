@@ -1,33 +1,46 @@
 /**
- * psd.js  v1.0
+ * psd.js  v2.0
  * Role   : Power Spectral Density (Welch's method, rolling average)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
- *          X axis = frequency (log scale, 0.5 – Nyquist Hz)
+ *          X axis = frequency (log scale, F_MIN – Nyquist Hz)
  *          Y axis = power density (dB, DB_MIN – DB_MAX)
  *
  * Algorithm : Cooley-Tukey FFT → squared magnitude → rolling mean of N_AVG frames
- *             PSD[b] = mean(|FFT_b|²) / (sr × FFT_SIZE)   [(m/s²)²/Hz]
- *             dB     = 10 × log₁₀(PSD[b])
+ *
+ * Correct Welch PSD formula (one-sided, Hann window energy compensated):
+ *   PSD[b] = 2 × |FFT_b|² / (sr × sum_w2)
+ *   where sum_w2 = Σ hann[i]²  (≈ 3N/8 for Hann)
+ *   dB = 10 × log₁₀(PSD[b])
+ *
+ * v2.0 fixes vs v1.0:
+ *   1. DC offset removed per window (subtract mean before Hann)
+ *   2. Hann window energy loss compensated (÷ sum_w2 instead of ÷ FFT_SIZE)
+ *   3. One-sided spectrum factor ×2 applied
+ *   4. FFT_SIZE 256→1024 (Δf: 0.39Hz→0.098Hz), F_MIN 0.5→0.1Hz
  */
 
 const PsdModule = (() => {
 
     // ── Config ────────────────────────────────────────────────────
-    const FFT_SIZE = 256;
+    const FFT_SIZE = 1024;
     const HOP_SIZE = 26;
     const N_AVG    = 16;   // rolling window: last N_AVG FFT frames averaged
     const DB_MIN   = -120;
     const DB_MAX   = -20;
-    const F_MIN    = 0.5;  // Hz: left edge of plot
+    const F_MIN    = 0.1;  // Hz: left edge of plot
 
     // Padding (px)
     const PAD_L = 40, PAD_R = 10, PAD_T = 10, PAD_B = 20;
 
-    // ── Hann window ───────────────────────────────────────────────
+    // ── Hann window + energy normalization constant ────────────────
     const _hann = new Float32Array(FFT_SIZE);
     for (let i = 0; i < FFT_SIZE; i++)
         _hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+
+    // sum of squared Hann weights (≈ 3N/8 for large N)
+    let _sumW2 = 0;
+    for (let i = 0; i < FFT_SIZE; i++) _sumW2 += _hann[i] * _hann[i];
 
     // ── State ─────────────────────────────────────────────────────
     let _canvas = null;
@@ -71,14 +84,24 @@ const PsdModule = (() => {
 
     // ── Compute one power spectrum from ring buffer ────────────────
     function _computePower() {
+        // 1) Extract raw samples from ring buffer
+        const raw = new Float32Array(FFT_SIZE);
+        for (let i = 0; i < FFT_SIZE; i++)
+            raw[i] = _buf[(_head + i) & (FFT_SIZE - 1)];
+        // 2) DC offset removal (subtract window mean)
+        let mean = 0;
+        for (let i = 0; i < FFT_SIZE; i++) mean += raw[i];
+        mean /= FFT_SIZE;
+        // 3) Apply Hann window
         const re = new Float32Array(FFT_SIZE);
         const im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++)
-            re[i] = _buf[(_head + i) & (FFT_SIZE - 1)] * _hann[i];
+            re[i] = (raw[i] - mean) * _hann[i];
         _fft(re, im);
+        // 4) One-sided PSD with Hann window energy compensation
         const pow = new Float32Array(FFT_SIZE / 2);
         for (let b = 0; b < FFT_SIZE / 2; b++)
-            pow[b] = (re[b]**2 + im[b]**2) / (_sr * FFT_SIZE);
+            pow[b] = 2 * (re[b]**2 + im[b]**2) / (_sr * _sumW2);
         return pow;
     }
 
@@ -105,7 +128,7 @@ const PsdModule = (() => {
         const fMax = Math.min(50, nyq);
         const logRange = Math.log10(fMax / F_MIN);
 
-        function fx(f)  { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
+        function fx(f)   { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
         function dby(db) { return PAD_T + PH - Math.round((db - DB_MIN) / (DB_MAX - DB_MIN) * PH); }
 
         // Background
@@ -119,7 +142,7 @@ const PsdModule = (() => {
             const y = dby(db);
             _ctx.beginPath(); _ctx.moveTo(PAD_L, y); _ctx.lineTo(PAD_L + PW, y); _ctx.stroke();
         }
-        [1, 2, 5, 10, 20, 50].forEach(f => {
+        [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50].forEach(f => {
             if (f < F_MIN || f > fMax) return;
             const x = fx(f);
             _ctx.beginPath(); _ctx.moveTo(x, PAD_T); _ctx.lineTo(x, PAD_T + PH); _ctx.stroke();
@@ -142,7 +165,7 @@ const PsdModule = (() => {
 
         // X axis labels (Hz)
         _ctx.textAlign = 'center';
-        [1, 2, 5, 10, 20, 50].forEach(f => {
+        [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50].forEach(f => {
             if (f < F_MIN || f > fMax) return;
             _ctx.fillText(`${f}Hz`, fx(f), PAD_T + PH + PAD_B - 4);
         });
@@ -225,17 +248,26 @@ const PsdModule = (() => {
         let count = 0;
 
         for (let start = 0; start + FFT_SIZE <= rows.length; start += HOP_SIZE) {
+            // 1) Read raw samples
             re.fill(0); im.fill(0);
+            let mean = 0;
             for (let i = 0; i < FFT_SIZE; i++) {
                 const r = rows[start + i];
                 const v = parseFloat(
                     axis === 'x' ? r.acc_x : axis === 'y' ? r.acc_y : r.acc_z
                 ) || 0;
-                re[i] = v * _hann[i];
+                re[i] = v;
+                mean += v;
             }
+            // 2) DC offset removal
+            mean /= FFT_SIZE;
+            // 3) Apply Hann window
+            for (let i = 0; i < FFT_SIZE; i++)
+                re[i] = (re[i] - mean) * _hann[i];
             _fft(re, im);
+            // 4) One-sided PSD with Hann window compensation
             for (let b = 0; b < FFT_SIZE / 2; b++)
-                sumPow[b] += (re[b]**2 + im[b]**2) / (_sr * FFT_SIZE);
+                sumPow[b] += 2 * (re[b]**2 + im[b]**2) / (_sr * _sumW2);
             count++;
         }
         if (count === 0) return;
