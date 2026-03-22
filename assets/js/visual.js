@@ -15,18 +15,22 @@ const VisualModule = (() => {
     const GRID_COLOR  = '#2e2e2e';
     const BG_CANVAS   = '#1c1c1c';
 
-    // ── MMI Scale (KMA, PGA m/s²) ────────────────────────────────
+    // ── MMI Scale (KMA 2018, PGA m/s²) ──────────────────────────
+    // Source: 기상청 수정 메르칼리 진도등급 고시 (2018.11.28.)
+    // Conversion: 1 %g = 0.0981 m/s²  (g = 9.81 m/s²)
+    // XII는 PGV 기준만 정의 → PGA 검출 불가, XI+로 병합
     const MMI_LEVELS = [
-        { level: 'I',    name: '무감',     pgaMin: 0,      pgaMax: 0.0017,   color: '#303060' },
-        { level: 'II',   name: '미감',     pgaMin: 0.0017, pgaMax: 0.014,    color: '#1a6b8a' },
-        { level: 'III',  name: '약진',     pgaMin: 0.014,  pgaMax: 0.039,    color: '#1e90b0' },
-        { level: 'IV',   name: '경진',     pgaMin: 0.039,  pgaMax: 0.092,    color: '#2ecc71' },
-        { level: 'V',    name: '중진',     pgaMin: 0.092,  pgaMax: 0.18,     color: '#a0c820' },
-        { level: 'VI',   name: '강진',     pgaMin: 0.18,   pgaMax: 0.34,     color: '#f0d800' },
-        { level: 'VII',  name: '심한강진', pgaMin: 0.34,   pgaMax: 0.65,     color: '#f39c12' },
-        { level: 'VIII', name: '격진',     pgaMin: 0.65,   pgaMax: 1.24,     color: '#e74c3c' },
-        { level: 'IX',   name: '극렬',     pgaMin: 1.24,   pgaMax: 2.37,     color: '#c0392b' },
-        { level: 'X+',   name: '완전파괴', pgaMin: 2.37,   pgaMax: Infinity, color: '#7b241c' },
+        { level: 'I',    name: '무감',     pgaMin: 0,        pgaMax: 0.00687,  color: '#303060' },
+        { level: 'II',   name: '미감',     pgaMin: 0.00687,  pgaMax: 0.02256,  color: '#1a6b8a' },
+        { level: 'III',  name: '약진',     pgaMin: 0.02256,  pgaMax: 0.07456,  color: '#1e90b0' },
+        { level: 'IV',   name: '경진',     pgaMin: 0.07456,  pgaMax: 0.25114,  color: '#2ecc71' },
+        { level: 'V',    name: '중진',     pgaMin: 0.25114,  pgaMax: 0.67297,  color: '#a0c820' },
+        { level: 'VI',   name: '강진',     pgaMin: 0.67297,  pgaMax: 1.44471,  color: '#f0d800' },
+        { level: 'VII',  name: '심한강진', pgaMin: 1.44471,  pgaMax: 3.10585,  color: '#f39c12' },
+        { level: 'VIII', name: '격진',     pgaMin: 3.10585,  pgaMax: 6.67178,  color: '#e74c3c' },
+        { level: 'IX',   name: '극렬',     pgaMin: 6.67178,  pgaMax: 14.3363,  color: '#c0392b' },
+        { level: 'X',    name: '대격진',   pgaMin: 14.3363,  pgaMax: 30.8034,  color: '#922b21' },
+        { level: 'XI+',  name: '완전파괴', pgaMin: 30.8034,  pgaMax: Infinity, color: '#7b241c' },
     ];
 
     // ── State ────────────────────────────────────────────────────
