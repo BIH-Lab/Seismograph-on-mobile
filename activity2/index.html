@@ -27,11 +27,25 @@
             <canvas id="waveChart"></canvas>
         </div>
 
+        <!-- 리뷰 모드 바 (측정 정지 후 표시) -->
+        <div class="review-bar" id="review-bar" hidden>
+            <span class="review-bar__mmi" id="review-range-label"></span>
+        </div>
+
+        <!-- Z축/3축 토글 (측정 전 표시, 측정 중 disabled) -->
+        <label class="mmi-toggle" id="axis-toggle">
+            <span class="mmi-toggle__label">Z축</span>
+            <input type="checkbox" id="axis-checkbox">
+            <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+            <span class="mmi-toggle__label">3축</span>
+        </label>
+
         <!-- 컨트롤 -->
         <div class="controls">
             <button class="btn btn--primary btn--lg" id="start-btn">측정 시작</button>
-            <button class="btn btn--danger btn--lg" id="stop-btn" hidden>측정 정지</button>
-            <button class="btn btn--ghost btn--lg" id="download-btn" hidden>CSV 다운로드</button>
+            <button class="btn btn--danger btn--lg"  id="stop-btn"         hidden>측정 정지</button>
+            <button class="btn btn--ghost btn--lg"   id="download-btn"     hidden>전체 다운로드</button>
+            <button class="btn btn--primary btn--lg" id="range-download-btn" hidden>선택 구간 다운로드</button>
         </div>
 
         <!-- 상태 메시지 -->
@@ -39,24 +53,48 @@
 
     </main>
 
-    <script src="../assets/js/sensor.js"></script>
-    <script src="../assets/js/visual.js"></script>
+    <script src="../assets/js/sensor.js?v=4.2"></script>
+    <script src="../assets/js/visual.js?v=4.7"></script>
+    <script src="../assets/js/review2.js?v=1.0"></script>
     <script src="../assets/js/gps.js"></script>
     <script src="../assets/js/export.js"></script>
 
     <script>
-        const startBtn    = document.getElementById('start-btn');
-        const stopBtn     = document.getElementById('stop-btn');
-        const downloadBtn = document.getElementById('download-btn');
-        const statusMsg   = document.getElementById('status-msg');
-        const gpsLat      = document.getElementById('gps-lat');
-        const gpsLng      = document.getElementById('gps-lng');
-        const gpsAcc      = document.getElementById('gps-acc');
+        const startBtn        = document.getElementById('start-btn');
+        const stopBtn         = document.getElementById('stop-btn');
+        const downloadBtn     = document.getElementById('download-btn');
+        const rangeDownloadBtn = document.getElementById('range-download-btn');
+        const statusMsg       = document.getElementById('status-msg');
+        const gpsLat          = document.getElementById('gps-lat');
+        const gpsLng          = document.getElementById('gps-lng');
+        const gpsAcc          = document.getElementById('gps-acc');
+        const axisToggle      = document.getElementById('axis-toggle');
+        const axisCheckbox    = document.getElementById('axis-checkbox');
+        const reviewBar       = document.getElementById('review-bar');
+        const reviewRangeLabel = document.getElementById('review-range-label');
 
-        // false = 측정 정지 모드, true = 초기화 모드
         let _pendingReset = false;
-        // 첫 번째 데이터에서 interval_ms를 한 번만 읽어 setMeta
         let _metaRateSet  = false;
+        let _axisMode     = 'z';      // 'z' | '3axis'
+        let _inReview     = false;
+        let _rangeStartTs = null;
+        let _rangeEndTs   = null;
+
+        // ── 시간 포맷 ────────────────────────────────────────────
+        function _fmt(ts) {
+            const d  = new Date(ts);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            const ms = String(d.getMilliseconds()).padStart(3, '0');
+            return `${hh}:${mm}:${ss}.${ms}`;
+        }
+
+        // ── 축 토글 잠금/해제 ────────────────────────────────────
+        function _setAxisToggleLocked(locked) {
+            axisToggle.style.opacity       = locked ? '0.4' : '1';
+            axisToggle.style.pointerEvents = locked ? 'none' : '';
+        }
 
         function _resetStopBtn() {
             stopBtn.textContent = '측정 정지';
@@ -64,14 +102,33 @@
             _pendingReset       = false;
         }
 
+        // ── 축 토글 변경 ──────────────────────────────────────────
+        axisCheckbox.addEventListener('change', () => {
+            _axisMode = axisCheckbox.checked ? '3axis' : 'z';
+        });
+
+        // ── 측정 시작 ─────────────────────────────────────────────
         startBtn.addEventListener('click', () => {
-            startBtn.hidden      = true;
-            stopBtn.hidden       = true;
-            downloadBtn.hidden   = true;
-            _metaRateSet         = false;
+            if (_inReview) {
+                Review2Module.destroy();
+                _inReview = false;
+            }
+
+            startBtn.hidden         = true;
+            stopBtn.hidden          = true;
+            downloadBtn.hidden      = true;
+            rangeDownloadBtn.hidden = true;
+            reviewBar.hidden        = true;
+            _metaRateSet            = false;
             _resetStopBtn();
+            _setAxisToggleLocked(true);
             statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
+
+            if (typeof VisualModule !== 'undefined') {
+                VisualModule.setAxisMode(_axisMode);
+                VisualModule.reset();
+            }
 
             // Include station ID from localStorage if set
             const stationId = localStorage.getItem('station_id');
@@ -84,7 +141,6 @@
                     gpsLng.textContent = coords.longitude;
                     gpsAcc.textContent = `(정확도 ±${coords.accuracy}m)`;
 
-                    // GPS 정보를 CSV 메타데이터로 저장
                     ExportModule.setMeta({
                         latitude  : coords.latitude,
                         longitude : coords.longitude,
@@ -101,11 +157,20 @@
                                 ExportModule.setMeta({ sample_rate: hz + ' Hz' });
                                 _metaRateSet = true;
                             }
-                            // 데이터 행: timestamp + acc_z 만 기록
-                            ExportModule.record({
-                                timestamp : data.timestamp,
-                                acc_z     : data.acc_z,
-                            });
+                            // 축 모드에 따라 기록 컬럼 선택
+                            if (_axisMode === '3axis') {
+                                ExportModule.record({
+                                    timestamp : data.timestamp,
+                                    acc_x     : data.acc_x,
+                                    acc_y     : data.acc_y,
+                                    acc_z     : data.acc_z,
+                                });
+                            } else {
+                                ExportModule.record({
+                                    timestamp : data.timestamp,
+                                    acc_z     : data.acc_z,
+                                });
+                            }
                             if (typeof VisualModule !== 'undefined') VisualModule.update(data);
                         },
                         (msg) => {
@@ -113,6 +178,7 @@
                             stopBtn.hidden  = true;
                             startBtn.hidden = false;
                             _resetStopBtn();
+                            _setAxisToggleLocked(false);
                         },
                         (state, arg1, arg2) => {
                             if (state === 'warmup') {
@@ -125,7 +191,8 @@
                                                : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
                                                : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
                                                : '';
-                                statusMsg.textContent = '측정 중' + srcLabel + ' — Z축 변화량을 기록합니다.';
+                                const modeLabel = _axisMode === '3axis' ? 'X·Y·Z + 크기를 기록합니다.' : 'Z축 변화량을 기록합니다.';
+                                statusMsg.textContent = '측정 중' + srcLabel + ' — ' + modeLabel;
                                 stopBtn.hidden = false;
                             } else if (state === 'unavailable') {
                                 statusMsg.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
@@ -136,12 +203,14 @@
                 .catch((err) => {
                     statusMsg.textContent = '⚠️ ' + err.message;
                     startBtn.hidden = false;
+                    _setAxisToggleLocked(false);
                 });
         });
 
+        // ── 측정 정지 / 초기화 ───────────────────────────────────
         stopBtn.addEventListener('click', () => {
             if (!_pendingReset) {
-                // 1차 클릭: 측정 정지 — 그래프 유지, 다운로드 버튼 표시
+                // 1차 클릭: 측정 정지 → 리뷰 모드 진입
                 SensorModule.stop();
 
                 // 실제 샘플레이트 재계산 후 메타데이터 갱신
@@ -153,25 +222,65 @@
                 stopBtn.className   = 'btn btn--ghost btn--lg';
                 startBtn.hidden     = false;
                 downloadBtn.hidden  = false;
-                const srText = sr ? ` (${sr} Hz)` : '';
-                statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨${srText}.`;
+
+                const snapshot = (typeof VisualModule !== 'undefined') ? VisualModule.startReview() : [];
+                if (snapshot.length >= 2) {
+                    _inReview               = true;
+                    reviewBar.hidden        = false;
+                    rangeDownloadBtn.hidden = false;
+
+                    Review2Module.init(
+                        document.getElementById('waveChart'),
+                        snapshot,
+                        (startTs, endTs, count) => {
+                            _rangeStartTs = startTs;
+                            _rangeEndTs   = endTs;
+                            const durSec  = ((endTs - startTs) / 1000).toFixed(1);
+                            reviewRangeLabel.textContent =
+                                `${_fmt(startTs)} ~ ${_fmt(endTs)}  ·  ${durSec}초  ·  ${count}샘플`;
+                        }
+                    );
+                    const srText = sr ? ` (${sr} Hz)` : '';
+                    statusMsg.textContent = `측정 정지됨. 마커를 드래그하여 내보낼 구간을 선택하세요.${srText}`;
+                } else {
+                    const srText = sr ? ` (${sr} Hz)` : '';
+                    statusMsg.textContent = `측정 정지됨. ${ExportModule.count()}개 데이터 기록됨${srText}.`;
+                }
             } else {
-                // 2차 클릭: 초기화 — 그래프·GPS·데이터 리셋
+                // 2차 클릭: 초기화
+                if (_inReview) {
+                    Review2Module.destroy();
+                    _inReview = false;
+                }
                 if (typeof VisualModule !== 'undefined') VisualModule.reset();
                 ExportModule.clear();
-                gpsLat.textContent = '—';
-                gpsLng.textContent = '—';
-                gpsAcc.textContent = '';
-                stopBtn.hidden     = true;
-                downloadBtn.hidden = true;
-                startBtn.hidden    = false;
+                gpsLat.textContent      = '—';
+                gpsLng.textContent      = '—';
+                gpsAcc.textContent      = '';
+                stopBtn.hidden          = true;
+                downloadBtn.hidden      = true;
+                rangeDownloadBtn.hidden = true;
+                reviewBar.hidden        = true;
+                startBtn.hidden         = false;
                 _resetStopBtn();
-                statusMsg.textContent = '버튼을 눌러 GPS 및 센서 권한을 요청하세요.';
+                _setAxisToggleLocked(false);
+                axisCheckbox.checked    = false;
+                _axisMode               = 'z';
+                _rangeStartTs           = null;
+                _rangeEndTs             = null;
+                statusMsg.textContent   = '버튼을 눌러 GPS 및 센서 권한을 요청하세요.';
             }
         });
 
+        // ── 다운로드 ─────────────────────────────────────────────
         downloadBtn.addEventListener('click', () => {
             ExportModule.download();
+        });
+
+        rangeDownloadBtn.addEventListener('click', () => {
+            if (_rangeStartTs !== null && _rangeEndTs !== null) {
+                ExportModule.downloadRange(_rangeStartTs, _rangeEndTs);
+            }
         });
     </script>
 

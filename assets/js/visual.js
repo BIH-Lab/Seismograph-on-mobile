@@ -34,13 +34,14 @@ const VisualModule = (() => {
     ];
 
     // ── State ────────────────────────────────────────────────────
-    const buffer      = [];      // [{ ts, z }] — trimmed live buffer for waveform
-    const _fullBuffer = [];      // [{ ts, z }] — untrimmed, for review mode
+    const buffer      = [];      // [{ ts, z, x, y, mag }] — trimmed live buffer for waveform
+    const _fullBuffer = [];      // [{ ts, z, x, y, mag }] — untrimmed, for review mode
     let _peakZ        = MIN_RANGE; // auto-scale peak (m/s²)
     let _peakMmiZ        = 0;         // max |acc_z| for MMI color (separate from _peakZ)
     let _colorLocked     = false;
     let _renderingPaused = false;    // true while ReviewModule owns the canvas
     let _startTs         = null;     // timestamp of first sample
+    let _axisMode        = 'z';      // 'z' | '3axis'
 
     // ── DOM refs ─────────────────────────────────────────────────
     let bodyEl      = null;
@@ -104,8 +105,12 @@ const VisualModule = (() => {
         // ── Auto-scale Y axis ─────────────────────────────────────
         let maxAbsZ = 0;
         for (const pt of buffer) {
-            if (pt.ts >= timeStart && Math.abs(pt.z) > maxAbsZ)
-                maxAbsZ = Math.abs(pt.z);
+            if (pt.ts < timeStart) continue;
+            if (_axisMode === '3axis') {
+                maxAbsZ = Math.max(maxAbsZ, Math.abs(pt.mag), Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z));
+            } else {
+                if (Math.abs(pt.z) > maxAbsZ) maxAbsZ = Math.abs(pt.z);
+            }
         }
         if (maxAbsZ * 1.2 > _peakZ) {
             _peakZ = maxAbsZ * 1.2;
@@ -119,33 +124,66 @@ const VisualModule = (() => {
 
         _drawGrid(w, h, midY, range, yScale);
 
-        // Z-axis waveform
-        ctx.beginPath();
-        ctx.strokeStyle = Z_COLOR;
-        ctx.lineWidth   = 2;
-        ctx.lineJoin    = 'round';
-
-        let prevPx = null, prevPy = null;
-        for (const pt of buffer) {
-            if (pt.ts < timeStart) continue;
-            const px = ((pt.ts - timeStart) / windowMs) * w;
-            const py = midY - pt.z * yScale;
-            if (prevPx === null) {
-                ctx.moveTo(px, py);
-            } else {
-                const midX  = (prevPx + px) / 2;
-                const midY2 = (prevPy + py) / 2;
-                ctx.quadraticCurveTo(prevPx, prevPy, midX, midY2);
+        if (_axisMode === '3axis') {
+            // 3-axis mode: draw X/Y/Z (thin, semi-transparent) then Mag (thick, opaque)
+            const lines = [
+                { field: 'x',   color: 'rgba(255,80,80,0.45)',  lw: 1   },
+                { field: 'y',   color: 'rgba(80,255,80,0.45)',  lw: 1   },
+                { field: 'z',   color: 'rgba(80,160,255,0.45)', lw: 1   },
+                { field: 'mag', color: '#f0f0f0',               lw: 2.5 },
+            ];
+            for (const { field, color, lw } of lines) {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth   = lw;
+                ctx.lineJoin    = 'round';
+                let ppx = null, ppy = null;
+                for (const pt of buffer) {
+                    if (pt.ts < timeStart) continue;
+                    const px = ((pt.ts - timeStart) / windowMs) * w;
+                    const py = midY - pt[field] * yScale;
+                    if (ppx === null) { ctx.moveTo(px, py); }
+                    else {
+                        const mx = (ppx + px) / 2, my = (ppy + py) / 2;
+                        ctx.quadraticCurveTo(ppx, ppy, mx, my);
+                    }
+                    ppx = px; ppy = py;
+                }
+                if (ppx !== null) ctx.lineTo(ppx, ppy);
+                ctx.stroke();
             }
-            prevPx = px; prevPy = py;
-        }
-        if (prevPx !== null) ctx.lineTo(prevPx, prevPy);
-        ctx.stroke();
-        _drawTimeAxis(w, h, timeStart, timeEnd, windowMs);
+            ctx.fillStyle = '#f0f0f0';
+            ctx.font      = 'bold 11px sans-serif';
+            ctx.fillText('3축', 8, 14);
+        } else {
+            // Z-axis waveform
+            ctx.beginPath();
+            ctx.strokeStyle = Z_COLOR;
+            ctx.lineWidth   = 2;
+            ctx.lineJoin    = 'round';
 
-        ctx.fillStyle = Z_COLOR;
-        ctx.font      = 'bold 11px sans-serif';
-        ctx.fillText('Z', 8, 14);
+            let prevPx = null, prevPy = null;
+            for (const pt of buffer) {
+                if (pt.ts < timeStart) continue;
+                const px = ((pt.ts - timeStart) / windowMs) * w;
+                const py = midY - pt.z * yScale;
+                if (prevPx === null) {
+                    ctx.moveTo(px, py);
+                } else {
+                    const midX  = (prevPx + px) / 2;
+                    const midY2 = (prevPy + py) / 2;
+                    ctx.quadraticCurveTo(prevPx, prevPy, midX, midY2);
+                }
+                prevPx = px; prevPy = py;
+            }
+            if (prevPx !== null) ctx.lineTo(prevPx, prevPy);
+            ctx.stroke();
+            ctx.fillStyle = Z_COLOR;
+            ctx.font      = 'bold 11px sans-serif';
+            ctx.fillText('Z', 8, 14);
+        }
+
+        _drawTimeAxis(w, h, timeStart, timeEnd, windowMs);
     }
 
     function _drawGrid(w, h, midY, range, yScale) {
@@ -216,8 +254,15 @@ const VisualModule = (() => {
 
         const now = Date.now();
         if (!_startTs) _startTs = now;
-        buffer.push({ ts: now, z: data.acc_z });
-        _fullBuffer.push({ ts: now, z: data.acc_z });
+        const entry = {
+            ts:  now,
+            z:   data.acc_z,
+            x:   data.acc_x    || 0,
+            y:   data.acc_y    || 0,
+            mag: data.magnitude || 0,
+        };
+        buffer.push(entry);
+        _fullBuffer.push(entry);
         _trimBuffer();
 
         const absZ      = Math.abs(data.acc_z);
@@ -257,6 +302,7 @@ const VisualModule = (() => {
         _colorLocked     = false;
         _renderingPaused = false;
         _startTs         = null;
+        _axisMode        = 'z';
         if (bodyEl)     bodyEl.style.backgroundColor = '';
         if (labelEl)    labelEl.textContent = '0.000000';
         if (mmiLevelEl) mmiLevelEl.textContent = '';
@@ -293,5 +339,10 @@ const VisualModule = (() => {
         return _fullBuffer.slice();
     }
 
-    return { update, reset, setColorLock, getMmiColor, getMmiInfo, getMmiLevels, startReview };
+    // Set axis display mode: 'z' (default) or '3axis'
+    function setAxisMode(mode) {
+        _axisMode = (mode === '3axis') ? '3axis' : 'z';
+    }
+
+    return { update, reset, setColorLock, getMmiColor, getMmiInfo, getMmiLevels, startReview, setAxisMode };
 })();

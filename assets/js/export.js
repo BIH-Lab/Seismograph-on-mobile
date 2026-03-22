@@ -38,6 +38,20 @@ const ExportModule = (() => {
         return Math.round(_rows.length / durationSec);
     }
 
+    // ── CSV builder (shared by download and downloadRange) ────────
+    function _buildCsv(rows) {
+        const metaLines = Object.entries(_meta)
+            .map(([k, v]) => `# ${k}: ${v}`)
+            .join('\n');
+        const keys   = Object.keys(rows[0]);
+        const header = keys.join(',') + '\n';
+        const fmt    = v => (typeof v === 'number') ? v.toFixed(9) : (v ?? '');
+        const body   = rows
+            .map(r => keys.map(k => fmt(r[k])).join(','))
+            .join('\n');
+        return (metaLines ? metaLines + '\n' : '') + header + body;
+    }
+
     /**
      * Convert stored rows to CSV and trigger browser download.
      * Filename: seismograph_YYYY-MM-DD_HH-MM-SS.csv
@@ -48,21 +62,7 @@ const ExportModule = (() => {
             return;
         }
 
-        // ── Metadata comment lines
-        const metaLines = Object.entries(_meta)
-            .map(([k, v]) => `# ${k}: ${v}`)
-            .join('\n');
-
-        // ── Data section
-        const keys   = Object.keys(_rows[0]);
-        const header = keys.join(',') + '\n';
-        // Format floats to 9 decimal places to preserve sensor precision in CSV
-        const fmt    = v => (typeof v === 'number') ? v.toFixed(9) : (v ?? '');
-        const body   = _rows
-            .map(r => keys.map(k => fmt(r[k])).join(','))
-            .join('\n');
-
-        const csvContent = (metaLines ? metaLines + '\n' : '') + header + body;
+        const csvContent = _buildCsv(_rows);
         const filename   = _filename();
 
         // ── 1순위: File System Access API — 데스크톱 전용
@@ -88,6 +88,41 @@ const ExportModule = (() => {
         }
 
         // ── 2순위 이하
+        _shareOrDownload(csvContent, filename);
+    }
+
+    /**
+     * Download CSV for a selected time range only.
+     * @param {number} startTs  epoch ms (inclusive)
+     * @param {number} endTs    epoch ms (inclusive)
+     */
+    function downloadRange(startTs, endTs) {
+        const filtered = _rows.filter(r => {
+            const t = new Date(r.timestamp).getTime();
+            return t >= startTs && t <= endTs;
+        });
+        if (filtered.length === 0) {
+            alert('선택한 구간에 데이터가 없습니다.');
+            return;
+        }
+        const csvContent = _buildCsv(filtered);
+        const filename   = _filename().replace('.csv', '_range.csv');
+        const isMobile   = /Mobi|Android/i.test(navigator.userAgent);
+        if (!isMobile && window.showSaveFilePicker) {
+            window.showSaveFilePicker({
+                suggestedName: filename,
+                types: [{ description: 'CSV 파일', accept: { 'text/csv': ['.csv'] } }],
+            })
+            .then(async fileHandle => {
+                const writable = await fileHandle.createWritable();
+                await writable.write(csvContent);
+                await writable.close();
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') _shareOrDownload(csvContent, filename);
+            });
+            return;
+        }
         _shareOrDownload(csvContent, filename);
     }
 
@@ -139,5 +174,5 @@ const ExportModule = (() => {
         return `seismograph_${date}_${time}.csv`;
     }
 
-    return { record, download, clear, count, setMeta, sampleRate };
+    return { record, download, downloadRange, clear, count, setMeta, sampleRate };
 })();
