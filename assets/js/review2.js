@@ -118,6 +118,37 @@ const Review2Module = (() => {
 
     let _yScale = 1;
 
+    function _drawAxisLegend(ctx, w) {
+        const entries = [
+            { label: 'Z', color: '#00d2d3'             },
+            { label: 'X', color: 'rgba(255,80,80,0.9)' },
+            { label: 'Y', color: 'rgba(80,220,80,0.9)' },
+        ];
+        const lineLen = 16, pad = 4, row = 15;
+        const boxW = lineLen + 22 + pad * 2;
+        const boxH = entries.length * row + pad;
+        const bx   = w - boxW - 6;
+        const by   = 6;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.roundRect(bx, by, boxW, boxH, 3);
+        ctx.fill();
+
+        entries.forEach(({ label, color }, i) => {
+            const y = by + pad + i * row + 6;
+            ctx.strokeStyle = color;
+            ctx.lineWidth   = 2;
+            ctx.beginPath();
+            ctx.moveTo(bx + pad,           y);
+            ctx.lineTo(bx + pad + lineLen, y);
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.font      = 'bold 10px sans-serif';
+            ctx.fillText(label, bx + pad + lineLen + 4, y + 4);
+        });
+    }
+
     function _drawFrame() {
         if (!_canvas || !_ctx) return;
 
@@ -140,7 +171,7 @@ const Review2Module = (() => {
         for (const pt of _data) {
             if (pt.ts < _viewStart || pt.ts > viewEnd) continue;
             if (_has3axis) {
-                maxAbs = Math.max(maxAbs, Math.abs(pt.mag), Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z));
+                maxAbs = Math.max(maxAbs, Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z));
             } else {
                 maxAbs = Math.max(maxAbs, Math.abs(pt.z));
             }
@@ -148,7 +179,7 @@ const Review2Module = (() => {
         // Fall back to full-data range if window has no visible data
         if (maxAbs <= MIN_RANGE) {
             for (const pt of _data) {
-                maxAbs = Math.max(maxAbs, _has3axis ? Math.abs(pt.mag) : Math.abs(pt.z));
+                maxAbs = Math.max(maxAbs, _has3axis ? Math.max(Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z)) : Math.abs(pt.z));
             }
         }
         const range  = maxAbs * 1.2;
@@ -186,13 +217,10 @@ const Review2Module = (() => {
 
         // ── Waveform ─────────────────────────────────────────────
         if (_has3axis) {
-            _drawLine(_data, 'x',   'rgba(255,80,80,0.45)',  1);
-            _drawLine(_data, 'y',   'rgba(80,255,80,0.45)',  1);
-            _drawLine(_data, 'z',   'rgba(80,160,255,0.45)', 1);
-            _drawLine(_data, 'mag', '#f0f0f0',               2.5);
-            _ctx.fillStyle = '#f0f0f0';
-            _ctx.font      = 'bold 11px sans-serif';
-            _ctx.fillText('3축', 8, 14);
+            _drawLine(_data, 'x', 'rgba(255,80,80,0.85)',  1.5);
+            _drawLine(_data, 'y', 'rgba(80,220,80,0.85)',  1.5);
+            _drawLine(_data, 'z', '#00d2d3',               1.8);
+            _drawAxisLegend(_ctx, w);
         } else {
             _drawLine(_data, 'z', Z_COLOR, 2);
             _ctx.fillStyle = Z_COLOR;

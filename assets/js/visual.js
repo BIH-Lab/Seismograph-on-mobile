@@ -107,7 +107,7 @@ const VisualModule = (() => {
         for (const pt of buffer) {
             if (pt.ts < timeStart) continue;
             if (_axisMode === '3axis') {
-                maxAbsZ = Math.max(maxAbsZ, Math.abs(pt.mag), Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z));
+                maxAbsZ = Math.max(maxAbsZ, Math.abs(pt.x), Math.abs(pt.y), Math.abs(pt.z));
             } else {
                 if (Math.abs(pt.z) > maxAbsZ) maxAbsZ = Math.abs(pt.z);
             }
@@ -125,12 +125,11 @@ const VisualModule = (() => {
         _drawGrid(w, h, midY, range, yScale);
 
         if (_axisMode === '3axis') {
-            // 3-axis mode: draw X/Y/Z (thin, semi-transparent) then Mag (thick, opaque)
+            // 3-axis mode: draw X/Y/Z
             const lines = [
-                { field: 'x',   color: 'rgba(255,80,80,0.45)',  lw: 1   },
-                { field: 'y',   color: 'rgba(80,255,80,0.45)',  lw: 1   },
-                { field: 'z',   color: 'rgba(80,160,255,0.45)', lw: 1   },
-                { field: 'mag', color: '#f0f0f0',               lw: 2.5 },
+                { field: 'x', color: 'rgba(255,80,80,0.85)',  lw: 1.5 },
+                { field: 'y', color: 'rgba(80,220,80,0.85)',  lw: 1.5 },
+                { field: 'z', color: '#00d2d3',               lw: 1.8 },
             ];
             for (const { field, color, lw } of lines) {
                 ctx.beginPath();
@@ -152,9 +151,7 @@ const VisualModule = (() => {
                 if (ppx !== null) ctx.lineTo(ppx, ppy);
                 ctx.stroke();
             }
-            ctx.fillStyle = '#f0f0f0';
-            ctx.font      = 'bold 11px sans-serif';
-            ctx.fillText('3축', 8, 14);
+            _drawAxisLegend(ctx, w);
         } else {
             // Z-axis waveform
             ctx.beginPath();
@@ -184,6 +181,37 @@ const VisualModule = (() => {
         }
 
         _drawTimeAxis(w, h, timeStart, timeEnd, windowMs);
+    }
+
+    function _drawAxisLegend(ctx, w) {
+        const entries = [
+            { label: 'Z', color: '#00d2d3'             },
+            { label: 'X', color: 'rgba(255,80,80,0.9)' },
+            { label: 'Y', color: 'rgba(80,220,80,0.9)' },
+        ];
+        const lineLen = 16, pad = 4, row = 15;
+        const boxW = lineLen + 22 + pad * 2;
+        const boxH = entries.length * row + pad;
+        const bx   = w - boxW - 6;
+        const by   = 6;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.roundRect(bx, by, boxW, boxH, 3);
+        ctx.fill();
+
+        entries.forEach(({ label, color }, i) => {
+            const y = by + pad + i * row + 6;
+            ctx.strokeStyle = color;
+            ctx.lineWidth   = 2;
+            ctx.beginPath();
+            ctx.moveTo(bx + pad,           y);
+            ctx.lineTo(bx + pad + lineLen, y);
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.font      = 'bold 10px sans-serif';
+            ctx.fillText(label, bx + pad + lineLen + 4, y + 4);
+        });
     }
 
     function _drawGrid(w, h, midY, range, yScale) {
