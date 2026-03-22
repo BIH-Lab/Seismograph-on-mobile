@@ -17,7 +17,7 @@ const SpectrogramModule = (() => {
     const FFT_SIZE    = 256;  // must be power of 2
     const HOP_SIZE    = 26;   // new samples per FFT frame (~90% overlap, ObsPy default)
     const MAX_FREQ    = 100;  // Hz display ceiling; clipped to Nyquist (sr/2) at runtime
-    const WINDOW_SEC  = 10;   // must match visual.js WINDOW_SEC
+    const WINDOW_SEC  = 30;   // seconds of history kept and displayed
     const LOG_MIN     = -3;   // log10 amplitude floor  (0.001 m/s²)
     const LOG_MAX     = -1;   // log10 amplitude ceiling (0.1  m/s²)
     const FREQ_AXIS_H = 18;   // px reserved at bottom for frequency-axis labels
@@ -35,6 +35,11 @@ const SpectrogramModule = (() => {
     let _lastLabelSec = -1;     // last 2-second boundary already labelled
     // History: array of 1-px row ImageData pixels (newest = index 0)
     const _history = [];    // each entry: { rowData: Uint8ClampedArray(W×4), label: string|null }
+
+    // Review mode state
+    let _reviewing  = false;
+    let _viewOffset = 0;   // index into _history[] of topmost visible row
+    let _viewRows   = 0;   // number of rows to display in review
 
     // ── Hann window (precomputed) ─────────────────────────────────
     const _hann = new Float32Array(FFT_SIZE);
@@ -141,29 +146,38 @@ const SpectrogramModule = (() => {
 
         // M = frames that fit in WINDOW_SEC at current sample rate
         const M = (_sr * WINDOW_SEC) / HOP_SIZE;
+        const N = _history.length;
 
         // Clear spectrogram area
         _ctx.fillStyle = '#0a0a0a';
         _ctx.fillRect(0, 0, W, DH);
 
-        // Draw history: index 0 = newest (top, y=0), oldest at bottom
-        // Each entry: { rowData, label } — label scrolls down with its row
-        const N = _history.length;
-        // During initial fill (N < M), stretch rows to fill canvas so waterfall
-        // is immediately visible. Once N reaches M, correct time scale applies.
-        const displayM = Math.max(1, Math.min(N, M));
+        // Review mode: render a fixed window slice of history
+        // Live mode: render all history, stretching to fill during initial fill
+        let drawFrom, drawCount, displayRows;
+        if (_reviewing) {
+            drawFrom   = _viewOffset;
+            drawCount  = Math.min(_viewRows, N - _viewOffset);
+            displayRows = _viewRows;
+        } else {
+            drawFrom   = 0;
+            drawCount  = N;
+            // During initial fill (N < M), stretch rows to fill canvas so waterfall
+            // is immediately visible. Once N reaches M, correct time scale applies.
+            displayRows = Math.max(1, Math.min(N, M));
+        }
+
         _ctx.fillStyle = 'rgba(255,255,255,0.55)';
         _ctx.font = '9px sans-serif';
-        for (let i = 0; i < N; i++) {
-            const { rowData, label } = _history[i];
-            const y0 = Math.round(i * DH / displayM);
-            const y1 = Math.round((i + 1) * DH / displayM);
+        for (let i = 0; i < drawCount; i++) {
+            const { rowData, label } = _history[drawFrom + i];
+            const y0 = Math.round(i * DH / displayRows);
+            const y1 = Math.round((i + 1) * DH / displayRows);
             const h  = Math.max(1, y1 - y0);
             if (y0 >= DH) break;
             const imgBuf = new Uint8ClampedArray(W * h * 4);
             for (let row = 0; row < h; row++) imgBuf.set(rowData, row * W * 4);
             _ctx.putImageData(new ImageData(imgBuf, W, h), 0, y0);
-            // Time label scrolls with its row (same behavior as file-select mode)
             if (label && y0 + 9 < DH) _ctx.fillText(label, 2, y0 + 9);
         }
 
@@ -215,6 +229,7 @@ const SpectrogramModule = (() => {
     }
 
     function push(accZ, sampleRate) {
+        if (_reviewing) return;
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
         _buf[_head] = accZ;
         _head = (_head + 1) & (FFT_SIZE - 1);
@@ -250,6 +265,9 @@ const SpectrogramModule = (() => {
         _initTime     = null;
         _lastLabelSec = -1;
         _history.length = 0;
+        _reviewing    = false;
+        _viewOffset   = 0;
+        _viewRows     = 0;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
@@ -257,5 +275,31 @@ const SpectrogramModule = (() => {
         }
     }
 
-    return { init, push, reset };
+    /** Freeze live mode; preserve history for pan/zoom exploration. */
+    function startReview() {
+        _reviewing  = true;
+        const M = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE);
+        _viewOffset = 0;
+        _viewRows   = Math.min(_history.length, M);
+        _redrawCanvas();
+    }
+
+    /**
+     * Scroll / zoom the review view.
+     * @param {number} offset  index into _history[] of top row (0 = newest)
+     * @param {number} rows    number of history frames to display
+     */
+    function setView(offset, rows) {
+        const N = _history.length;
+        _viewOffset = Math.max(0, Math.min(offset, N - 1));
+        _viewRows   = Math.max(1, Math.min(rows, N - _viewOffset));
+        _redrawCanvas();
+    }
+
+    /** Total frames stored in history (useful for review pan/zoom bounds). */
+    function historyLength() {
+        return _history.length;
+    }
+
+    return { init, push, reset, startReview, setView, historyLength };
 })();

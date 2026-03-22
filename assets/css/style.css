@@ -484,6 +484,33 @@ html, body {
 .mmi-toggle input:checked ~ .mmi-toggle__track .mmi-toggle__thumb { left: 23px; }
 .mmi-toggle input { display: none; }
 
+/* 축 선택 버튼 그룹 (activity3) */
+.axis-selector {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+}
+.axis-btn {
+    padding: 4px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.axis-btn--active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+.axis-btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
 /* 리뷰 컨트롤 바 (activity1) */
 .review-bar {
     display: flex;
