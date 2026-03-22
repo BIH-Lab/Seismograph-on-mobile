@@ -9,7 +9,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 + Activity 1 개선 기준)
+## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준)
 
 ```
 project-root/
@@ -78,7 +78,11 @@ project-root/
 - 분석 탭: 스펙트로그램 / PSD / HVSR (탭 전환으로 결과 비교)
 - **센서 모드**: 실시간 파형 + 3모듈 동시 업데이트 (탭에 무관하게 백그라운드 누적)
   - 측정 정지 후 스펙트로그램 리뷰 모드 진입 (수평 드래그·핀치)
+  - _reviewCanvas 변수로 활성 캔버스 동적 참조
 - **파일 선택 모드**: CSV 드래그 앤 드롭(PC) + 파일 선택(모바일)
+  - 파일 로드 후 파형(#fileWaveChart) 표시 — 파형이 주 조작면
+  - 드래그·핀치: 파형 캔버스에서 _reviewOffset/_reviewCols 제어
+  - 스펙트로그램은 passive display — _syncWave()로 파형 뷰포트 추종
   - "분석 시작" 클릭 시 3모듈 일괄 계산 → 탭 전환으로 각 결과 확인
   - Z전용 CSV: HVSR 탭 disabled, 3축 CSV: 모든 탭 활성화
 - Firefox Android interval 오보고 대응: 50~250Hz 범위 필터로 샘플레이트 오인식 방지
@@ -144,25 +148,28 @@ API   : init(canvasEl, data, onRegion), destroy()
 API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setView(offset, cols), historyLength()
 ```
 
-### psd.js  v1.0  [Cycle 3]
+### psd.js  v2.2  [Cycle 3]
 ```
 역할  : Welch's method 기반 전력 스펙트럼 밀도 (PSD) Canvas 렌더링
 입력  : push(acc_z, sr) 또는 computeFromRows(rows, sr, axis)
-출력  : X=주파수(로그 스케일, 0.5~50Hz), Y=파워(-120~-20 dB) 선 그래프
-알고리즘 : PSD[b] = mean(|FFT_b|²) / (sr × FFT_SIZE)  →  dB = 10 × log₁₀(PSD)
-실시간 : Rolling average _powerBuf (최근 N_AVG=16 프레임)
+출력  : X=주파수(로그 스케일, 0.1~50Hz), Y=파워(-120~-20 dB) 선 그래프
+알고리즘 : PSD[b] = 2 × |FFT_b|² / (sr × Σhann²)  →  dB = 10 × log₁₀(PSD)
+          DC offset 제거(per-window mean subtraction), Hann 에너지 보정(÷sum_w2), 단측 ×2
+파라미터 : FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.1Hz
+누적  : _sumPow[] + _nWin — 전체 윈도우 누적 평균 (롤링 아님)
 파일 모드 : computeFromRows()로 전체 윈도우 평균 계산 후 즉시 렌더
 API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis)
 활용  : 배경 노이즈 수준 평가, 관측소 품질 판단 (Peterson NLNM/NHNM 비교 기준)
 ```
 
-### hvsr.js  v1.0  [Cycle 3]
+### hvsr.js  v1.2  [Cycle 3]
 ```
 역할  : Nakamura(1989) 수평/수직 스펙트럼 비율 (HVSR) Canvas 렌더링
 입력  : push(acc_x, acc_y, acc_z, sr) 또는 computeFromRows(rows, sr)  ← 3축 필수
-출력  : X=주파수(로그 스케일, 0.5~20Hz), Y=H/V 비율(0~10) 선 그래프
+출력  : X=주파수(로그 스케일, 0.5~50Hz), Y=H/V 비율(0~10) 선 그래프
 공식  : H(f) = √((|FFT_x|²+|FFT_y|²)/2),  V(f) = |FFT_z|,  HVSR(f) = H/V
 누적  : _sumH2[], _sumV2[] 모든 윈도우 합산 → _nWin 개수로 평균
+DC offset : per-window mean subtraction (_accumulateWindow + computeFromRows 양쪽)
 스무딩 : ±2-bin 이동 평균 (SMOOTH_HALF=2)
 피크  : 1~10Hz 범위 최대 H/V → f₀ 수직 점선 + 레이블 표시 (H/V > 1.5 기준)
 신뢰도 : _nWin < MIN_WINDOWS(50) → 주황색 경고 (약 10분 측정 권장)

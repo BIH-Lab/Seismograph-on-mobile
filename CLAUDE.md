@@ -26,16 +26,19 @@ project-root/
 ├── activity2/
 │   └── index.html          # Activity 2 - 지진파 기록하기
 ├── activity3/
-│   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램)
+│   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)
 ├── assets/
 │   ├── css/
 │   │   └── style.css
 │   └── js/
 │       ├── sensor.js       # 센서 수집 모듈 (3단계 폴백, CALIB_SAMPLES=100)
-│       ├── visual.js       # 시각화 모듈 (파형 그래프)
+│       ├── visual.js       # 시각화 모듈 (파형 그래프 + MMI 색상)
+│       ├── review.js       # 리뷰 모드 모듈 (activity1 전용)
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (toFixed(9))
-│       └── spectrogram.js  # 스펙트로그램 모듈 (FFT → Canvas)
+│       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 v3.0 (FFT → Canvas)
+│       ├── psd.js          # Welch PSD 모듈 v2.2 (전력 스펙트럼 밀도)
+│       └── hvsr.js         # Nakamura HVSR 모듈 v1.2 (부지 공진 주파수)
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -58,19 +61,19 @@ project-root/
 - 새 기능 추가 전 반드시 TASK.md 확인
 
 ## 현재 개발 단계
-**Cycle 3 완료 + QA 개선 완료, Cycle 4 준비 중** — TASK.md 참고
-- Cycle 1 완료: Activity 1 (지진파 색으로 보기)
+**Cycle 3 완료 + 후속 수정 완료, Cycle 4 준비 중** — TASK.md 참고
+- Cycle 1 완료: Activity 1 (지진파 색으로 보기 + KMA MMI + 리뷰 모드)
 - Cycle 2 완료: Activity 2 (GPS + Z축 + CSV, Android/iOS 테스트 완료)
-- Cycle 3 완료: Activity 3 (주파수 분석 스펙트로그램)
-  - 센서 모드: 실시간 FFT 스펙트로그램 (워터폴, 위→아래) + 피크 주파수 표시
-  - 파일 선택 모드: CSV 로드 → 전처리 → 7초 애니메이션 (워터폴)
-  - PC 드래그 앤 드롭 지원
-  - Android Firefox 검증 완료 (9자리 정밀도)
-- Cycle 3 QA 완료: UX 개선 8건 (캘리브레이션 진행률, 시간 축, PC 레이아웃 등)
+- Cycle 3 완료: Activity 3 (스펙트로그램·PSD·HVSR 3분석 — 센서 + 파일 모드)
+  - 센서 모드: 실시간 파형 + 3분석 모듈 동시 실행 (탭 전환)
+  - 파일 선택 모드: CSV 로드 → 파형 표시 + 드래그·핀치 뷰포트 제어 → 3모듈 일괄 계산
+  - 드래그·핀치: 파형이 주 조작면, 스펙트로그램은 passive display로 연동
+  - PC 드래그 앤 드롭 지원, Android Firefox 검증 완료
 - Cycle 4 예정: Activity 4 — 신호 비교하기
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
-- FFT_SIZE = 256, HOP_SIZE = 26 (오버랩 ~90%), MAX_FREQ = 100 Hz
-- 윈도우: Hann, 컬러맵: Viridis-style (log10 진폭 스케일)
-- 렌더링: 히스토리 기반 전체 재렌더 (워터폴, 최신 데이터 상단)
+- spectrogram.js: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s
+- psd.js v2.2: FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.1Hz, Welch+Hann 에너지 보정, 누적 평균
+- hvsr.js v1.2: FFT_SIZE=256, HOP_SIZE=26, F_MAX=50Hz (Nyquist), DC offset 제거
+- 공통: Hann 윈도우, Viridis-style LUT, 히스토리 기반 전체 재렌더
 - 알려진 이슈: Firefox Android DeviceMotionEvent.interval 오보고(100ms) → activity3에서 50~250Hz 범위 체크로 필터링

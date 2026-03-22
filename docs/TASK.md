@@ -5,10 +5,11 @@
 ---
 
 ## 현재 단계
-**Cycle 3 재구성 완료, Cycle 4 진입 준비 중** (2026-03-23)
+**Cycle 3 완료 + 후속 수정 완료, Cycle 4 진입 준비 중** (2026-03-23)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
-- Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11)
+- Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + 재구성 완료 (2026-03-23)
+- Cycle 3 후속 수정 완료 (2026-03-23): psd.js v2.2, hvsr.js v1.2, 파일 모드 재설계
 - Cycle 4 진입 준비 완료
 
 ---
@@ -22,30 +23,32 @@
 - [x] 왼쪽 주파수 축(FREQ_AXIS_W=30px), 아래 시간 축(TIME_AXIS_H=12px)
 - [x] 리뷰 모드: setView(offset, cols) — 수평 팬/핀치 탐색
 
-### psd.js v1.0 — Welch PSD 모듈 (신규)
-- [x] Welch's method rolling average (N_AVG=16 프레임)
-- [x] PSD[b] = mean(|FFT_b|²) / (sr × FFT_SIZE) → dB 변환
-- [x] 로그 X축(0.5~50Hz), dB Y축(-120~-20), cyan 선 그래프
-- [x] computeFromRows(rows, sr, axis) — 파일 모드 지원
+### psd.js v2.2 — Welch PSD 모듈 (신규 + 수정)
+- [x] v1.0: 신규 구현 — Welch rolling average(N_AVG=16), 로그 X축(0.5~50Hz), dB Y축(-120~-20)
+- [x] v2.0: DC offset 제거(per-window mean subtraction), Hann 에너지 보정(÷sum_w2), 단측 ×2, FFT_SIZE 256→1024, F_MIN 0.5→0.1Hz
+- [x] v2.1: 롤링 평균(N_AVG=16) → 전체 누적 평균(_sumPow, _nWin)으로 변경
+- [x] v2.2: computeFromRows() _powerBuf ReferenceError 수정
 
-### hvsr.js v1.0 — Nakamura HVSR 모듈 (신규)
-- [x] Nakamura(1989) HVSR = H/V, H = √((X²+Y²)/2), V = Z
-- [x] 3축 링 버퍼 (bufX, bufY, bufZ) 누적 평균
-- [x] ±2-bin 이동 평균 스무딩
-- [x] f₀ 피크 탐지 (1~10Hz, H/V > 1.5) — 수직 점선 + 레이블
-- [x] 신뢰도 경고: N < 50 윈도우 → 주황색 텍스트
-- [x] computeFromRows(rows, sr) — 3축 CSV 파일 모드 지원
+### hvsr.js v1.2 — Nakamura HVSR 모듈 (신규 + 수정)
+- [x] v1.0: 신규 구현 — Nakamura(1989) HVSR = H/V, 3축 누적 평균, ±2-bin 스무딩, f₀ 탐지, 신뢰도 경고
+- [x] v1.1: DC offset 제거 (_accumulateWindow + computeFromRows 양쪽)
+- [x] v1.2: F_MAX 20Hz → 50Hz (Nyquist 한계까지 표시)
 
-### activity3/index.html — 3분석 탭 UI 재구성
+### activity3/index.html — 3분석 탭 UI 재구성 + 파일 모드 재설계
 - [x] 분석 탭: 스펙트로그램 / PSD / HVSR (센서·파일 모드 공통)
 - [x] 센서 모드: 3모듈 동시 실시간 업데이트
-- [x] 리뷰 모드: 수평 드래그·핀치 (X방향) — 스펙트로그램 탭
-- [x] 파일 모드: 분석 시작 시 3모듈 일괄 계산
+- [x] 리뷰 모드: 수평 드래그·핀치 — _reviewCanvas 변수로 캔버스 동적 참조
+- [x] 파일 모드: 분석 완료 후 파형(#fileWaveChart) 표시
+- [x] 파일 모드: 파형을 주 조작면으로 지정 — 드래그·핀치로 _reviewOffset/_reviewCols 제어
+- [x] 파일 모드: 스펙트로그램은 passive display — _syncWave()로 파형 뷰포트 추종
+- [x] 파일 모드: 분석 시작 시 3모듈 일괄 계산 (PSD·HVSR computeFromRows)
 - [x] Z전용 CSV → HVSR 탭 disabled 처리
 - [x] 숨겨진 캔버스 lazy init (show briefly 방식)
 
-### style.css — .analysis-tabs 스타일 추가
+### style.css — .analysis-tabs 스타일 + 패널 레이아웃 추가
 - [x] .analysis-tabs, .analysis-tabs__btn, --active, :disabled
+- [x] #panel-sensor, #panel-file: flex:1, flex-direction:column — activity-main 잔여 공간 점유
+- [x] #drop-zone: flex:1, min-height:30vh — 파일 로드 전후 레이아웃 일관성 확보
 
 ---
 
@@ -165,6 +168,11 @@
 ---
 
 ## 완료된 작업
+- **Cycle 3 후속 수정 완료 (2026-03-23)**
+  - psd.js v2.2: Welch 정규화 보정(DC offset, Hann 에너지 보상, FFT_SIZE 1024), 누적 평균, computeFromRows 버그 수정
+  - hvsr.js v1.2: DC offset 제거, F_MAX 20→50Hz 확장
+  - activity3 파일 모드: 파형 표시 추가, 파형-primary 드래그·핀치 재설계, _reviewCanvas 동적 참조
+  - style.css: #panel-sensor/#panel-file flex:1, #drop-zone flex:1+min-height:30vh
 - **Cycle 3 재구성 완료 (2026-03-23)**
   - Activity 3: 스펙트로그램·PSD·HVSR 3분석 모드 재구성
   - spectrogram.js v3.0: 가로 워터폴 전면 재작성
