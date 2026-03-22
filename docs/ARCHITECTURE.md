@@ -49,13 +49,15 @@ project-root/
 - GitHub 링크, 사용법 버튼 포함
 
 ### activity1/index.html — 지진파 색으로 보기
-- 센서 권한 요청 및 수집 시작/정지
-- 화면 배경색: 300ms 슬라이딩 윈도우 PGA → KMA MMI 10단계 색상 실시간 변화
-- 진도 레벨 텍스트 표시 (예: 진도 III 약진)
-- 실시간/고정 토글 스위치: 배경색 피크 고정 또는 실시간 갱신
-- MMI 진도 안내 모달 (하단 고정 버튼, lazy 빌드)
+- 센서 권한 요청 및 수집 시작/정지 (3초 워밍업 + 100샘플 캘리브레이션)
+- 화면 배경색: 300ms 슬라이딩 윈도우 PGA → KMA 2018 MMI 11단계 색상 실시간 변화
+- 진도 레벨 텍스트 표시 (예: 진도 III), 크고 굵은 폰트
+- 실시간/고정 토글 스위치: 버튼 위 독립 행 배치, 피크 홀드(고정) 또는 실시간 갱신
+- MMI 진도 안내 모달: KMA 공식 설명 문구 + 기준값(m/s²) 표 (lazy 빌드)
 - Z축 실시간 파형 표시 (슬라이딩 윈도우 10초)
-- 정지 버튼 1차: 센서 중단 + 리뷰 모드 진입 (전체 파형 드래그 탐색, 1초 구간 진도)
+- 정지 버튼 1차: 센서 중단 + 리뷰 모드 진입
+  - 처음 1초 구간에서 시작, 전체 파형 드래그 탐색
+  - 1초 중앙 구간 진도 표시 + 실제 관측 시각(HH:MM:SS.mmm) 캔버스 표시
 - 정지 버튼 2차: 전체 초기화
 - CSV 다운로드 없음 (시각화 확인 목적)
 
@@ -93,20 +95,25 @@ project-root/
 ### visual.js
 ```
 역할  : Activity 1 센서 데이터 시각화
-기능1 : 300ms 슬라이딩 윈도우 PGA → KMA MMI 10단계 배경색 매핑 (I~X+)
+기능1 : 300ms 슬라이딩 윈도우 PGA → KMA 2018 MMI 11단계 배경색 매핑 (I~XI+)
+        - 기상청 2018.11.28 고시 기준, 1%g = 0.0981 m/s² 변환
+        - MMI_LEVELS: { level, name, desc(KMA 공식 설명), pgaMin, pgaMax, color }
 기능2 : Canvas 기반 Z축 실시간 파형 그래프
         - 왼쪽 앵커 → 슬라이딩 윈도우 전환 (10초)
         - Y축 자동 스케일: 즉시 확장, 천천히 축소 (decay 0.997)
-기능3 : 색 고정 모드 (setColorLock), 리뷰 스냅샷 반환 (startReview)
+기능3 : 색 고정 모드 (setColorLock) — 피크 홀드 방식, 새 피크 발생 시에만 갱신
+기능4 : 리뷰 스냅샷 반환 (startReview), RAF 일시정지 (_renderingPaused)
 API   : update(data), reset(), setColorLock(bool), getMmiColor(z), getMmiInfo(z), getMmiLevels(), startReview()
 ```
 
 ### review.js
 ```
 역할  : Activity 1 측정 후 리뷰 모드 (activity1 전용)
-입력  : visual.js의 _fullBuffer 스냅샷
+입력  : visual.js의 _fullBuffer 스냅샷 [{ts, z}] (ts = Date.now() ms)
 기능  : 10초 뷰포트 드래그 탐색, 1초 중앙 구간 하이라이트
-출력  : onRegion(maxAbsZ, level, name, timeLabel) 콜백
+        - 리뷰 시작 위치: 처음 1초 구간 (data[0].ts + REGION_SEC*500)
+        - 드래그 구간 실제 관측 시각 캔버스 하단 표시 (HH:MM:SS.mmm)
+출력  : onRegion(maxAbsZ, level, name) 콜백
 API   : init(canvasEl, data, onRegion), destroy()
 ```
 
