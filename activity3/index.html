@@ -197,6 +197,7 @@
         let _pinchStartCols  = 0;
         let _pinchAnchorFrac = 0;
         let _pinchAnchorOff  = 0;
+        let _reviewCanvas    = null;
 
         function _reviewClamp(offset, cols) {
             const N = _reviewTotal;
@@ -207,7 +208,7 @@
 
         function _onReviewDown(e) {
             e.preventDefault();
-            const canvas = document.getElementById('spectroChart');
+            const canvas = _reviewCanvas;
             canvas.setPointerCapture(e.pointerId);
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (_reviewPointers.size === 1) {
@@ -228,7 +229,7 @@
         function _onReviewMove(e) {
             e.preventDefault();
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            const canvas = document.getElementById('spectroChart');
+            const canvas = _reviewCanvas;
             const SW = canvas.clientWidth - FREQ_AXIS_W;
 
             if (_reviewPointers.size === 1) {
@@ -262,8 +263,8 @@
             }
         }
 
-        function _attachReviewEvents() {
-            const canvas = document.getElementById('spectroChart');
+        function _attachReviewEvents(canvas) {
+            _reviewCanvas = canvas;
             canvas.style.touchAction = 'none';
             canvas.addEventListener('pointerdown',   _onReviewDown);
             canvas.addEventListener('pointermove',   _onReviewMove);
@@ -272,13 +273,14 @@
         }
 
         function _detachReviewEvents() {
-            const canvas = document.getElementById('spectroChart');
-            canvas.style.touchAction = '';
-            canvas.removeEventListener('pointerdown',   _onReviewDown);
-            canvas.removeEventListener('pointermove',   _onReviewMove);
-            canvas.removeEventListener('pointerup',     _onReviewUp);
-            canvas.removeEventListener('pointercancel', _onReviewUp);
+            if (!_reviewCanvas) return;
+            _reviewCanvas.style.touchAction = '';
+            _reviewCanvas.removeEventListener('pointerdown',   _onReviewDown);
+            _reviewCanvas.removeEventListener('pointermove',   _onReviewMove);
+            _reviewCanvas.removeEventListener('pointerup',     _onReviewUp);
+            _reviewCanvas.removeEventListener('pointercancel', _onReviewUp);
             _reviewPointers.clear();
+            _reviewCanvas = null;
         }
 
         // ── Sensor start ──────────────────────────────────────────────
@@ -349,7 +351,7 @@
             _reviewCols   = Math.min(_reviewTotal, Math.ceil(_sr * WINDOW_SEC / HOP_SIZE));
             _reviewOffset = 0;
             SpectrogramModule.startReview();
-            _attachReviewEvents();
+            _attachReviewEvents(document.getElementById('spectroChart'));
 
             sensorStatus.textContent = '측정 정지됨. 스펙트로그램 탭에서 드래그·핀치로 탐색 가능합니다.';
         });
@@ -469,6 +471,10 @@
                 for (const row of rows)
                     SpectrogramModule.push(parseFloat(row.acc_z) || 0, sr);
                 SpectrogramModule.startReview();
+                _reviewTotal  = SpectrogramModule.historyLength();
+                _reviewCols   = _reviewTotal;
+                _reviewOffset = 0;
+                _attachReviewEvents(document.getElementById('fileSpectroChart'));
 
                 // PSD: Welch average from all rows
                 PsdModule.reset();
@@ -489,6 +495,7 @@
 
         // ── File reset ────────────────────────────────────────────────
         fileResetBtn.addEventListener('click', () => {
+            _detachReviewEvents();
             _csvRows = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
             SpectrogramModule.reset();
             PsdModule.reset();
@@ -517,6 +524,7 @@
 
         function switchTab(mode) {
             if (mode === 'sensor') {
+                _detachReviewEvents();  // 파일 모드 리뷰 이벤트 정리
                 tabSensor.classList.add('mode-tabs__btn--active');
                 tabFile.classList.remove('mode-tabs__btn--active');
                 panelSensor.hidden = false;
