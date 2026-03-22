@@ -36,9 +36,12 @@ const ReviewModule = (() => {
         _data     = data;
         _onRegion = onRegion;
 
-        // Start at the latest data
+        // Start at beginning: region covers the first REGION_SEC of data
         if (_data.length > 0) {
-            _viewCenter = _data[_data.length - 1].ts;
+            _viewCenter = Math.min(
+                _data[0].ts + REGION_SEC * 500,
+                _data[_data.length - 1].ts
+            );
         }
 
         _canvas.style.touchAction = 'none';  // prevent passive scroll conflict
