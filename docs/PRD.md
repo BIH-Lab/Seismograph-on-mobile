@@ -90,24 +90,53 @@ timestamp,acc_z
 - 타임스탬프: `performance.timeOrigin + performance.now()` 기반 ISO 8601 UTC, `toFixed(9)`
 - SAC 헤더 대응: station_id→KSTNM, latitude→STLA, longitude→STLO, sample_rate(Hz)→1/DELTA
 
-### Cycle 3 — Activity 3 : 주파수 분석 (스펙트로그램) ✅
+### Cycle 3 — Activity 3 : 주파수 분석 (스펙트로그램·PSD·HVSR) ✅
+
+**3가지 주파수 분석 도구**를 센서 모드와 파일 모드 양쪽에서 제공.
 
 | 기능 | 설명 |
 |------|------|
 | 모드 탭 | 센서 측정 / 파일 선택 탭으로 전환 |
-| **센서 모드** | 실시간 파형 그래프 + 스펙트로그램 동시 표시 |
-| **파일 선택 모드** | CSV 드래그 앤 드롭(PC) + 파일 선택 버튼(모바일) |
-| FFT 알고리즘 | Cooley-Tukey radix-2 DIT (순수 JS 구현, 외부 라이브러리 없음) |
+| 분석 탭 | 스펙트로그램 / PSD / HVSR 탭으로 전환 |
+| **센서 모드** | 실시간 파형 + 3가지 분석 동시 실행 (탭으로 전환 표시) |
+| **파일 선택 모드** | CSV 드래그 앤 드롭(PC) + 파일 선택(모바일) → 분석 시작 시 3모듈 일괄 계산 |
+| FFT 알고리즘 | Cooley-Tukey radix-2 DIT (순수 JS, 외부 라이브러리 없음) |
 | 윈도우 함수 | Hann window (스펙트럼 누설 억제) |
-| FFT 파라미터 | FFT_SIZE=256, HOP_SIZE=26 (~90% overlap, ObsPy 기준), MAX_FREQ=100Hz |
-| 컬러맵 | Viridis-style LUT (어두운 보라 → 파랑 → 청록 → 초록 → 노랑) |
-| 진폭 스케일 | log₁₀ 진폭: -3 (어둠, 0.001 m/s²) ~ -1 (밝음, 0.1 m/s²) |
-| 워터폴 방향 | 최신 데이터 상단 → 아래로 내려가는 워터폴 형식 |
-| 시간 스케일 | WINDOW_SEC=10초, 2초 간격 경과 시간 레이블 (wall-clock 기반) |
-| 피크 주파수 표시 | 현재 프레임에서 가장 강한 주파수 Hz 실시간 표시 |
-| CSV 전처리 | 전체 행 사전 계산 후 requestAnimationFrame 7초 애니메이션 재생 |
-| 파일 정보 표시 | 파일명, 길이(M:SS), 샘플 수, 샘플레이트 |
-| 주파수 축 레이블 | 캔버스 하단 10Hz 간격 눈금 표시 (0~100Hz) |
+| FFT 파라미터 | FFT_SIZE=256, HOP_SIZE=26 (~90% overlap, ObsPy 기준) |
+
+#### 스펙트로그램 (spectrogram.js v3.0)
+
+| 항목 | 내용 |
+|------|------|
+| 레이아웃 | **가로 워터폴** — X축=시간(왼쪽=과거, 오른쪽=현재), Y축=주파수(0Hz↓~MAX_FREQ↑) |
+| 컬러맵 | Viridis-style LUT (보라→파랑→청록→초록→노랑) |
+| 진폭 스케일 | log₁₀: LOG_MIN=-3 (0.001 m/s²) ~ LOG_MAX=-1 (0.1 m/s²) |
+| 히스토리 | WINDOW_SEC=30초, colData(DH×4 px) per frame |
+| 리뷰 모드 | 측정 정지 후 수평 드래그·핀치 탐색 (X방향) |
+| 피크 주파수 | 현재 프레임 최강 주파수 Hz 실시간 표시 |
+
+#### PSD — 전력 스펙트럼 밀도 (psd.js v1.0)
+
+| 항목 | 내용 |
+|------|------|
+| 알고리즘 | Welch's method — `PSD[f] = mean(|FFT|²) / (sr × FFT_SIZE)` |
+| 단위 | (m/s²)²/Hz → dB 변환: `10 × log₁₀(PSD)` |
+| 실시간 | Rolling average N_AVG=16 프레임 |
+| 표시 | X축=주파수(로그, 0.5~50Hz), Y축=파워(-120~-20 dB) |
+| 활용 | 배경 노이즈 수준 평가, Peterson NLNM/NHNM 비교 |
+
+#### HVSR — 수평/수직 스펙트럼 비율 (hvsr.js v1.0)
+
+| 항목 | 내용 |
+|------|------|
+| 알고리즘 | Nakamura(1989) 방법 |
+| 공식 | `HVSR(f) = √((|FFT_x|²+|FFT_y|²)/2) / |FFT_z|` |
+| 스무딩 | ±2-bin 이동 평균 |
+| 표시 | X축=주파수(로그, 0.5~20Hz), Y축=H/V 비율(0~10) |
+| f₀ 피크 | 1~10Hz 범위 최대 H/V 지점 표시 (H/V > 1.5 시 기준선·레이블) |
+| 신뢰도 | N < 50 윈도우 시 경고 표시 (약 10분 측정 권장) |
+| 필요 축 | 3축(X·Y·Z) — Z전용 CSV 파일은 HVSR 탭 비활성화 |
+| 활용 | 부지 공진 주파수(f₀) 탐지, 지반 증폭 특성 추정 (정희옥 외, 2010) |
 
 ---
 

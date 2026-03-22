@@ -1,3 +1,4 @@
+
 # ARCHITECTURE.md
 
 ## 설계 철학
@@ -18,7 +19,7 @@ project-root/
 ├── activity2/
 │   └── index.html          # Activity 2 - 지진파 기록하기
 ├── activity3/
-│   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램)  [Cycle 3]
+│   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)  [Cycle 3]
 ├── assets/
 │   ├── css/
 │   │   └── style.css
@@ -28,7 +29,9 @@ project-root/
 │       ├── review.js       # 리뷰 모드 모듈 (드래그 탐색, activity1 전용)
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
-│       └── spectrogram.js  # 스펙트로그램 모듈 (실시간 FFT → Canvas)  [Cycle 3]
+│       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 (FFT → Canvas)  [Cycle 3]
+│       ├── psd.js          # Welch PSD 모듈 (전력 스펙트럼 밀도)       [Cycle 3]
+│       └── hvsr.js         # Nakamura HVSR 모듈 (부지 공진 주파수)     [Cycle 3]
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -70,11 +73,14 @@ project-root/
   - 메타데이터 헤더(# key: value): station_id, latitude, longitude, accuracy, sample_rate
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
-### activity3/index.html — 주파수 분석 (스펙트로그램)  [Cycle 3]
-- 두 가지 모드 탭: 센서 측정 / 파일 선택
-- **센서 모드**: sensor.js 재사용, 실시간 파형 + 스펙트로그램 워터폴 + 피크 주파수 표시
-- **파일 선택 모드**: CSV 드래그 앤 드롭(PC) + 파일 선택(모바일) → 7초 애니메이션 재생
-- 주파수 범위: 0~100 Hz (MAX_FREQ=100), 진폭: Viridis-style 컬러맵 (log 스케일)
+### activity3/index.html — 주파수 분석 (스펙트로그램·PSD·HVSR)  [Cycle 3]
+- 상위 모드 탭: 센서 측정 / 파일 선택
+- 분석 탭: 스펙트로그램 / PSD / HVSR (탭 전환으로 결과 비교)
+- **센서 모드**: 실시간 파형 + 3모듈 동시 업데이트 (탭에 무관하게 백그라운드 누적)
+  - 측정 정지 후 스펙트로그램 리뷰 모드 진입 (수평 드래그·핀치)
+- **파일 선택 모드**: CSV 드래그 앤 드롭(PC) + 파일 선택(모바일)
+  - "분석 시작" 클릭 시 3모듈 일괄 계산 → 탭 전환으로 각 결과 확인
+  - Z전용 CSV: HVSR 탭 disabled, 3축 CSV: 모든 탭 활성화
 - Firefox Android interval 오보고 대응: 50~250Hz 범위 필터로 샘플레이트 오인식 방지
 
 ---
@@ -124,18 +130,44 @@ API   : init(canvasEl, data, onRegion), destroy()
 특이  : HTTPS 필수, 측정 시작 시 좌표 고정 (이동 추적 아님)
 ```
 
-### spectrogram.js  [Cycle 3]
+### spectrogram.js  v3.0  [Cycle 3]
 ```
-역할  : 실시간 FFT 계산 및 스펙트로그램 Canvas 렌더링
-입력  : 센서 데이터 버퍼 (acc_z 배열)
-출력  : Canvas에 시간-주파수-진폭 2D 워터폴 컬러맵 (최신 데이터 상단)
-알고리즘 : Cooley-Tukey FFT (Vanilla JS 순수 구현)
-주파수 범위 : 0 ~ min(100Hz, sr/2) — X축, 캔버스 하단 10Hz 간격 레이블
-시간 범위 : WINDOW_SEC=10초 — Y축, 2초 간격 경과 시간 레이블 (wall-clock 기반)
-윈도우 함수 : Hann window (스펙트럼 누설 억제)
-색상 매핑 : 로그 스케일 진폭 → Viridis-style (어두운 보라 → 노랑)
-렌더링 : 히스토리 배열 기반 전체 재렌더 (push-scroll 방식 대비 시간 축 정확)
-주의 : Firefox Android DeviceMotionEvent.interval 오보고 → activity3에서 50~250Hz 범위 필터링
+역할  : 가로 워터폴 스펙트로그램 Canvas 렌더링 (ObsPy 표준 레이아웃)
+입력  : push(acc_z, sr) — HOP_SIZE마다 FFT 계산
+출력  : X=시간(왼쪽=과거→오른쪽=최신), Y=주파수(0Hz 하단~MAX_FREQ 상단)
+레이아웃 : 왼쪽 FREQ_AXIS_W=30px 주파수 레이블, 아래 TIME_AXIS_H=12px 시간 레이블
+저장 포맷 : colData = Uint8ClampedArray(DH×4) per frame, _history[0]=최신
+렌더링 : 오프스크린 1×DH 캔버스 + drawImage(imageSmoothingEnabled=false) 컬럼 스케일링
+알고리즘 : Cooley-Tukey FFT (Vanilla JS), Hann 윈도우, Viridis-style LUT
+파라미터 : FFT_SIZE=256, HOP_SIZE=26, WINDOW_SEC=30초, LOG_MIN=-3, LOG_MAX=-1
+리뷰 모드 : startReview() / setView(offset, cols) — 수평 팬/핀치 탐색
+API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setView(offset, cols), historyLength()
+```
+
+### psd.js  v1.0  [Cycle 3]
+```
+역할  : Welch's method 기반 전력 스펙트럼 밀도 (PSD) Canvas 렌더링
+입력  : push(acc_z, sr) 또는 computeFromRows(rows, sr, axis)
+출력  : X=주파수(로그 스케일, 0.5~50Hz), Y=파워(-120~-20 dB) 선 그래프
+알고리즘 : PSD[b] = mean(|FFT_b|²) / (sr × FFT_SIZE)  →  dB = 10 × log₁₀(PSD)
+실시간 : Rolling average _powerBuf (최근 N_AVG=16 프레임)
+파일 모드 : computeFromRows()로 전체 윈도우 평균 계산 후 즉시 렌더
+API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis)
+활용  : 배경 노이즈 수준 평가, 관측소 품질 판단 (Peterson NLNM/NHNM 비교 기준)
+```
+
+### hvsr.js  v1.0  [Cycle 3]
+```
+역할  : Nakamura(1989) 수평/수직 스펙트럼 비율 (HVSR) Canvas 렌더링
+입력  : push(acc_x, acc_y, acc_z, sr) 또는 computeFromRows(rows, sr)  ← 3축 필수
+출력  : X=주파수(로그 스케일, 0.5~20Hz), Y=H/V 비율(0~10) 선 그래프
+공식  : H(f) = √((|FFT_x|²+|FFT_y|²)/2),  V(f) = |FFT_z|,  HVSR(f) = H/V
+누적  : _sumH2[], _sumV2[] 모든 윈도우 합산 → _nWin 개수로 평균
+스무딩 : ±2-bin 이동 평균 (SMOOTH_HALF=2)
+피크  : 1~10Hz 범위 최대 H/V → f₀ 수직 점선 + 레이블 표시 (H/V > 1.5 기준)
+신뢰도 : _nWin < MIN_WINDOWS(50) → 주황색 경고 (약 10분 측정 권장)
+API   : init(canvasEl, sr), push(x, y, z, sr), reset(), windowCount(), computeFromRows(rows, sr)
+참고  : 정희옥 외(2010) 한반도 서남부 HVSR 분석, SESAME guidelines(2004)
 ```
 
 ### export.js
@@ -167,7 +199,7 @@ CSV 포맷:
 
 ---
 
-## 기술 스택 (Cycle 3)
+## 기술 스택 (Cycle 3 재구성 기준)
 
 | 항목 | 선택 | 이유 |
 |------|------|------|
@@ -185,7 +217,7 @@ CSV 포맷:
 ```
 Cycle 1 완료  →  activity1/ (지진파 색으로 보기 + MMI 시각화 + 리뷰 모드)
 Cycle 2 완료  →  activity2/ (GPS + Z축 + CSV)
-Cycle 3 완료  →  activity3/ (실시간 FFT 스펙트로그램 + CSV 파일 재생)
+Cycle 3 완료  →  activity3/ (스펙트로그램·PSD·HVSR 3분석 — 센서+파일 모드)
 
 Cycle 4  →  activity4/ (다중 CSV 드롭 + 신호 비교 + 기본 통계)
 Cycle 5  →  activity5/ (주시곡선 + GPS 진원 역산)

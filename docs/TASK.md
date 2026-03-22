@@ -5,7 +5,7 @@
 ---
 
 ## 현재 단계
-**Cycle 1~3 보완 완료, Cycle 4 진입 준비 중** (2026-03-22)
+**Cycle 3 재구성 완료, Cycle 4 진입 준비 중** (2026-03-23)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
 - Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11)
@@ -13,7 +13,43 @@
 
 ---
 
-## Cycle 3 작업 목록
+## Cycle 3 재구성 — 스펙트로그램·PSD·HVSR 3분석 모드 (2026-03-23 완료)
+
+### spectrogram.js v3.0 — 가로 워터폴 전면 재구성
+- [x] 레이아웃 변경: 수직(Y=시간) → 수평(X=시간, Y=주파수) ObsPy 표준
+- [x] colData 기반 히스토리 저장 (Uint8ClampedArray DH×4 per frame)
+- [x] 오프스크린 1×DH 캔버스 + drawImage로 효율적 컬럼 스케일링
+- [x] 왼쪽 주파수 축(FREQ_AXIS_W=30px), 아래 시간 축(TIME_AXIS_H=12px)
+- [x] 리뷰 모드: setView(offset, cols) — 수평 팬/핀치 탐색
+
+### psd.js v1.0 — Welch PSD 모듈 (신규)
+- [x] Welch's method rolling average (N_AVG=16 프레임)
+- [x] PSD[b] = mean(|FFT_b|²) / (sr × FFT_SIZE) → dB 변환
+- [x] 로그 X축(0.5~50Hz), dB Y축(-120~-20), cyan 선 그래프
+- [x] computeFromRows(rows, sr, axis) — 파일 모드 지원
+
+### hvsr.js v1.0 — Nakamura HVSR 모듈 (신규)
+- [x] Nakamura(1989) HVSR = H/V, H = √((X²+Y²)/2), V = Z
+- [x] 3축 링 버퍼 (bufX, bufY, bufZ) 누적 평균
+- [x] ±2-bin 이동 평균 스무딩
+- [x] f₀ 피크 탐지 (1~10Hz, H/V > 1.5) — 수직 점선 + 레이블
+- [x] 신뢰도 경고: N < 50 윈도우 → 주황색 텍스트
+- [x] computeFromRows(rows, sr) — 3축 CSV 파일 모드 지원
+
+### activity3/index.html — 3분석 탭 UI 재구성
+- [x] 분석 탭: 스펙트로그램 / PSD / HVSR (센서·파일 모드 공통)
+- [x] 센서 모드: 3모듈 동시 실시간 업데이트
+- [x] 리뷰 모드: 수평 드래그·핀치 (X방향) — 스펙트로그램 탭
+- [x] 파일 모드: 분석 시작 시 3모듈 일괄 계산
+- [x] Z전용 CSV → HVSR 탭 disabled 처리
+- [x] 숨겨진 캔버스 lazy init (show briefly 방식)
+
+### style.css — .analysis-tabs 스타일 추가
+- [x] .analysis-tabs, .analysis-tabs__btn, --active, :disabled
+
+---
+
+## Cycle 3 작업 목록 (초기 구현)
 
 ### 1단계 : spectrogram.js 수정
 - [x] Cooley-Tukey FFT 순수 JS 구현
@@ -129,6 +165,11 @@
 ---
 
 ## 완료된 작업
+- **Cycle 3 재구성 완료 (2026-03-23)**
+  - Activity 3: 스펙트로그램·PSD·HVSR 3분석 모드 재구성
+  - spectrogram.js v3.0: 가로 워터폴 전면 재작성
+  - psd.js v1.0: Welch PSD 신규 모듈
+  - hvsr.js v1.0: Nakamura HVSR 신규 모듈 (정희옥 외 2010 참고)
 - Cycle 3 전체 완료 (2026-03-10)
   - Activity 3: 주파수 분석 스펙트로그램 (실시간 FFT + CSV 파일 재생)
   - sensor.js 정밀도 개선: 3단계 폴백, CALIB_SAMPLES=100, performance.now() 타임스탬프, toFixed(9)
