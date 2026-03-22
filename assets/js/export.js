@@ -167,11 +167,15 @@ const ExportModule = (() => {
     }
 
     function _filename() {
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
+        const now  = new Date();
+        const pad  = n => String(n).padStart(2, '0');
         const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
         const time = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-        return `seismograph_${date}_${time}.csv`;
+        const stn  = _meta.station_id
+            ? _meta.station_id.replace(/[^A-Za-z0-9\-_]/g, '') + '_'
+            : '';
+        const axis = _meta.axis_mode === '3axis' ? '3axis' : 'Z';
+        return `${stn}${axis}_seismograph_${date}_${time}.csv`;
     }
 
     return { record, download, downloadRange, clear, count, setMeta, sampleRate };

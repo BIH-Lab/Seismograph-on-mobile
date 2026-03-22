@@ -130,6 +130,7 @@
             // Include station ID from localStorage if set
             const stationId = localStorage.getItem('station_id');
             if (stationId) ExportModule.setMeta({ station_id: stationId });
+            ExportModule.setMeta({ axis_mode: _axisMode });
 
             // 1. GPS 취득 → 2. 센서 시작
             GpsModule.get()
