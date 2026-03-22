@@ -78,6 +78,11 @@
                 <span id="csv-sr">—</span>
             </div>
 
+            <!-- 파형 캔버스 (파일 모드, 분석 완료 후 표시) -->
+            <div class="chart-wrapper" style="height:15vh;max-height:120px;" id="file-wave-wrapper" hidden>
+                <canvas id="fileWaveChart"></canvas>
+            </div>
+
             <!-- 분석 탭 (파일) -->
             <div class="analysis-tabs" id="file-analysis-tabs" hidden>
                 <button class="analysis-tabs__btn analysis-tabs__btn--active" data-analysis="spectro">스펙트로그램</button>
@@ -119,6 +124,11 @@
         const FREQ_AXIS_W = 30;   // must match spectrogram.js
 
         let _sr = 100;
+
+        let _waveRows   = null;  // 파형 그리기용 CSV rows (분석 완료 후 설정)
+        let _waveSr     = 100;
+        let _waveCanvas = null;
+        let _waveLastX  = 0;
 
         // ── CSV parser ───────────────────────────────────────────────
         function parseCSV(text) {
@@ -199,6 +209,96 @@
         let _pinchAnchorOff  = 0;
         let _reviewCanvas    = null;
 
+        // ── File mode waveform ────────────────────────────────────────
+        function _drawFileWave(startIdx, winSamples) {
+            const canvas = document.getElementById('fileWaveChart');
+            if (!canvas || !_waveRows || winSamples <= 0) return;
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const PAD_L = 36, PAD_R = 8, PAD_T = 6, PAD_B = 16;
+            const PW = W - PAD_L - PAD_R, PH = H - PAD_T - PAD_B;
+            const s0 = Math.max(0, startIdx);
+            const s1 = Math.min(_waveRows.length, s0 + winSamples);
+
+            ctx.fillStyle = '#1c1c1c';
+            ctx.fillRect(0, 0, W, H);
+
+            let maxAbs = 0;
+            for (let i = s0; i < s1; i++)
+                maxAbs = Math.max(maxAbs, Math.abs(parseFloat(_waveRows[i].acc_z) || 0));
+            maxAbs = Math.max(maxAbs, 0.001);
+            const yScale = (PH / 2) / maxAbs;
+            const midY = PAD_T + PH / 2;
+
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(PAD_L, midY); ctx.lineTo(PAD_L + PW, midY); ctx.stroke();
+
+            ctx.fillStyle = '#555'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText(`±${maxAbs.toFixed(3)}`, PAD_L - 2, PAD_T + 9);
+
+            ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = s0; i < s1; i++) {
+                const v  = parseFloat(_waveRows[i].acc_z) || 0;
+                const px = PAD_L + (i - s0) / (s1 - s0) * PW;
+                const py = midY - v * yScale;
+                i === s0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = '#555'; ctx.textAlign = 'center';
+            const startSec = s0 / _waveSr, endSec = s1 / _waveSr, durSec = endSec - startSec;
+            const step = durSec <= 5 ? 1 : durSec <= 30 ? 5 : durSec <= 120 ? 10 : 30;
+            for (let t = Math.ceil(startSec / step) * step; t <= endSec; t += step) {
+                const px = PAD_L + (t - startSec) / durSec * PW;
+                ctx.fillText(`${t}s`, Math.max(PAD_L + 12, Math.min(px, W - 12)), H - 2);
+            }
+        }
+
+        function _syncWave() {
+            if (!_waveRows || !_reviewTotal) return;
+            const N = _reviewTotal;
+            const startSample = Math.max(0, (N - _reviewOffset - _reviewCols) * HOP_SIZE);
+            const winSamples  = Math.max(1, _reviewCols * HOP_SIZE);
+            _drawFileWave(startSample, winSamples);
+        }
+
+        function _onWaveDown(e) {
+            e.preventDefault();
+            _waveCanvas.setPointerCapture(e.pointerId);
+            _waveLastX = e.clientX;
+        }
+        function _onWaveMove(e) {
+            e.preventDefault();
+            const dx = e.clientX - _waveLastX;
+            _waveLastX = e.clientX;
+            const SW = _waveCanvas.clientWidth;
+            const deltaCols = dx * _reviewCols / Math.max(1, SW);
+            const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
+            _reviewOffset = o; _reviewCols = c;
+            SpectrogramModule.setView(_reviewOffset, _reviewCols);
+            _syncWave();
+        }
+        function _onWaveUp() {}
+
+        function _attachWaveEvents() {
+            _waveCanvas = document.getElementById('fileWaveChart');
+            _waveCanvas.style.touchAction = 'none';
+            _waveCanvas.addEventListener('pointerdown',   _onWaveDown);
+            _waveCanvas.addEventListener('pointermove',   _onWaveMove);
+            _waveCanvas.addEventListener('pointerup',     _onWaveUp);
+            _waveCanvas.addEventListener('pointercancel', _onWaveUp);
+        }
+        function _detachWaveEvents() {
+            if (!_waveCanvas) return;
+            _waveCanvas.style.touchAction = '';
+            _waveCanvas.removeEventListener('pointerdown',   _onWaveDown);
+            _waveCanvas.removeEventListener('pointermove',   _onWaveMove);
+            _waveCanvas.removeEventListener('pointerup',     _onWaveUp);
+            _waveCanvas.removeEventListener('pointercancel', _onWaveUp);
+            _waveCanvas = null;
+        }
+
         function _reviewClamp(offset, cols) {
             const N = _reviewTotal;
             const c = Math.max(1, Math.min(Math.round(cols), N));
@@ -240,6 +340,7 @@
                 const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
                 _reviewOffset = o; _reviewCols = c;
                 SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                _syncWave();
             } else if (_reviewPointers.size === 2) {
                 const pts = [..._reviewPointers.values()];
                 const dist = Math.abs(pts[0].x - pts[1].x);
@@ -252,6 +353,7 @@
                 );
                 _reviewOffset = o; _reviewCols = c;
                 SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                _syncWave();
             }
         }
 
@@ -488,6 +590,16 @@
                     HvsrModule.computeFromRows(rows, sr);
                 }
 
+                // 파형 캔버스 초기화 및 표시
+                _waveRows = rows; _waveSr = sr;
+                const fileWaveWrapper = document.getElementById('file-wave-wrapper');
+                const fileWaveCanvas  = document.getElementById('fileWaveChart');
+                fileWaveWrapper.hidden = false;
+                fileWaveCanvas.width  = fileWaveCanvas.clientWidth  || 300;
+                fileWaveCanvas.height = fileWaveCanvas.clientHeight || 120;
+                _drawFileWave(0, rows.length);
+                _attachWaveEvents();
+
                 fileStatus.textContent = '분석 완료. 탭을 눌러 결과를 확인하세요.';
                 fileResetBtn.hidden = false;
             }, 30);
@@ -496,6 +608,9 @@
         // ── File reset ────────────────────────────────────────────────
         fileResetBtn.addEventListener('click', () => {
             _detachReviewEvents();
+            _detachWaveEvents();
+            document.getElementById('file-wave-wrapper').hidden = true;
+            _waveRows = null;
             _csvRows = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
             SpectrogramModule.reset();
             PsdModule.reset();
