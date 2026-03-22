@@ -266,20 +266,54 @@
         function _onWaveDown(e) {
             e.preventDefault();
             _waveCanvas.setPointerCapture(e.pointerId);
-            _waveLastX = e.clientX;
+            _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (_reviewPointers.size === 1) {
+                _reviewLastX = e.clientX;
+            } else if (_reviewPointers.size === 2) {
+                const pts = [..._reviewPointers.values()];
+                _pinchDist       = Math.abs(pts[0].x - pts[1].x);
+                _pinchStartCols  = _reviewCols;
+                const SW  = _waveCanvas.clientWidth;
+                const midX = (Math.min(pts[0].x, pts[1].x) + _pinchDist / 2
+                              - _waveCanvas.getBoundingClientRect().left);
+                _pinchAnchorFrac = Math.max(0, Math.min(1, midX / Math.max(1, SW)));
+                _pinchAnchorOff  = _reviewOffset + (1 - _pinchAnchorFrac) * _reviewCols;
+            }
         }
         function _onWaveMove(e) {
             e.preventDefault();
-            const dx = e.clientX - _waveLastX;
-            _waveLastX = e.clientX;
+            _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const SW = _waveCanvas.clientWidth;
-            const deltaCols = dx * _reviewCols / Math.max(1, SW);
-            const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
-            _reviewOffset = o; _reviewCols = c;
-            SpectrogramModule.setView(_reviewOffset, _reviewCols);
-            _syncWave();
+            if (_reviewPointers.size === 1) {
+                const dx = e.clientX - _reviewLastX;
+                _reviewLastX = e.clientX;
+                const deltaCols = dx * _reviewCols / Math.max(1, SW);
+                const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
+                _reviewOffset = o; _reviewCols = c;
+                SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                _syncWave();
+            } else if (_reviewPointers.size === 2) {
+                const pts = [..._reviewPointers.values()];
+                const dist = Math.abs(pts[0].x - pts[1].x);
+                if (dist < 2) return;
+                const scale   = _pinchDist / dist;
+                const newCols = Math.round(_pinchStartCols * scale);
+                const { o, c } = _reviewClamp(
+                    Math.round(_pinchAnchorOff - (1 - _pinchAnchorFrac) * newCols),
+                    newCols
+                );
+                _reviewOffset = o; _reviewCols = c;
+                SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                _syncWave();
+            }
         }
-        function _onWaveUp() {}
+        function _onWaveUp(e) {
+            _reviewPointers.delete(e.pointerId);
+            if (_reviewPointers.size === 1) {
+                const [ptr] = _reviewPointers.values();
+                _reviewLastX = ptr.x;
+            }
+        }
 
         function _attachWaveEvents() {
             _waveCanvas = document.getElementById('fileWaveChart');
@@ -296,6 +330,7 @@
             _waveCanvas.removeEventListener('pointermove',   _onWaveMove);
             _waveCanvas.removeEventListener('pointerup',     _onWaveUp);
             _waveCanvas.removeEventListener('pointercancel', _onWaveUp);
+            _reviewPointers.clear();
             _waveCanvas = null;
         }
 
@@ -576,7 +611,6 @@
                 _reviewTotal  = SpectrogramModule.historyLength();
                 _reviewCols   = _reviewTotal;
                 _reviewOffset = 0;
-                _attachReviewEvents(document.getElementById('fileSpectroChart'));
 
                 // PSD: Welch average from all rows
                 PsdModule.reset();
