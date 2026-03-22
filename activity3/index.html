@@ -200,8 +200,8 @@
 
         function _reviewClamp(offset, cols) {
             const N = _reviewTotal;
-            const c = Math.max(1, Math.min(cols, N));
-            const o = Math.max(0, Math.min(offset, N - c));
+            const c = Math.max(1, Math.min(Math.round(cols), N));
+            const o = Math.max(0, Math.min(Math.round(offset), N - c));
             return { o, c };
         }
 
@@ -264,6 +264,7 @@
 
         function _attachReviewEvents() {
             const canvas = document.getElementById('spectroChart');
+            canvas.style.touchAction = 'none';
             canvas.addEventListener('pointerdown',   _onReviewDown);
             canvas.addEventListener('pointermove',   _onReviewMove);
             canvas.addEventListener('pointerup',     _onReviewUp);
@@ -272,6 +273,7 @@
 
         function _detachReviewEvents() {
             const canvas = document.getElementById('spectroChart');
+            canvas.style.touchAction = '';
             canvas.removeEventListener('pointerdown',   _onReviewDown);
             canvas.removeEventListener('pointermove',   _onReviewMove);
             canvas.removeEventListener('pointerup',     _onReviewUp);

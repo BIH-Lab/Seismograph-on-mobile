@@ -328,8 +328,8 @@ const SpectrogramModule = (() => {
      */
     function setView(offset, cols) {
         const N = _history.length;
-        _viewOffset = Math.max(0, Math.min(offset, N - 1));
-        _viewCols   = Math.max(1, Math.min(cols, N - _viewOffset));
+        _viewOffset = Math.max(0, Math.min(Math.floor(offset), N - 1));
+        _viewCols   = Math.max(1, Math.min(Math.round(cols), N - _viewOffset));
         _redrawCanvas();
     }
 
