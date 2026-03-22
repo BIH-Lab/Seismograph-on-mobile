@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.2
+ * hvsr.js  v1.3
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -22,7 +22,7 @@
 const HvsrModule = (() => {
 
     // ── Config ────────────────────────────────────────────────────
-    const FFT_SIZE    = 256;
+    const FFT_SIZE    = 1024;
     const HOP_SIZE    = 26;
     const F_MIN       = 0.5;    // Hz: left edge of plot
     const F_MAX       = 50;     // Hz: right edge of plot
