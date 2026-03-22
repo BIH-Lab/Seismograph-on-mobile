@@ -1,5 +1,5 @@
 /**
- * psd.js  v2.0
+ * psd.js  v2.1
  * Role   : Power Spectral Density (Welch's method, rolling average)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -25,7 +25,6 @@ const PsdModule = (() => {
     // ── Config ────────────────────────────────────────────────────
     const FFT_SIZE = 1024;
     const HOP_SIZE = 26;
-    const N_AVG    = 16;   // rolling window: last N_AVG FFT frames averaged
     const DB_MIN   = -120;
     const DB_MAX   = -20;
     const F_MIN    = 0.1;  // Hz: left edge of plot
@@ -49,7 +48,8 @@ const PsdModule = (() => {
     let _buf    = new Float32Array(FFT_SIZE);
     let _head   = 0;
     let _hopCount = 0;
-    const _powerBuf = [];  // rolling array of Float32Array(FFT_SIZE/2), max N_AVG entries
+    let _sumPow = null;  // Float32Array(FFT_SIZE/2) — cumulative power sum
+    let _nWin   = 0;     // number of accumulated windows
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -105,13 +105,11 @@ const PsdModule = (() => {
         return pow;
     }
 
-    // ── Average the rolling power buffer ──────────────────────────
+    // ── Compute averaged PSD from accumulated sum ─────────────────
     function _averagedPsd() {
-        if (_powerBuf.length === 0) return null;
+        if (!_sumPow || _nWin === 0) return null;
         const avg = new Float32Array(FFT_SIZE / 2);
-        for (const p of _powerBuf)
-            for (let b = 0; b < FFT_SIZE / 2; b++) avg[b] += p[b];
-        for (let b = 0; b < FFT_SIZE / 2; b++) avg[b] /= _powerBuf.length;
+        for (let b = 0; b < FFT_SIZE / 2; b++) avg[b] = _sumPow[b] / _nWin;
         return avg;
     }
 
@@ -191,7 +189,7 @@ const PsdModule = (() => {
         // Frame count label
         _ctx.fillStyle = 'rgba(255,255,255,0.45)';
         _ctx.textAlign = 'left';
-        _ctx.fillText(`${_powerBuf.length} frames avg`, PAD_L + 4, PAD_T + 11);
+        _ctx.fillText(`${_nWin} frames avg`, PAD_L + 4, PAD_T + 11);
         _ctx.textAlign = 'left';
     }
 
@@ -203,7 +201,8 @@ const PsdModule = (() => {
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
         _canvas.width  = _canvas.clientWidth  || 300;
         _canvas.height = _canvas.clientHeight || 150;
-        _powerBuf.length = 0;
+        _sumPow = null;
+        _nWin   = 0;
         _ctx.fillStyle = '#0a0a0a';
         _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
     }
@@ -215,8 +214,10 @@ const PsdModule = (() => {
         if (++_hopCount >= HOP_SIZE) {
             _hopCount = 0;
             if (!_canvas) return;
-            _powerBuf.push(_computePower());
-            if (_powerBuf.length > N_AVG) _powerBuf.shift();
+            if (!_sumPow) _sumPow = new Float32Array(FFT_SIZE / 2);
+            const pow = _computePower();
+            for (let b = 0; b < FFT_SIZE / 2; b++) _sumPow[b] += pow[b];
+            _nWin++;
             _redraw();
         }
     }
@@ -225,7 +226,8 @@ const PsdModule = (() => {
         _buf.fill(0);
         _head     = 0;
         _hopCount = 0;
-        _powerBuf.length = 0;
+        _sumPow   = null;
+        _nWin     = 0;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
