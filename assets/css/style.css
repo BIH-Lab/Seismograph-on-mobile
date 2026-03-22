@@ -534,6 +534,37 @@ html, body {
 
 
 /* ===================================
+   분석 모드 탭 (activity3)
+=================================== */
+.analysis-tabs {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    flex-shrink: 0;
+}
+.analysis-tabs__btn {
+    flex: 1;
+    padding: 7px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.analysis-tabs__btn--active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--bg);
+}
+.analysis-tabs__btn:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* ===================================
    PC 반응형 (768px+)
 =================================== */
 @media (min-width: 768px) {

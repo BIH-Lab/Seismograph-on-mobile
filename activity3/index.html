@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>주파수 분석 (스펙트로그램)</title>
+    <title>주파수 분석</title>
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body class="activity-page" id="activity-body">
 
     <header class="activity-header">
         <a href="../" class="btn btn--ghost btn--sm">← 목록</a>
-        <h1>주파수 분석 (스펙트로그램)</h1>
+        <h1>주파수 분석</h1>
     </header>
 
-    <!-- 모드 탭 -->
+    <!-- 상위 모드 탭 (센서 / 파일) -->
     <div class="mode-tabs">
         <button class="mode-tabs__btn mode-tabs__btn--active" id="tab-sensor">센서 측정</button>
         <button class="mode-tabs__btn" id="tab-file">파일 선택</button>
@@ -21,7 +21,7 @@
 
     <main class="activity-main" style="justify-content: flex-start; gap: 10px; padding-top: 10px;">
 
-        <!-- ── 센서 모드 패널 ─────────────────────────────── -->
+        <!-- ── 센서 모드 패널 ──────────────────────────────── -->
         <div id="panel-sensor">
 
             <!-- 파형 그래프 -->
@@ -29,17 +29,29 @@
                 <canvas id="waveChart"></canvas>
             </div>
 
-            <!-- 스펙트로그램 (주파수 축은 캔버스 내부에 렌더링) -->
-            <div class="spectrogram-panel">
-                <canvas id="spectroChart"></canvas>
+            <!-- 분석 탭 -->
+            <div class="analysis-tabs" id="sensor-analysis-tabs">
+                <button class="analysis-tabs__btn analysis-tabs__btn--active" data-analysis="spectro">스펙트로그램</button>
+                <button class="analysis-tabs__btn" data-analysis="psd">PSD</button>
+                <button class="analysis-tabs__btn" data-analysis="hvsr">HVSR</button>
             </div>
 
-            <!-- 피크 주파수 표시 -->
+            <!-- 분석 캔버스 -->
+            <div class="spectrogram-panel" id="sensor-spectro-panel">
+                <canvas id="spectroChart"></canvas>
+            </div>
+            <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
+                <canvas id="psdChart"></canvas>
+            </div>
+            <div class="spectrogram-panel" id="sensor-hvsr-panel" hidden>
+                <canvas id="hvsrChart"></canvas>
+            </div>
+
+            <!-- 피크 주파수 (스펙트로그램 탭 전용) -->
             <div class="peak-freq-display" id="peak-freq-display" hidden>
                 주요 주파수: <span id="peak-freq-val">—</span> Hz
             </div>
 
-            <!-- 컨트롤 -->
             <div class="controls">
                 <button class="btn btn--primary btn--lg" id="sensor-start-btn">측정 시작</button>
                 <button class="btn btn--danger btn--lg" id="sensor-stop-btn" hidden>측정 정지</button>
@@ -49,10 +61,10 @@
 
         </div>
 
-        <!-- ── 파일 선택 모드 패널 ─────────────────────────── -->
+        <!-- ── 파일 모드 패널 ──────────────────────────────── -->
         <div id="panel-file" hidden>
 
-            <!-- 드롭존 (파일 미로드 시) -->
+            <!-- 드롭존 -->
             <div class="drop-zone" id="drop-zone">
                 <p class="drop-zone__text">CSV 파일을 여기에 드래그하거나</p>
                 <label class="btn btn--primary" for="file-input">파일 선택</label>
@@ -66,19 +78,24 @@
                 <span id="csv-sr">—</span>
             </div>
 
-            <!-- 축 선택 (파일 모드, 3축 CSV일 때만 표시) -->
-            <div class="axis-selector" id="file-axis-selector" hidden>
-                <button class="axis-btn axis-btn--active" data-axis="z">Z</button>
-                <button class="axis-btn" data-axis="x">X</button>
-                <button class="axis-btn" data-axis="y">Y</button>
+            <!-- 분석 탭 (파일) -->
+            <div class="analysis-tabs" id="file-analysis-tabs" hidden>
+                <button class="analysis-tabs__btn analysis-tabs__btn--active" data-analysis="spectro">스펙트로그램</button>
+                <button class="analysis-tabs__btn" data-analysis="psd">PSD</button>
+                <button class="analysis-tabs__btn" data-analysis="hvsr" id="file-hvsr-tab">HVSR</button>
             </div>
 
-            <!-- 스펙트로그램 (파일 모드 전용 캔버스) -->
+            <!-- 분석 캔버스 (파일) -->
             <div class="spectrogram-panel" id="file-spectro-panel" hidden>
                 <canvas id="fileSpectroChart"></canvas>
             </div>
+            <div class="spectrogram-panel" id="file-psd-panel" hidden>
+                <canvas id="filePsdChart"></canvas>
+            </div>
+            <div class="spectrogram-panel" id="file-hvsr-panel" hidden>
+                <canvas id="fileHvsrChart"></canvas>
+            </div>
 
-            <!-- 컨트롤 -->
             <div class="controls" id="file-controls" hidden>
                 <button class="btn btn--primary btn--lg" id="file-play-btn">분석 시작</button>
                 <button class="btn btn--ghost btn--lg" id="file-reset-btn" hidden>초기화</button>
@@ -91,110 +108,19 @@
 
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js?v=4.9"></script>
-    <script src="../assets/js/spectrogram.js?v=2.0"></script>
+    <script src="../assets/js/spectrogram.js?v=3.0"></script>
+    <script src="../assets/js/psd.js?v=1.0"></script>
+    <script src="../assets/js/hvsr.js?v=1.0"></script>
 
     <script>
-        // ── FFT constants (must match spectrogram.js) ──────────────
-        const FFT_SIZE    = 256;
-        const HOP_SIZE    = 26;
-        const MAX_FREQ    = 100;
-        const LOG_MIN     = -3;
-        const LOG_MAX     = -1;
-        const FREQ_AXIS_H = 18;
+        // ── Constants ────────────────────────────────────────────────
         const WINDOW_SEC  = 30;   // must match spectrogram.js
+        const HOP_SIZE    = 26;   // must match spectrogram.js
+        const FREQ_AXIS_W = 30;   // must match spectrogram.js
 
-        // ── Hann window (precomputed) ──────────────────────────────
-        const HANN = new Float32Array(FFT_SIZE);
-        for (let i = 0; i < FFT_SIZE; i++)
-            HANN[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+        let _sr = 100;
 
-        // ── Viridis-style LUT (must match spectrogram.js) ──────────
-        const LUT = (() => {
-            const stops = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
-            const lut = new Uint8Array(256 * 3);
-            for (let i = 0; i < 256; i++) {
-                const t = i / 255, r = t * 4;
-                const lo = Math.floor(r), hi = Math.min(lo + 1, 4), f = r - lo;
-                lut[i*3]   = Math.round(stops[lo][0] + f*(stops[hi][0]-stops[lo][0]));
-                lut[i*3+1] = Math.round(stops[lo][1] + f*(stops[hi][1]-stops[lo][1]));
-                lut[i*3+2] = Math.round(stops[lo][2] + f*(stops[hi][2]-stops[lo][2]));
-            }
-            return lut;
-        })();
-
-        // ── Cooley-Tukey FFT (standalone for file-mode precompute) ──
-        function _fft(re, im) {
-            const N = re.length;
-            for (let i = 1, j = 0; i < N; i++) {
-                let bit = N >> 1;
-                for (; j & bit; bit >>= 1) j ^= bit;
-                j ^= bit;
-                if (i < j) {
-                    [re[i], re[j]] = [re[j], re[i]];
-                    [im[i], im[j]] = [im[j], im[i]];
-                }
-            }
-            for (let len = 2; len <= N; len <<= 1) {
-                const theta = -2 * Math.PI / len;
-                const wRe = Math.cos(theta), wIm = Math.sin(theta);
-                const half = len >> 1;
-                for (let i = 0; i < N; i += len) {
-                    let uRe = 1, uIm = 0;
-                    for (let k = 0; k < half; k++) {
-                        const aRe = re[i+k], aIm = im[i+k];
-                        const tRe = uRe*re[i+k+half] - uIm*im[i+k+half];
-                        const tIm = uRe*im[i+k+half] + uIm*re[i+k+half];
-                        re[i+k] = aRe+tRe; im[i+k] = aIm+tIm;
-                        re[i+k+half] = aRe-tRe; im[i+k+half] = aIm-tIm;
-                        const nRe = uRe*wRe - uIm*wIm;
-                        uIm = uRe*wIm + uIm*wRe; uRe = nRe;
-                    }
-                }
-            }
-        }
-
-        // ── Compute one waterfall row (W pixels wide) ──────────────
-        function computeRow(samples, sr, canvasW) {
-            const re = new Float32Array(FFT_SIZE);
-            const im = new Float32Array(FFT_SIZE);
-            for (let i = 0; i < FFT_SIZE; i++) re[i] = samples[i] * HANN[i];
-            _fft(re, im);
-            const nyq      = sr / 2;
-            const dispFreq = Math.min(MAX_FREQ, nyq);
-            const topBin   = Math.ceil(dispFreq / nyq * (FFT_SIZE / 2));
-            const row      = new Uint8ClampedArray(canvasW * 4);
-            for (let x = 0; x < canvasW; x++) {
-                const bin  = Math.min(Math.floor((x + 0.5) / canvasW * topBin), topBin - 1);
-                const amp  = Math.sqrt(re[bin]**2 + im[bin]**2) / (FFT_SIZE / 2);
-                const logA = amp > 1e-9 ? Math.log10(amp) : LOG_MIN;
-                const t    = Math.max(0, Math.min(1, (logA - LOG_MIN) / (LOG_MAX - LOG_MIN)));
-                const ci   = Math.round(t * 255);
-                row[x*4]   = LUT[ci*3]; row[x*4+1] = LUT[ci*3+1];
-                row[x*4+2] = LUT[ci*3+2]; row[x*4+3] = 255;
-            }
-            return row;
-        }
-
-        // ── Draw frequency axis for file-mode canvas ───────────────
-        function drawFileFreqAxis(ctx, W, H, sr) {
-            const DH = H - FREQ_AXIS_H;
-            const dispFreq = Math.min(MAX_FREQ, sr / 2);
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, DH, W, FREQ_AXIS_H);
-            ctx.fillStyle = '#666';
-            ctx.font = '9px sans-serif';
-            ctx.strokeStyle = '#444';
-            ctx.lineWidth = 1;
-            for (let f = 0; f <= dispFreq; f += 10) {
-                const x = Math.round((f / dispFreq) * (W - 1));
-                ctx.beginPath(); ctx.moveTo(x, DH); ctx.lineTo(x, DH + 4); ctx.stroke();
-                const label = f === 0 ? '0Hz' : `${f}`;
-                const tw = f === 0 ? 0 : ctx.measureText(label).width / 2;
-                ctx.fillText(label, Math.max(0, x - tw), H - 3);
-            }
-        }
-
-        // ── CSV parser ─────────────────────────────────────────────
+        // ── CSV parser ───────────────────────────────────────────────
         function parseCSV(text) {
             const meta = {}, rows = [];
             let keys = null;
@@ -227,33 +153,56 @@
             return `${m}:${String(s).padStart(2, '0')}`;
         }
 
-        // ═══════════════════════════════════════════════════════════
+        // ── Lazy canvas init: show panel briefly to get correct clientWidth ──
+        function initCanvas(canvasEl, module, ...args) {
+            const panel = canvasEl.parentElement;
+            const wasHidden = panel.hidden;
+            if (wasHidden) panel.hidden = false;
+            module.init(canvasEl, ...args);
+            if (wasHidden) panel.hidden = true;
+        }
+
+        // ═════════════════════════════════════════════════════════════
         // SENSOR MODE
-        // ═══════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         const sensorStartBtn  = document.getElementById('sensor-start-btn');
         const sensorStopBtn   = document.getElementById('sensor-stop-btn');
         const sensorResetBtn  = document.getElementById('sensor-reset-btn');
         const sensorStatus    = document.getElementById('sensor-status');
         const peakFreqDisplay = document.getElementById('peak-freq-display');
         const peakFreqVal     = document.getElementById('peak-freq-val');
-        let _sr = 100;
 
-        // ── Review mode state ──────────────────────────────────────
+        let _sensorInited    = false;
+        let _sensorActiveTab = 'spectro';
+
+        // ── Sensor analysis tab switching ─────────────────────────────
+        document.getElementById('sensor-analysis-tabs').querySelectorAll('.analysis-tabs__btn')
+            .forEach(btn => btn.addEventListener('click', () => {
+                _sensorActiveTab = btn.dataset.analysis;
+                document.getElementById('sensor-analysis-tabs').querySelectorAll('.analysis-tabs__btn')
+                    .forEach(b => b.classList.toggle('analysis-tabs__btn--active', b === btn));
+                document.getElementById('sensor-spectro-panel').hidden = _sensorActiveTab !== 'spectro';
+                document.getElementById('sensor-psd-panel').hidden     = _sensorActiveTab !== 'psd';
+                document.getElementById('sensor-hvsr-panel').hidden    = _sensorActiveTab !== 'hvsr';
+                peakFreqDisplay.hidden = _sensorActiveTab !== 'spectro';
+            }));
+
+        // ── Review mode (horizontal pan/pinch) ───────────────────────
         const _reviewPointers = new Map();
         let _reviewOffset    = 0;
-        let _reviewRows      = 0;
+        let _reviewCols      = 0;
         let _reviewTotal     = 0;
-        let _reviewLastY     = 0;
+        let _reviewLastX     = 0;
         let _pinchDist       = 0;
-        let _pinchStartRows  = 0;
+        let _pinchStartCols  = 0;
         let _pinchAnchorFrac = 0;
         let _pinchAnchorOff  = 0;
 
-        function _reviewClamp(offset, rows) {
+        function _reviewClamp(offset, cols) {
             const N = _reviewTotal;
-            const r = Math.max(1, Math.min(rows, N));
-            const o = Math.max(0, Math.min(offset, N - r));
-            return { o, r };
+            const c = Math.max(1, Math.min(cols, N));
+            const o = Math.max(0, Math.min(offset, N - c));
+            return { o, c };
         }
 
         function _onReviewDown(e) {
@@ -262,16 +211,17 @@
             canvas.setPointerCapture(e.pointerId);
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (_reviewPointers.size === 1) {
-                _reviewLastY = e.clientY;
+                _reviewLastX = e.clientX;
             } else if (_reviewPointers.size === 2) {
                 const pts = [..._reviewPointers.values()];
-                _pinchDist      = Math.abs(pts[0].y - pts[1].y);
-                _pinchStartRows = _reviewRows;
-                const midFrac   = (Math.min(pts[0].y, pts[1].y) + Math.abs(pts[0].y - pts[1].y) / 2
-                                   - canvas.getBoundingClientRect().top)
-                                  / (canvas.clientHeight - FREQ_AXIS_H);
-                _pinchAnchorFrac = Math.max(0, Math.min(1, midFrac));
-                _pinchAnchorOff  = _reviewOffset + _pinchAnchorFrac * _reviewRows;
+                _pinchDist      = Math.abs(pts[0].x - pts[1].x);
+                _pinchStartCols = _reviewCols;
+                const SW = canvas.clientWidth - FREQ_AXIS_W;
+                const midX = (Math.min(pts[0].x, pts[1].x) + _pinchDist / 2
+                              - canvas.getBoundingClientRect().left - FREQ_AXIS_W);
+                _pinchAnchorFrac = Math.max(0, Math.min(1, midX / Math.max(1, SW)));
+                // anchor: col index fixed under midpoint (right side = newer = lower index)
+                _pinchAnchorOff  = _reviewOffset + (1 - _pinchAnchorFrac) * _reviewCols;
             }
         }
 
@@ -279,30 +229,28 @@
             e.preventDefault();
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const canvas = document.getElementById('spectroChart');
-            const DH = canvas.clientHeight - FREQ_AXIS_H;
+            const SW = canvas.clientWidth - FREQ_AXIS_W;
 
             if (_reviewPointers.size === 1) {
-                const dy = e.clientY - _reviewLastY;
-                _reviewLastY = e.clientY;
-                // drag up → scroll toward older frames (increase offset)
-                const deltaRows = -dy * _reviewRows / Math.max(1, DH);
-                const { o, r } = _reviewClamp(_reviewOffset + deltaRows, _reviewRows);
-                _reviewOffset = o;
-                _reviewRows   = r;
-                SpectrogramModule.setView(_reviewOffset, _reviewRows);
+                const dx = e.clientX - _reviewLastX;
+                _reviewLastX = e.clientX;
+                // drag right → older data (content-grab model)
+                const deltaCols = dx * _reviewCols / Math.max(1, SW);
+                const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
+                _reviewOffset = o; _reviewCols = c;
+                SpectrogramModule.setView(_reviewOffset, _reviewCols);
             } else if (_reviewPointers.size === 2) {
                 const pts = [..._reviewPointers.values()];
-                const dist = Math.abs(pts[0].y - pts[1].y);
+                const dist = Math.abs(pts[0].x - pts[1].x);
                 if (dist < 2) return;
                 const scale   = _pinchDist / dist;
-                const newRows = Math.round(_pinchStartRows * scale);
-                const { o, r } = _reviewClamp(
-                    Math.round(_pinchAnchorOff - _pinchAnchorFrac * newRows),
-                    newRows
+                const newCols = Math.round(_pinchStartCols * scale);
+                const { o, c } = _reviewClamp(
+                    Math.round(_pinchAnchorOff - (1 - _pinchAnchorFrac) * newCols),
+                    newCols
                 );
-                _reviewOffset = o;
-                _reviewRows   = r;
-                SpectrogramModule.setView(_reviewOffset, _reviewRows);
+                _reviewOffset = o; _reviewCols = c;
+                SpectrogramModule.setView(_reviewOffset, _reviewCols);
             }
         }
 
@@ -310,7 +258,7 @@
             _reviewPointers.delete(e.pointerId);
             if (_reviewPointers.size === 1) {
                 const [ptr] = _reviewPointers.values();
-                _reviewLastY = ptr.y;
+                _reviewLastX = ptr.x;
             }
         }
 
@@ -331,7 +279,7 @@
             _reviewPointers.clear();
         }
 
-        // ── Sensor start ───────────────────────────────────────────
+        // ── Sensor start ──────────────────────────────────────────────
         sensorStartBtn.addEventListener('click', () => {
             sensorStartBtn.hidden = true;
             sensorStopBtn.hidden  = true;
@@ -346,6 +294,8 @@
                     }
                     VisualModule.update(data);
                     SpectrogramModule.push(data.acc_z, _sr);
+                    PsdModule.push(data.acc_z, _sr);
+                    HvsrModule.push(data.acc_x, data.acc_y, data.acc_z, _sr);
                 },
                 (msg) => {
                     sensorStatus.textContent = '오류: ' + msg;
@@ -357,26 +307,36 @@
                     } else if (state === 'calibrating') {
                         sensorStatus.textContent = `기준값 설정 중... (${arg1}/${arg2})`;
                     } else if (state === 'ready') {
-                        const spectroCanvas = document.getElementById('spectroChart');
-                        SpectrogramModule.init(spectroCanvas, _sr, (hz) => {
-                            peakFreqDisplay.hidden = false;
-                            peakFreqVal.textContent = hz;
-                        });
+                        if (!_sensorInited) {
+                            _sensorInited = true;
+                            // Init all 3 analysis canvases (hidden ones shown briefly for clientWidth)
+                            initCanvas(document.getElementById('spectroChart'), SpectrogramModule, _sr,
+                                (hz) => {
+                                    if (_sensorActiveTab === 'spectro') {
+                                        peakFreqDisplay.hidden = false;
+                                        peakFreqVal.textContent = hz;
+                                    }
+                                });
+                            initCanvas(document.getElementById('psdChart'),   PsdModule,  _sr);
+                            initCanvas(document.getElementById('hvsrChart'),  HvsrModule, _sr);
+                        }
                         const isFirefox = navigator.userAgent.includes('Firefox');
-                        const srcLabel = arg1 === 'linear'       ? ' (LinearAccelerationSensor — 최고정밀)'
-                                       : arg1 === 'accel'        ? ' (Accelerometer — 고정밀)'
-                                       : arg1 === 'devicemotion' ? (isFirefox ? ' (DeviceMotionEvent — 고정밀)' : ' (DeviceMotionEvent — Chrome 정밀도 제한, Android는 Firefox 권장)')
-                                       : '';
-                        sensorStatus.textContent = '측정 중' + srcLabel + ' — Z축 진동의 주파수를 분석합니다.';
+                        const srcLabel =
+                            arg1 === 'linear'       ? ' (LinearAccelerationSensor)' :
+                            arg1 === 'accel'        ? ' (Accelerometer)' :
+                            arg1 === 'devicemotion' ? (isFirefox
+                                ? ' (DeviceMotionEvent)'
+                                : ' (DeviceMotionEvent — Android는 Firefox 권장)') : '';
+                        sensorStatus.textContent = '측정 중' + srcLabel;
                         sensorStopBtn.hidden = false;
                     } else if (state === 'unavailable') {
-                        sensorStatus.textContent = '⚠️ 센서 데이터를 읽을 수 없습니다. Android의 경우 Firefox를 사용하거나, Chrome 설정 > 사이트 설정 > 동작 센서를 허용해주세요.';
+                        sensorStatus.textContent = '⚠️ 센서를 사용할 수 없습니다. Firefox 사용 또는 센서 권한을 확인하세요.';
                     }
                 }
             );
         });
 
-        // ── Sensor stop → review mode ──────────────────────────────
+        // ── Sensor stop → review mode ─────────────────────────────────
         sensorStopBtn.addEventListener('click', () => {
             SensorModule.stop();
             sensorStopBtn.hidden  = true;
@@ -384,61 +344,64 @@
             sensorStartBtn.hidden = false;
 
             _reviewTotal  = SpectrogramModule.historyLength();
-            const M = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE);
-            _reviewRows   = Math.min(_reviewTotal, M);
+            _reviewCols   = Math.min(_reviewTotal, Math.ceil(_sr * WINDOW_SEC / HOP_SIZE));
             _reviewOffset = 0;
-
             SpectrogramModule.startReview();
             _attachReviewEvents();
 
-            sensorStatus.textContent = '측정 정지됨. 드래그로 탐색, 핀치로 확대/축소.';
+            sensorStatus.textContent = '측정 정지됨. 스펙트로그램 탭에서 드래그·핀치로 탐색 가능합니다.';
         });
 
-        // ── Sensor reset ───────────────────────────────────────────
+        // ── Sensor reset ──────────────────────────────────────────────
         sensorResetBtn.addEventListener('click', () => {
             _detachReviewEvents();
             SpectrogramModule.reset();
+            PsdModule.reset();
+            HvsrModule.reset();
             VisualModule.reset();
+            _sensorInited = false;
             peakFreqDisplay.hidden = true;
             peakFreqVal.textContent = '—';
             sensorResetBtn.hidden = true;
-            _reviewTotal = 0; _reviewRows = 0; _reviewOffset = 0;
+            _reviewTotal = 0; _reviewCols = 0; _reviewOffset = 0;
             sensorStatus.textContent = '버튼을 눌러 센서 권한을 요청하세요.';
         });
 
-        // ═══════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
         // FILE MODE
-        // ═══════════════════════════════════════════════════════════
-        const dropZone          = document.getElementById('drop-zone');
-        const fileInput         = document.getElementById('file-input');
-        const csvFileInfo       = document.getElementById('csv-file-info');
-        const fileAxisSelector  = document.getElementById('file-axis-selector');
-        const fileSpectroPanel  = document.getElementById('file-spectro-panel');
-        const fileControls      = document.getElementById('file-controls');
-        const filePlayBtn       = document.getElementById('file-play-btn');
-        const fileResetBtn      = document.getElementById('file-reset-btn');
-        const fileStatus        = document.getElementById('file-status');
-        const csvFilename       = document.getElementById('csv-filename');
-        const csvDuration       = document.getElementById('csv-duration');
-        const csvSr             = document.getElementById('csv-sr');
+        // ═════════════════════════════════════════════════════════════
+        const dropZone         = document.getElementById('drop-zone');
+        const fileInput        = document.getElementById('file-input');
+        const csvFileInfo      = document.getElementById('csv-file-info');
+        const fileAnalysisTabs = document.getElementById('file-analysis-tabs');
+        const fileControls     = document.getElementById('file-controls');
+        const filePlayBtn      = document.getElementById('file-play-btn');
+        const fileResetBtn     = document.getElementById('file-reset-btn');
+        const fileStatus       = document.getElementById('file-status');
+        const csvFilename      = document.getElementById('csv-filename');
+        const csvDuration      = document.getElementById('csv-duration');
+        const csvSr            = document.getElementById('csv-sr');
+        const fileHvsrTab      = document.getElementById('file-hvsr-tab');
 
-        let _csvRows    = null;
-        let _csvSr      = 100;
-        let _animRaf    = null;
-        let _fileAxisMode = 'z';
-        let _fileHas3axis = false;
+        let _csvRows       = null;
+        let _csvSr         = 100;
+        let _fileHas3axis  = false;
+        let _fileActiveTab = 'spectro';
 
-        // ── Axis selector (file) ───────────────────────────────────
-        fileAxisSelector.querySelectorAll('.axis-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                fileAxisSelector.querySelectorAll('.axis-btn').forEach(b => b.classList.remove('axis-btn--active'));
-                btn.classList.add('axis-btn--active');
-                _fileAxisMode = btn.dataset.axis;
-            });
-        });
+        // ── File analysis tab switching ───────────────────────────────
+        fileAnalysisTabs.querySelectorAll('.analysis-tabs__btn')
+            .forEach(btn => btn.addEventListener('click', () => {
+                _fileActiveTab = btn.dataset.analysis;
+                fileAnalysisTabs.querySelectorAll('.analysis-tabs__btn')
+                    .forEach(b => b.classList.toggle('analysis-tabs__btn--active', b === btn));
+                document.getElementById('file-spectro-panel').hidden = _fileActiveTab !== 'spectro';
+                document.getElementById('file-psd-panel').hidden     = _fileActiveTab !== 'psd';
+                document.getElementById('file-hvsr-panel').hidden    = _fileActiveTab !== 'hvsr';
+            }));
 
+        // ── Drag and drop ─────────────────────────────────────────────
         dropZone.addEventListener('dragover',  (e) => { e.preventDefault(); dropZone.classList.add('drop-zone--hover'); });
-        dropZone.addEventListener('dragleave', ()  => { dropZone.classList.remove('drop-zone--hover'); });
+        dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drop-zone--hover'));
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('drop-zone--hover');
@@ -452,144 +415,99 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 const { meta, rows, sr } = parseCSV(e.target.result);
-                if (rows.length === 0) { fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.'; return; }
+                if (rows.length === 0) {
+                    fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.';
+                    return;
+                }
                 _csvRows = rows; _csvSr = sr;
+                _fileHas3axis = !!(rows[0] && rows[0].acc_x !== undefined);
+                _fileActiveTab = 'spectro';
 
-                // Detect 3-axis CSV
-                _fileHas3axis = rows[0].acc_x !== undefined || meta.axis_mode === '3axis';
-                _fileAxisMode = 'z';
-                fileAxisSelector.querySelectorAll('.axis-btn').forEach(b => b.classList.remove('axis-btn--active'));
-                fileAxisSelector.querySelector('[data-axis="z"]').classList.add('axis-btn--active');
+                // Reset tab selection
+                fileAnalysisTabs.querySelectorAll('.analysis-tabs__btn').forEach(b => {
+                    b.classList.toggle('analysis-tabs__btn--active', b.dataset.analysis === 'spectro');
+                });
+                fileHvsrTab.disabled = !_fileHas3axis;
 
                 const durSec = rows.length / sr;
                 csvFilename.textContent = file.name;
                 csvDuration.textContent = `${fmtTime(durSec)} (${rows.length.toLocaleString()}샘플)`;
                 csvSr.textContent       = `${sr} Hz`;
 
-                dropZone.hidden               = true;
-                csvFileInfo.hidden            = false;
-                fileAxisSelector.hidden       = !_fileHas3axis;
-                fileSpectroPanel.hidden       = false;
-                fileControls.hidden           = false;
-                filePlayBtn.hidden            = false;
-                fileResetBtn.hidden           = true;
-                fileStatus.textContent        = '분석 시작 버튼을 눌러 스펙트로그램을 생성합니다.';
+                dropZone.hidden          = true;
+                csvFileInfo.hidden       = false;
+                fileAnalysisTabs.hidden  = false;
+                document.getElementById('file-spectro-panel').hidden = false;
+                document.getElementById('file-psd-panel').hidden     = true;
+                document.getElementById('file-hvsr-panel').hidden    = true;
+                fileControls.hidden = false;
+                filePlayBtn.hidden  = false;
+                fileResetBtn.hidden = true;
 
-                const canvas = document.getElementById('fileSpectroChart');
-                canvas.width  = canvas.clientWidth  || 300;
-                canvas.height = canvas.clientHeight || 150;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#0a0a0a';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                drawFileFreqAxis(ctx, canvas.width, canvas.height, sr);
+                fileStatus.textContent = _fileHas3axis
+                    ? '3축 CSV 감지 — 스펙트로그램·PSD·HVSR 모두 분석 가능합니다.'
+                    : '분석 시작 버튼을 눌러 결과를 생성합니다.';
             };
             reader.readAsText(file);
         }
 
+        // ── File play ─────────────────────────────────────────────────
         filePlayBtn.addEventListener('click', () => {
             if (!_csvRows) return;
             filePlayBtn.hidden  = true;
             fileResetBtn.hidden = true;
-            // Lock axis selector during playback
-            fileAxisSelector.querySelectorAll('.axis-btn').forEach(b => b.setAttribute('disabled', ''));
-            fileStatus.textContent = '분석 중... (전처리)';
+            fileStatus.textContent = '분석 중...';
 
             setTimeout(() => {
-                const canvas = document.getElementById('fileSpectroChart');
-                const ctx    = canvas.getContext('2d');
-                const W      = canvas.width;
-                const H      = canvas.height;
-                const DH     = H - FREQ_AXIS_H;
-                const sr     = _csvSr;
-                const rows   = _csvRows;
-                const axis   = _fileAxisMode;
+                const rows = _csvRows, sr = _csvSr;
 
-                // ── 전처리: 선택된 축으로 모든 FFT 행 계산 ─────
-                const wfRows = [];
-                for (let i = 0; i + FFT_SIZE <= rows.length; i += HOP_SIZE) {
-                    const samples = new Float32Array(FFT_SIZE);
-                    for (let j = 0; j < FFT_SIZE; j++) {
-                        const r = rows[i + j];
-                        samples[j] = parseFloat(
-                            axis === 'x' ? r.acc_x :
-                            axis === 'y' ? r.acc_y :
-                                           r.acc_z
-                        ) || 0;
-                    }
-                    wfRows.push(computeRow(samples, sr, W));
+                // Spectrogram: push all acc_z rows
+                SpectrogramModule.reset();
+                initCanvas(document.getElementById('fileSpectroChart'), SpectrogramModule, sr, null);
+                for (const row of rows)
+                    SpectrogramModule.push(parseFloat(row.acc_z) || 0, sr);
+                SpectrogramModule.startReview();
+
+                // PSD: Welch average from all rows
+                PsdModule.reset();
+                initCanvas(document.getElementById('filePsdChart'), PsdModule, sr);
+                PsdModule.computeFromRows(rows, sr, 'z');
+
+                // HVSR: Nakamura method (3축 CSV만)
+                if (_fileHas3axis) {
+                    HvsrModule.reset();
+                    initCanvas(document.getElementById('fileHvsrChart'), HvsrModule, sr);
+                    HvsrModule.computeFromRows(rows, sr);
                 }
 
-                fileStatus.textContent = '애니메이션 중...';
-                ctx.fillStyle = '#0a0a0a';
-                ctx.fillRect(0, 0, W, H);
-                drawFileFreqAxis(ctx, W, H, sr);
-
-                // Dynamic animation duration: up to 30s cap, proportional to data length
-                const durSec  = rows.length / sr;
-                const animSec = Math.min(Math.max(durSec * 0.15, 3), 30);
-
-                let drawn = 0;
-                const total = wfRows.length;
-                const start = performance.now();
-                let lastLabelSec = -2;
-
-                function frame(now) {
-                    const progress = Math.min((now - start) / (animSec * 1000), 1);
-                    const target   = Math.floor(progress * total);
-                    while (drawn < target) {
-                        if (DH > 1) {
-                            const existing = ctx.getImageData(0, 0, W, DH - 1);
-                            ctx.putImageData(existing, 0, 1);
-                        }
-                        ctx.putImageData(new ImageData(wfRows[drawn], W, 1), 0, 0);
-
-                        const elapsedSec = (drawn * HOP_SIZE) / sr;
-                        const labelSec   = Math.floor(elapsedSec / 2) * 2;
-                        if (labelSec > lastLabelSec) {
-                            lastLabelSec = labelSec;
-                            ctx.fillStyle = 'rgba(255,255,255,0.55)';
-                            ctx.font = '9px sans-serif';
-                            ctx.fillText(`${labelSec}s`, 2, 10);
-                        }
-                        drawn++;
-                    }
-                    if (drawn > 0) drawFileFreqAxis(ctx, W, H, sr);
-
-                    if (progress < 1) {
-                        _animRaf = requestAnimationFrame(frame);
-                    } else {
-                        fileStatus.textContent = '분석 완료.';
-                        fileResetBtn.hidden = false;
-                        fileAxisSelector.querySelectorAll('.axis-btn').forEach(b => b.removeAttribute('disabled'));
-                    }
-                }
-                _animRaf = requestAnimationFrame(frame);
+                fileStatus.textContent = '분석 완료. 탭을 눌러 결과를 확인하세요.';
+                fileResetBtn.hidden = false;
             }, 30);
         });
 
+        // ── File reset ────────────────────────────────────────────────
         fileResetBtn.addEventListener('click', () => {
-            if (_animRaf) { cancelAnimationFrame(_animRaf); _animRaf = null; }
-            _csvRows = null;
+            _csvRows = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
+            SpectrogramModule.reset();
+            PsdModule.reset();
+            HvsrModule.reset();
 
-            dropZone.hidden               = false;
-            csvFileInfo.hidden            = true;
-            fileAxisSelector.hidden       = true;
-            fileSpectroPanel.hidden       = true;
-            fileControls.hidden           = true;
-            fileInput.value               = '';
-            _fileHas3axis = false;
-            _fileAxisMode = 'z';
-
-            const canvas = document.getElementById('fileSpectroChart');
-            const ctx = canvas.getContext('2d');
-            if (ctx) { ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            dropZone.hidden         = false;
+            csvFileInfo.hidden      = true;
+            fileAnalysisTabs.hidden = true;
+            document.getElementById('file-spectro-panel').hidden = true;
+            document.getElementById('file-psd-panel').hidden     = true;
+            document.getElementById('file-hvsr-panel').hidden    = true;
+            fileControls.hidden     = true;
+            fileInput.value         = '';
+            fileHvsrTab.disabled    = false;
 
             fileStatus.textContent = 'CSV 파일을 선택하면 주파수 분석을 시작합니다.';
         });
 
-        // ═══════════════════════════════════════════════════════════
-        // TAB SWITCHING
-        // ═══════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════
+        // MAIN TAB SWITCHING
+        // ═════════════════════════════════════════════════════════════
         const tabSensor   = document.getElementById('tab-sensor');
         const tabFile     = document.getElementById('tab-file');
         const panelSensor = document.getElementById('panel-sensor');
@@ -611,6 +529,9 @@
                     _detachReviewEvents();
                     VisualModule.reset();
                     SpectrogramModule.reset();
+                    PsdModule.reset();
+                    HvsrModule.reset();
+                    _sensorInited = false;
                     sensorStartBtn.hidden = false;
                     sensorStopBtn.hidden  = true;
                     sensorResetBtn.hidden = true;
