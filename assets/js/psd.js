@@ -1,5 +1,5 @@
 /**
- * psd.js  v2.1
+ * psd.js  v2.2
  * Role   : Power Spectral Density (Welch's method, rolling average)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -274,10 +274,8 @@ const PsdModule = (() => {
         }
         if (count === 0) return;
 
-        _powerBuf.length = 0;
-        const avg = new Float32Array(FFT_SIZE / 2);
-        for (let b = 0; b < FFT_SIZE / 2; b++) avg[b] = sumPow[b] / count;
-        _powerBuf.push(avg);
+        _sumPow = sumPow;
+        _nWin   = count;
         _redraw();
     }
 
