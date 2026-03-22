@@ -186,7 +186,7 @@ const ReviewModule = (() => {
             const ms = String(d.getMilliseconds()).padStart(3, '0');
             return `${hh}:${mm}:${ss}.${ms}`;
         };
-        const label = `${fmt(_viewCenter - regionMs / 2)} ~ ${fmt(_viewCenter + regionMs / 2)}`;
+        const label = fmt(_viewCenter);
         _ctx.font      = '9px sans-serif';
         _ctx.fillStyle = 'rgba(255,255,255,0.75)';
         _ctx.textAlign = 'center';
