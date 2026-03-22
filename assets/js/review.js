@@ -186,11 +186,13 @@ const ReviewModule = (() => {
             const ms = String(d.getMilliseconds()).padStart(3, '0');
             return `${hh}:${mm}:${ss}.${ms}`;
         };
-        const label = fmt(_viewCenter);
-        _ctx.font      = '9px sans-serif';
-        _ctx.fillStyle = 'rgba(255,255,255,0.75)';
         _ctx.textAlign = 'center';
-        _ctx.fillText(label, w / 2, h - 20);
+        _ctx.font      = '9px sans-serif';
+        _ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        _ctx.fillText('관측 시간', w / 2, h - 32);
+        _ctx.font      = 'bold 12px sans-serif';
+        _ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        _ctx.fillText(fmt(_viewCenter), w / 2, h - 19);
         _ctx.textAlign = 'left';
     }
 

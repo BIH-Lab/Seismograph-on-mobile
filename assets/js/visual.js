@@ -20,17 +20,17 @@ const VisualModule = (() => {
     // Conversion: 1 %g = 0.0981 m/s²  (g = 9.81 m/s²)
     // XII는 PGV 기준만 정의 → PGA 검출 불가, XI+로 병합
     const MMI_LEVELS = [
-        { level: 'I',    name: '무감',     pgaMin: 0,        pgaMax: 0.00687,  color: '#303060' },
-        { level: 'II',   name: '미감',     pgaMin: 0.00687,  pgaMax: 0.02256,  color: '#1a6b8a' },
-        { level: 'III',  name: '약진',     pgaMin: 0.02256,  pgaMax: 0.07456,  color: '#1e90b0' },
-        { level: 'IV',   name: '경진',     pgaMin: 0.07456,  pgaMax: 0.25114,  color: '#2ecc71' },
-        { level: 'V',    name: '중진',     pgaMin: 0.25114,  pgaMax: 0.67297,  color: '#a0c820' },
-        { level: 'VI',   name: '강진',     pgaMin: 0.67297,  pgaMax: 1.44471,  color: '#f0d800' },
-        { level: 'VII',  name: '심한강진', pgaMin: 1.44471,  pgaMax: 3.10585,  color: '#f39c12' },
-        { level: 'VIII', name: '격진',     pgaMin: 3.10585,  pgaMax: 6.67178,  color: '#e74c3c' },
-        { level: 'IX',   name: '극렬',     pgaMin: 6.67178,  pgaMax: 14.3363,  color: '#c0392b' },
-        { level: 'X',    name: '대격진',   pgaMin: 14.3363,  pgaMax: 30.8034,  color: '#922b21' },
-        { level: 'XI+',  name: '완전파괴', pgaMin: 30.8034,  pgaMax: Infinity, color: '#7b241c' },
+        { level: 'I',    name: '무감',     desc: '대부분 사람들은 느낄 수 없으나, 지진계에는 기록된다.',                                                           pgaMin: 0,        pgaMax: 0.00687,  color: '#303060' },
+        { level: 'II',   name: '미감',     desc: '조용한 상태나 건물 위층에 있는 소수의 사람만 느낀다. 매달린 물체가 약하게 흔들린다.',                             pgaMin: 0.00687,  pgaMax: 0.02256,  color: '#1a6b8a' },
+        { level: 'III',  name: '약진',     desc: '실내, 특히 건물 위층에 있는 사람이 현저하게 느끼며, 정지하고 있는 차가 약간 흔들린다.',                           pgaMin: 0.02256,  pgaMax: 0.07456,  color: '#1e90b0' },
+        { level: 'IV',   name: '경진',     desc: '실내에서 많은 사람이 느끼고, 밤에는 잠에서 깨기도 하며, 그릇과 창문 등이 흔들린다.',                              pgaMin: 0.07456,  pgaMax: 0.25114,  color: '#2ecc71' },
+        { level: 'V',    name: '중진',     desc: '거의 모든 사람이 진동을 느끼고, 그릇·창문 등이 깨지기도 하며, 불안정한 물체는 넘어진다.',                          pgaMin: 0.25114,  pgaMax: 0.67297,  color: '#a0c820' },
+        { level: 'VI',   name: '강진',     desc: '모든 사람이 느끼고, 일부 무거운 가구가 움직이며, 벽의 석회가 떨어지기도 한다.',                                    pgaMin: 0.67297,  pgaMax: 1.44471,  color: '#f0d800' },
+        { level: 'VII',  name: '심한강진', desc: '일반 건물에 약간의 피해가 발생하며, 부실한 건물에는 상당한 피해가 발생한다.',                                       pgaMin: 1.44471,  pgaMax: 3.10585,  color: '#f39c12' },
+        { level: 'VIII', name: '격진',     desc: '일반 건물에 부분적 붕괴 등 상당한 피해가 발생하며, 부실한 건물에는 심각한 피해가 발생한다.',                        pgaMin: 3.10585,  pgaMax: 6.67178,  color: '#e74c3c' },
+        { level: 'IX',   name: '극렬',     desc: '잘 설계된 건물에도 상당한 피해가 발생하며, 일반 건축물에는 붕괴 등 큰 피해가 발생한다.',                            pgaMin: 6.67178,  pgaMax: 14.3363,  color: '#c0392b' },
+        { level: 'X',    name: '대격진',   desc: '대부분의 석조 및 골조 건물이 파괴되고, 기차선로가 휘어진다.',                                                       pgaMin: 14.3363,  pgaMax: 30.8034,  color: '#922b21' },
+        { level: 'XI+',  name: '완전파괴', desc: '남아있는 구조물이 거의 없으며, 다리가 무너지고 기차선로가 심각하게 휘어진다.',                                      pgaMin: 30.8034,  pgaMax: Infinity, color: '#7b241c' },
     ];
 
     // ── State ────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ const VisualModule = (() => {
         if (!_colorLocked) {
             const mmi = _zToMMI(pgaZ);
             if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
-            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name}`;
+            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level}`;
         }
 
         if (labelEl) labelEl.textContent = data.acc_z.toFixed(6);
@@ -259,7 +259,7 @@ const VisualModule = (() => {
         if (locked) {
             const mmi = _zToMMI(_peakMmiZ);
             if (bodyEl)     bodyEl.style.backgroundColor = mmi.color;
-            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} ${mmi.name} (고정)`;
+            if (mmiLevelEl) mmiLevelEl.textContent = `진도 ${mmi.level} (고정)`;
         }
     }
 

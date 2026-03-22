@@ -64,8 +64,8 @@
     </div>
 
     <script src="../assets/js/sensor.js?v=4.2"></script>
-    <script src="../assets/js/visual.js?v=4.4"></script>
-    <script src="../assets/js/review.js?v=4.5"></script>
+    <script src="../assets/js/visual.js?v=4.5"></script>
+    <script src="../assets/js/review.js?v=4.6"></script>
 
     <script>
         const startBtn     = document.getElementById('start-btn');
@@ -95,7 +95,7 @@
                     tr.innerHTML = `
                         <td style="background:${m.color};width:10px;border-radius:2px;"></td>
                         <td>${m.level}</td>
-                        <td>${m.name}</td>
+                        <td>${m.desc}</td>
                         <td>${pgaStr}</td>`;
                     mmiTable.appendChild(tr);
                 });
@@ -207,14 +207,14 @@
                                 // 고정 모드: 최대 진도만 갱신
                                 if (maxZ > _reviewPeakZ) {
                                     _reviewPeakZ = maxZ;
-                                    mmiLevelText.textContent           = `진도 ${level} ${name}`;
+                                    mmiLevelText.textContent           = `진도 ${level}`;
                                     magnitudeLabel.textContent         = maxZ.toFixed(6);
                                     bodyEl.style.backgroundColor       = VisualModule.getMmiColor(maxZ);
                                     colorDisplay.style.backgroundColor = '';
                                 }
                             } else {
                                 // 실시간 모드: 현재 구간 진도 표시
-                                mmiLevelText.textContent           = `진도 ${level} ${name}`;
+                                mmiLevelText.textContent           = `진도 ${level}`;
                                 magnitudeLabel.textContent         = maxZ.toFixed(6);
                                 bodyEl.style.backgroundColor       = VisualModule.getMmiColor(maxZ);
                                 colorDisplay.style.backgroundColor = '';
