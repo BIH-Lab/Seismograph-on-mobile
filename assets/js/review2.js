@@ -8,8 +8,9 @@
 const Review2Module = (() => {
 
     // ── Config ────────────────────────────────────────────────────
-    const WINDOW_SEC    = 10;
-    const MIN_RANGE     = 0.1;
+    const WINDOW_SEC_MIN = 1;
+    const WINDOW_SEC_MAX = 300;
+    const MIN_RANGE      = 0.1;
     const MARKER_HIT_PX = 24;
     const MARKER_COLOR  = 'rgba(255, 200, 60, 0.9)';
     const RANGE_FILL    = 'rgba(255, 200, 60, 0.08)';
@@ -30,14 +31,24 @@ const Review2Module = (() => {
     let _onRange   = null;
     let _rafId     = null;
 
+    // Viewport zoom
+    let _windowSec = 10;
+
     // Drag state
     let _dragTarget     = null;   // null | 'markerA' | 'markerB' | 'pan'
     let _dragStartX     = 0;
     let _dragStartView  = 0;
     let _dragStartTs    = 0;
 
+    // Pinch zoom state
+    const _pointers      = new Map();   // pointerId → { x, y }
+    let _pinchStartDist  = 0;
+    let _pinchStartWinMs = 0;
+    let _pinchAnchorTs   = null;
+    let _pinchAnchorFrac = 0;
+
     // ── Helpers ───────────────────────────────────────────────────
-    function _windowMs() { return WINDOW_SEC * 1000; }
+    function _windowMs() { return _windowSec * 1000; }
 
     function _pxOf(ts) {
         const w = _canvas.clientWidth || _canvas.width;
@@ -243,7 +254,11 @@ const Review2Module = (() => {
         _drawMarker(pxB, '종료', _markerB, w, h, false);
 
         // ── Time axis ─────────────────────────────────────────────
-        const stepMs   = 2000;
+        const stepMs = _windowSec <= 2  ?  200
+                     : _windowSec <= 5  ?  500
+                     : _windowSec <= 20 ? 2000
+                     : _windowSec <= 60 ? 5000
+                     : 10000;
         const firstTick = Math.ceil(_viewStart / stepMs) * stepMs;
         const dataStart = _data[0].ts;
         _ctx.fillStyle   = '#555';
@@ -295,33 +310,72 @@ const Review2Module = (() => {
         _rafId = requestAnimationFrame(_loop);
     }
 
+    // ── Pinch zoom ────────────────────────────────────────────────
+    function _pinchInit() {
+        const pts = [..._pointers.values()];
+        _pinchStartDist  = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        _pinchStartWinMs = _windowMs();
+
+        const rect = _canvas.getBoundingClientRect();
+        const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+        _pinchAnchorFrac = midX / _canvas.clientWidth;
+        _pinchAnchorTs   = _viewStart + _pinchAnchorFrac * _windowMs();
+    }
+
+    function _pinchUpdate() {
+        const pts  = [..._pointers.values()];
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        if (dist < 1) return;
+
+        const scale    = _pinchStartDist / dist;
+        const dataLen  = _data[_data.length - 1].ts - _data[0].ts;
+        const newWinMs = Math.min(
+            Math.max(_pinchStartWinMs * scale, WINDOW_SEC_MIN * 1000),
+            Math.min(WINDOW_SEC_MAX * 1000, dataLen || WINDOW_SEC_MIN * 1000)
+        );
+        _windowSec = newWinMs / 1000;
+        _viewStart = _clampView(_pinchAnchorTs - _pinchAnchorFrac * newWinMs);
+    }
+
     // ── Pointer events ────────────────────────────────────────────
     function _localX(e) {
         const rect = _canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        return clientX - rect.left;
+        return e.clientX - rect.left;
     }
 
     function _onPointerDown(e) {
         e.preventDefault();
-        const x     = _localX(e);
-        _dragTarget = _hitTest(x);
-        _dragStartX     = x;
-        _dragStartView  = _viewStart;
-        _dragStartTs    = _dragTarget === 'markerA' ? _markerA : _markerB;
+        _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (_pointers.size === 2) {
+            _dragTarget = null;
+            _pinchInit();
+        } else {
+            const x     = _localX(e);
+            _dragTarget = _hitTest(x);
+            _dragStartX    = x;
+            _dragStartView = _viewStart;
+            _dragStartTs   = _dragTarget === 'markerA' ? _markerA : _markerB;
+        }
     }
 
     function _onPointerMove(e) {
-        if (!_dragTarget) return;
         e.preventDefault();
-        const x   = _localX(e);
-        const dx  = x - _dragStartX;
+        _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (_pointers.size === 2) {
+            _pinchUpdate();
+            return;
+        }
+
+        if (!_dragTarget) return;
+        const x    = _localX(e);
+        const dx   = x - _dragStartX;
         const dtMs = dx * _tsPerPx();
 
         if (_dragTarget === 'pan') {
             _viewStart = _clampView(_dragStartView - dtMs);
         } else if (_dragTarget === 'markerA') {
-            const last = _data[_data.length - 1].ts;
             _markerA = Math.max(_data[0].ts, Math.min(_dragStartTs + dtMs, _markerB - 100));
             _reportRange();
         } else if (_dragTarget === 'markerB') {
@@ -331,7 +385,9 @@ const Review2Module = (() => {
     }
 
     function _onPointerUp(e) {
-        _dragTarget = null;
+        _pointers.delete(e.pointerId);
+        if (_pointers.size < 2) _pinchAnchorTs = null;
+        if (_pointers.size === 0) _dragTarget = null;
     }
 
     function _attachEvents() {
@@ -365,6 +421,7 @@ const Review2Module = (() => {
         _onRange  = onRange;
         _has3axis = (axisMode === '3axis');
 
+        _windowSec = 10;
         _markerA   = _data[0].ts;
         _markerB   = _data[_data.length - 1].ts;
         _viewStart = _clampView(_data[0].ts);
@@ -377,10 +434,13 @@ const Review2Module = (() => {
     function destroy() {
         if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
         if (_canvas) { _detachEvents(); }
-        _canvas  = null;
-        _ctx     = null;
-        _data    = [];
-        _onRange = null;
+        _canvas        = null;
+        _ctx           = null;
+        _data          = [];
+        _onRange       = null;
+        _pointers.clear();
+        _pinchAnchorTs = null;
+        _windowSec     = 10;
     }
 
     return { init, destroy };
