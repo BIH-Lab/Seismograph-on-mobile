@@ -80,6 +80,7 @@
         <a href="https://github.com/BIH-Lab/Seismograph-on-mobile" class="btn btn--ghost" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/BIH-Lab/Seismograph-on-mobile/discussions" class="btn btn--ghost" target="_blank" rel="noopener">토론</a>
         <button class="btn btn--ghost" id="how-to-btn">사용법</button>
+        <button class="btn btn--ghost" id="time-sync-btn">⏱ 시계 확인</button>
     </footer>
 
     <!-- 사용법 모달 -->
@@ -97,6 +98,23 @@
         </div>
     </div>
 
+    <!-- 시계 동기화 확인 모달 -->
+    <div class="modal" id="time-modal" hidden>
+        <div class="modal__box">
+            <h3>시계 동기화 확인</h3>
+            <div class="time-clock" id="live-clock">--:--:--.---</div>
+            <p class="modal__note">
+                모든 기기에서 동시에 이 화면을 열고 시각이 일치하는지 비교하세요.<br>
+                Activity 4 사용 전 권장합니다.
+            </p>
+            <div class="ntp-section">
+                <button class="btn btn--ghost btn--sm" id="ntp-btn">인터넷 시간과 비교</button>
+                <div class="ntp-result" id="ntp-result" hidden></div>
+            </div>
+            <button class="btn btn--primary" id="time-modal-close">닫기</button>
+        </div>
+    </div>
+
     <script>
         const howToBtn = document.getElementById('how-to-btn');
         const modal = document.getElementById('how-to-modal');
@@ -105,6 +123,74 @@
         howToBtn.addEventListener('click', () => { modal.hidden = false; });
         closeBtn.addEventListener('click', () => { modal.hidden = true; });
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+        // ── Clock sync modal ─────────────────────────────────────
+        const timeSyncBtn    = document.getElementById('time-sync-btn');
+        const timeModal      = document.getElementById('time-modal');
+        const timeModalClose = document.getElementById('time-modal-close');
+        const liveClock      = document.getElementById('live-clock');
+        const ntpBtn         = document.getElementById('ntp-btn');
+        const ntpResult      = document.getElementById('ntp-result');
+        let _clockTimer      = null;
+
+        function _startClock() {
+            _clockTimer = setInterval(() => {
+                const now = new Date();
+                const h  = String(now.getUTCHours()).padStart(2, '0');
+                const m  = String(now.getUTCMinutes()).padStart(2, '0');
+                const s  = String(now.getUTCSeconds()).padStart(2, '0');
+                const ms = String(now.getUTCMilliseconds()).padStart(3, '0');
+                liveClock.textContent = `${h}:${m}:${s}.${ms}`;
+            }, 100);
+        }
+
+        timeSyncBtn.addEventListener('click', () => {
+            timeModal.hidden   = false;
+            ntpResult.hidden   = true;
+            ntpBtn.disabled    = false;
+            ntpBtn.textContent = '인터넷 시간과 비교';
+            _startClock();
+        });
+
+        const _closeTimeModal = () => {
+            timeModal.hidden = true;
+            clearInterval(_clockTimer);
+        };
+        timeModalClose.addEventListener('click', _closeTimeModal);
+        timeModal.addEventListener('click', e => { if (e.target === timeModal) _closeTimeModal(); });
+
+        ntpBtn.addEventListener('click', async () => {
+            ntpBtn.disabled    = true;
+            ntpBtn.textContent = '확인 중…';
+            ntpResult.hidden   = true;
+            try {
+                const t1   = performance.now();
+                const resp = await fetch(
+                    'https://timeapi.io/api/time/current/zone?timeZone=UTC',
+                    { cache: 'no-store' }
+                );
+                const t2       = performance.now();
+                const json     = await resp.json();
+                const serverMs = new Date(json.dateTime.slice(0, 23) + 'Z').getTime();
+                const rtt      = Math.round(t2 - t1);
+                const clientMs = Math.round(performance.timeOrigin + t1 + rtt / 2);
+                const offset   = clientMs - serverMs;
+                const absOff   = Math.abs(offset);
+                const sign     = offset >= 0 ? '+' : '';
+                const cls  = absOff < 200  ? 'ntp-result--ok'
+                           : absOff < 1000 ? 'ntp-result--warn'
+                           :                 'ntp-result--err';
+                const icon = absOff < 200  ? '✅' : absOff < 1000 ? '⚠' : '❌';
+                ntpResult.className   = `ntp-result ${cls}`;
+                ntpResult.textContent = `${icon} 오차 ${sign}${offset} ms  (RTT ${rtt} ms)`;
+            } catch {
+                ntpResult.className   = 'ntp-result ntp-result--warn';
+                ntpResult.textContent = '인터넷 연결이 없습니다. 위 시계로 비교하세요.';
+            }
+            ntpResult.hidden   = false;
+            ntpBtn.disabled    = false;
+            ntpBtn.textContent = '다시 확인';
+        });
 
         // ── Station ID ────────────────────────────────────────────
         const stationInput  = document.getElementById('station-input');
