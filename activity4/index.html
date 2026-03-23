@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>주시곡선 탐사</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="activity4-body">
+
+    <header class="activity-header">
+        <a href="../" class="btn btn--ghost btn--sm">← 목록</a>
+        <h1>주시곡선 탐사 (굴절법)</h1>
+    </header>
+
+    <!-- Step progress indicator -->
+    <div class="step-nav" id="step-nav">
+        <div class="step-nav__item step-nav__item--active" id="snav-1">1<br><small>파일</small></div>
+        <div class="step-nav__arrow">→</div>
+        <div class="step-nav__item" id="snav-2">2<br><small>거리</small></div>
+        <div class="step-nav__arrow">→</div>
+        <div class="step-nav__item" id="snav-3">3<br><small>픽킹</small></div>
+        <div class="step-nav__arrow">→</div>
+        <div class="step-nav__item" id="snav-4">4<br><small>결과</small></div>
+    </div>
+
+    <main class="activity4-main">
+
+        <!-- ── Step 1: Load CSV files ──────────────────────────── -->
+        <section id="step1" class="step-section">
+            <div class="timing-warning">
+                ⚠ 스마트폰 시계 오차 ±50~200 ms가 결과에 영향을 줄 수 있습니다.
+                측선 간격 50 m 이상, 기록 시간 동기화를 권장합니다.
+            </div>
+
+            <h2 class="step-title">1단계: CSV 파일 로드</h2>
+            <p class="step-desc">Activity 2에서 저장한 CSV 파일을 여러 개 선택하세요 (최소 3개 권장).</p>
+
+            <div class="drop-zone" id="drop-zone">
+                <p class="drop-zone__text">CSV 파일을 여기에 드래그하거나</p>
+                <label class="btn btn--primary btn--sm" for="file-input">파일 선택 (복수)</label>
+                <input type="file" id="file-input" accept=".csv" multiple style="display:none">
+                <p class="drop-zone__hint">복수 선택 가능</p>
+            </div>
+
+            <div id="station-list"></div>
+
+            <div class="controls" id="step1-next" hidden>
+                <button class="btn btn--primary btn--lg" id="to-step2">다음: 거리 설정 →</button>
+            </div>
+        </section>
+
+        <!-- ── Step 2: Source designation & distances ──────────── -->
+        <section id="step2" class="step-section" hidden>
+            <h2 class="step-title">2단계: 진원 스테이션 지정</h2>
+            <p class="step-desc">탄성파 충격 지점에 있던 스테이션을 선택하세요. 이 스테이션의 초동이 t=0 기준입니다.</p>
+
+            <div class="source-opts" id="source-opts"></div>
+
+            <h3 class="sub-title">거리 확인 · 수정</h3>
+            <p class="step-desc" id="dist-note">GPS 좌표로 자동 계산된 거리입니다. 직접 수정할 수 있습니다.</p>
+            <div id="dist-list"></div>
+
+            <div class="controls">
+                <button class="btn btn--ghost btn--sm" id="back1">← 뒤로</button>
+                <button class="btn btn--primary btn--lg" id="to-step3">다음: 초동 픽킹 →</button>
+            </div>
+        </section>
+
+        <!-- ── Step 3: First-break picking ─────────────────────── -->
+        <section id="step3" class="step-section" hidden>
+            <h2 class="step-title">3단계: 초동 픽킹</h2>
+            <p class="step-desc">각 파형에서 신호가 처음 도달하는 위치를 클릭하세요. 진원 스테이션의 픽이 t=0이 됩니다.</p>
+
+            <div id="pick-list"></div>
+
+            <div class="controls">
+                <button class="btn btn--ghost btn--sm" id="back2">← 뒤로</button>
+                <button class="btn btn--primary btn--lg" id="to-step4" hidden>분석 →</button>
+            </div>
+        </section>
+
+        <!-- ── Step 4: Hodochron & Results ─────────────────────── -->
+        <section id="step4" class="step-section" hidden>
+            <h2 class="step-title">4단계: 주시곡선 & 결과</h2>
+
+            <div class="hodo-wrap">
+                <canvas id="hodoChart"></canvas>
+            </div>
+
+            <div class="segment-ctrl">
+                <span class="seg-label">직접파 ↔ 굴절파 경계:</span>
+                <strong id="split-val">—</strong>
+                <span class="seg-label">m</span>
+                <input type="range" id="split-slider" class="split-slider">
+            </div>
+            <p class="step-desc" style="text-align:center;font-size:0.78rem;">슬라이더로 직접파(파란색)와 굴절파(주황색) 구간을 조정하세요.</p>
+
+            <div class="results-grid" id="results-grid">
+                <div class="result-item">
+                    <div class="result-item__label">표층 P파 속도 V₁</div>
+                    <div class="result-item__value" id="res-v1">—</div>
+                    <div class="result-item__unit">m/s</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-item__label">기반층 P파 속도 V₂</div>
+                    <div class="result-item__value" id="res-v2">—</div>
+                    <div class="result-item__unit">m/s</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-item__label">표층 두께 h</div>
+                    <div class="result-item__value" id="res-h">—</div>
+                    <div class="result-item__unit">m</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-item__label">교차 거리 xc</div>
+                    <div class="result-item__value" id="res-xc">—</div>
+                    <div class="result-item__unit">m</div>
+                </div>
+            </div>
+            <p class="result-detail" id="res-detail"></p>
+
+            <div class="controls">
+                <button class="btn btn--ghost btn--sm" id="back3">← 다시 픽킹</button>
+                <button class="btn btn--ghost btn--sm" id="save-btn" hidden>결과 저장</button>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="../assets/js/hodochron.js?v=1.0"></script>
+    <script>
+        // ── State ────────────────────────────────────────────────────
+        let _stations  = [];  // [{filename,station_id,lat,lon,accuracy,sr,rows,dist,pickTime,pickFrac}]
+        let _sourceIdx = 0;
+
+        // ── Haversine distance (m) ────────────────────────────────────
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+            const dp = (lat2 - lat1) * Math.PI / 180;
+            const dl = (lon2 - lon1) * Math.PI / 180;
+            const a  = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // ── CSV parser ───────────────────────────────────────────────
+        function parseCSV(text) {
+            const meta = {}, rows = [];
+            let keys = null;
+            for (const raw of text.split('\n')) {
+                const line = raw.trim();
+                if (!line) continue;
+                if (line.startsWith('#')) {
+                    const m = line.slice(1).trim().match(/^(\w+)\s*:\s*(.+)$/);
+                    if (m) meta[m[1]] = m[2].trim();
+                } else if (!keys) {
+                    keys = line.split(',');
+                } else {
+                    const vals = line.split(',');
+                    if (vals.length < keys.length) continue;
+                    const row = {};
+                    keys.forEach((k, i) => { row[k] = vals[i]; });
+                    rows.push(row);
+                }
+            }
+            let sr = meta.sample_rate ? parseInt(meta.sample_rate) : null;
+            if (!sr && rows.length >= 2) {
+                const dt = new Date(rows[1].timestamp) - new Date(rows[0].timestamp);
+                if (dt > 0) sr = Math.round(1000 / dt);
+            }
+            return { meta, rows, sr: sr || 100 };
+        }
+
+        // ── Step navigation ──────────────────────────────────────────
+        function _showStep(n) {
+            [1, 2, 3, 4].forEach(i => {
+                document.getElementById(`step${i}`).hidden = (i !== n);
+                const nav = document.getElementById(`snav-${i}`);
+                nav.classList.toggle('step-nav__item--active', i === n);
+                nav.classList.toggle('step-nav__item--done',   i < n);
+            });
+            window.scrollTo(0, 0);
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // STEP 1 — File loading
+        // ════════════════════════════════════════════════════════════
+        const dropZone   = document.getElementById('drop-zone');
+        const fileInput  = document.getElementById('file-input');
+
+        dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drop-zone--hover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-zone--hover'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone--hover');
+            _loadFiles([...e.dataTransfer.files]);
+        });
+        fileInput.addEventListener('change', () => { _loadFiles([...fileInput.files]); fileInput.value = ''; });
+
+        function _loadFiles(files) {
+            const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv'));
+            if (!csvFiles.length) return;
+            let pending = csvFiles.length;
+            for (const file of csvFiles) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const { meta, rows, sr } = parseCSV(e.target.result);
+                    if (rows.length > 0) {
+                        const sid = (meta.station_id || file.name.replace(/\.csv$/i, '')).trim();
+                        if (!_stations.find(s => s.station_id === sid)) {
+                            _stations.push({
+                                filename:   file.name,
+                                station_id: sid,
+                                lat:        parseFloat(meta.latitude)  || null,
+                                lon:        parseFloat(meta.longitude) || null,
+                                accuracy:   parseFloat(meta.accuracy)  || 0,
+                                sr, rows,
+                                dist:     null,
+                                pickTime: null,
+                                pickFrac: null
+                            });
+                        }
+                    }
+                    if (--pending === 0) _afterLoad();
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function _afterLoad() {
+            const list = document.getElementById('station-list');
+            list.innerHTML = _stations.map(s => `
+                <div class="station-card">
+                    <strong class="station-card__id">${s.station_id}</strong>
+                    <span class="station-card__meta">
+                        ${s.lat !== null
+                            ? `${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}`
+                            : '<span class="text-warn">GPS 없음</span>'}
+                        &nbsp;·&nbsp; ${s.rows.length}샘플 (${(s.rows.length / s.sr).toFixed(1)}s)
+                    </span>
+                    <span class="station-card__file">${s.filename}</span>
+                </div>
+            `).join('');
+            document.getElementById('step1-next').hidden = _stations.length < 2;
+        }
+
+        document.getElementById('to-step2').addEventListener('click', () => {
+            _buildStep2();
+            _showStep(2);
+        });
+
+        // ════════════════════════════════════════════════════════════
+        // STEP 2 — Source selection + distances
+        // ════════════════════════════════════════════════════════════
+        function _buildStep2() {
+            _sourceIdx = 0;
+            const opts = document.getElementById('source-opts');
+            opts.innerHTML = _stations.map((s, i) => `
+                <label class="source-opt">
+                    <input type="radio" name="source" value="${i}" ${i === 0 ? 'checked' : ''}>
+                    <span>${s.station_id}
+                        ${s.lat !== null
+                            ? `<small>(${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})</small>`
+                            : '<small class="text-warn">(GPS 없음)</small>'}
+                    </span>
+                </label>
+            `).join('');
+            opts.querySelectorAll('input[name="source"]').forEach(r =>
+                r.addEventListener('change', () => {
+                    _sourceIdx = parseInt(r.value);
+                    _computeDistances();
+                })
+            );
+            _computeDistances();
+        }
+
+        function _computeDistances() {
+            const src = _stations[_sourceIdx];
+            for (const s of _stations) {
+                if (src.lat !== null && src.lon !== null && s.lat !== null && s.lon !== null) {
+                    s.dist = haversine(src.lat, src.lon, s.lat, s.lon);
+                } else {
+                    s.dist = null;
+                }
+            }
+            _renderDistList();
+        }
+
+        function _renderDistList() {
+            const distList = document.getElementById('dist-list');
+            const hasGPS = _stations[_sourceIdx].lat !== null;
+            document.getElementById('dist-note').textContent = hasGPS
+                ? 'GPS 좌표로 자동 계산된 거리입니다. 직접 수정할 수 있습니다.'
+                : '진원 스테이션에 GPS 좌표가 없습니다. 거리를 직접 입력하세요.';
+
+            distList.innerHTML = _stations.map((s, i) => `
+                <div class="dist-row">
+                    <span class="dist-row__id">${s.station_id}
+                        ${i === _sourceIdx ? '<span class="source-badge">진원</span>' : ''}
+                    </span>
+                    <input class="dist-input" type="number" id="dinp-${i}" min="0" step="0.1"
+                        value="${s.dist !== null ? s.dist.toFixed(1) : ''}"
+                        placeholder="거리 (m)">
+                    <span class="dist-row__unit">m</span>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('to-step3').addEventListener('click', () => {
+            // Apply any manual distance overrides
+            for (let i = 0; i < _stations.length; i++) {
+                const inp = document.getElementById(`dinp-${i}`);
+                if (inp) {
+                    const v = parseFloat(inp.value);
+                    if (!isNaN(v)) _stations[i].dist = v;
+                }
+            }
+            if (_stations.some(s => s.dist === null || isNaN(s.dist))) {
+                alert('모든 스테이션의 거리를 입력해주세요.');
+                return;
+            }
+            _buildStep3();
+            _showStep(3);
+        });
+
+        document.getElementById('back1').addEventListener('click', () => _showStep(1));
+
+        // ════════════════════════════════════════════════════════════
+        // STEP 3 — First-break picking
+        // ════════════════════════════════════════════════════════════
+        function _buildStep3() {
+            const pickList = document.getElementById('pick-list');
+            pickList.innerHTML = '';
+            // Sort by distance
+            const sorted = [..._stations].sort((a, b) => a.dist - b.dist);
+            for (const s of sorted) {
+                const origIdx = _stations.indexOf(s);
+                pickList.appendChild(_createPickCard(s, origIdx));
+            }
+        }
+
+        function _createPickCard(s, idx) {
+            const isSource = (idx === _sourceIdx);
+            const div = document.createElement('div');
+            div.className = 'pick-card' + (isSource ? ' pick-card--source' : '');
+            div.id = `pcard-${idx}`;
+            div.innerHTML = `
+                <div class="pick-card__hdr">
+                    <span class="pick-card__id">${s.station_id}${isSource ? ' <span class="source-badge">진원</span>' : ''}</span>
+                    <span class="pick-card__dist">${s.dist.toFixed(0)} m</span>
+                    <span class="pick-card__time" id="ptime-${idx}">클릭하여 픽</span>
+                </div>
+                <div class="pick-card__wave">
+                    <canvas id="pcanvas-${idx}" height="68"></canvas>
+                </div>`;
+
+            // Defer canvas setup until element is in DOM
+            requestAnimationFrame(() => {
+                const canvas = document.getElementById(`pcanvas-${idx}`);
+                if (!canvas) return;
+                canvas.width = canvas.clientWidth || 300;
+                _drawWave(canvas, s.rows, s.pickFrac);
+                canvas.style.cursor = 'crosshair';
+
+                canvas.addEventListener('click', e => {
+                    const rect = canvas.getBoundingClientRect();
+                    const xFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    const rowIdx = Math.min(Math.round(xFrac * (s.rows.length - 1)), s.rows.length - 1);
+                    s.pickTime = new Date(s.rows[rowIdx].timestamp).getTime();
+                    s.pickFrac = xFrac;
+                    _drawWave(canvas, s.rows, xFrac);
+                    document.getElementById(`ptime-${idx}`).textContent =
+                        new Date(s.pickTime).toISOString().slice(11, 23);
+                    div.classList.add('pick-card--picked');
+                    _checkAllPicked();
+                });
+
+                if (s.pickFrac !== null) div.classList.add('pick-card--picked');
+            });
+            return div;
+        }
+
+        function _drawWave(canvas, rows, pickFrac) {
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const key = rows[0]
+                ? (rows[0].acc_z !== undefined ? 'acc_z'
+                 : rows[0].acc_x !== undefined ? 'acc_x' : null)
+                : null;
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, W, H);
+
+            if (!key || rows.length === 0) return;
+
+            let maxAbs = 0;
+            for (const r of rows) maxAbs = Math.max(maxAbs, Math.abs(parseFloat(r[key]) || 0));
+            maxAbs = Math.max(maxAbs, 0.001);
+
+            const midY   = H / 2;
+            const yScale = (H * 0.44) / maxAbs;
+
+            ctx.strokeStyle = '#242424'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke();
+
+            ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            const n = rows.length;
+            for (let i = 0; i < n; i++) {
+                const v = parseFloat(rows[i][key]) || 0;
+                const x = (i / (n - 1)) * W;
+                const y = midY - v * yScale;
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            if (pickFrac !== null && pickFrac !== undefined) {
+                ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(pickFrac * W, 0); ctx.lineTo(pickFrac * W, H); ctx.stroke();
+            }
+        }
+
+        function _checkAllPicked() {
+            const allPicked = _stations.every(s => s.pickTime !== null);
+            document.getElementById('to-step4').hidden = !allPicked;
+        }
+
+        document.getElementById('back2').addEventListener('click', () => _showStep(2));
+        document.getElementById('to-step4').addEventListener('click', () => {
+            _buildStep4();
+            _showStep(4);
+        });
+
+        // ════════════════════════════════════════════════════════════
+        // STEP 4 — Hodochron & Results
+        // ════════════════════════════════════════════════════════════
+        function _buildStep4() {
+            const sourcePick = _stations[_sourceIdx].pickTime;
+
+            // Build point list, warn on negatives
+            const points = _stations.map(s => ({
+                dist:  s.dist,
+                t:     s.pickTime - sourcePick,
+                label: s.station_id,
+                accM:  s.accuracy || 0
+            })).sort((a, b) => a.dist - b.dist);
+
+            const negCount = points.filter(p => p.t < -10).length;
+            const detail = document.getElementById('res-detail');
+            if (negCount > 0) {
+                detail.textContent =
+                    `⚠ ${negCount}개 스테이션의 도달 시간이 음수입니다. NTP 시계 오차일 수 있습니다.`;
+                detail.style.color = 'var(--danger)';
+            } else {
+                detail.textContent = '';
+                detail.style.color = '';
+            }
+
+            const hodoCanvas = document.getElementById('hodoChart');
+            hodoCanvas.width  = hodoCanvas.clientWidth  || 340;
+            hodoCanvas.height = hodoCanvas.clientHeight || 240;
+            HodochronModule.init(hodoCanvas);
+            HodochronModule.setData(points);
+
+            const dists = points.map(p => p.dist).sort((a, b) => a - b);
+            const slider = document.getElementById('split-slider');
+            slider.min   = Math.floor(dists[0]);
+            slider.max   = Math.ceil(dists[dists.length - 1]);
+            const mid    = Math.round((dists[0] + dists[dists.length - 1]) / 2);
+            slider.value = mid;
+
+            _updateSplit(mid, points);
+            slider.oninput = () => _updateSplit(parseInt(slider.value), points);
+        }
+
+        function _updateSplit(distM, points) {
+            document.getElementById('split-val').textContent = distM;
+            const result = HodochronModule.setSplit(distM);
+            if (result) {
+                document.getElementById('res-v1').textContent = result.V1.toLocaleString();
+                document.getElementById('res-v2').textContent = result.V2.toLocaleString();
+                document.getElementById('res-h').textContent  = result.h.toFixed(1);
+                document.getElementById('res-xc').textContent = result.xc;
+                const d = document.getElementById('res-detail');
+                if (!d.textContent.startsWith('⚠')) {
+                    d.textContent =
+                        `직접파 R²=${result.r2_1} · 굴절파 R²=${result.r2_2} · ti=${result.ti} s`;
+                    d.style.color = 'var(--muted)';
+                }
+                document.getElementById('save-btn').hidden = false;
+            } else {
+                document.getElementById('res-v1').textContent = '—';
+                document.getElementById('res-v2').textContent = '—';
+                document.getElementById('res-h').textContent  = '—';
+                document.getElementById('res-xc').textContent = '—';
+                const d = document.getElementById('res-detail');
+                if (!d.textContent.startsWith('⚠')) {
+                    d.textContent = '각 구간에 최소 2개 이상의 점이 필요합니다.';
+                    d.style.color = 'var(--muted)';
+                }
+            }
+        }
+
+        document.getElementById('back3').addEventListener('click', () => _showStep(3));
+
+        document.getElementById('save-btn').addEventListener('click', () => {
+            const src = _stations[_sourceIdx];
+            const lines = [
+                '# Activity 4 — 주시곡선 탐사 결과',
+                `# 생성: ${new Date().toISOString()}`,
+                `# 진원: ${src.station_id}`,
+                `# V1: ${document.getElementById('res-v1').textContent} m/s`,
+                `# V2: ${document.getElementById('res-v2').textContent} m/s`,
+                `# h: ${document.getElementById('res-h').textContent} m`,
+                `# xc: ${document.getElementById('res-xc').textContent} m`,
+                'station_id,dist_m,pick_iso,travel_ms'
+            ];
+            for (const s of _stations) {
+                lines.push(`${s.station_id},${s.dist.toFixed(1)},` +
+                    `${new Date(s.pickTime).toISOString()},${s.pickTime - src.pickTime}`);
+            }
+            const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+            const a    = document.createElement('a');
+            a.href     = URL.createObjectURL(blob);
+            a.download = `hodochron_${new Date().toISOString().slice(0, 16).replace('T', '_')}.csv`;
+            a.click();
+        });
+    </script>
+
+</body>
+</html>

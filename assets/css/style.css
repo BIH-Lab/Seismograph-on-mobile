@@ -588,6 +588,203 @@ html, body {
 }
 
 /* ===================================
+   Activity 4 — 주시곡선 탐사
+=================================== */
+.activity4-body {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+/* Step progress nav */
+.step-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px var(--gap);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.step-nav__item {
+    min-width: 52px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    line-height: 1.2;
+}
+.step-nav__item small { font-size: 0.68rem; font-weight: 400; display: block; }
+.step-nav__item--active { border-color: var(--primary); color: var(--primary); }
+.step-nav__item--done   { background: var(--primary); border-color: var(--primary); color: #000; }
+.step-nav__arrow { color: var(--border); font-size: 0.9rem; }
+
+/* Main content column */
+.activity4-main {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: var(--gap);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Step section */
+.step-section { display: flex; flex-direction: column; gap: 14px; }
+.step-title { font-size: 1rem; color: var(--accent); }
+.sub-title  { font-size: 0.9rem; color: var(--text); margin-top: 4px; }
+.step-desc  { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+
+/* Timing warning */
+.timing-warning {
+    padding: 10px 14px;
+    background: rgba(255, 71, 87, 0.10);
+    border: 1px solid rgba(255, 71, 87, 0.35);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: var(--danger);
+    line-height: 1.5;
+}
+
+/* Station card (step 1) */
+.station-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+.station-card__id   { font-weight: 700; color: var(--text); }
+.station-card__meta { color: var(--muted); flex: 1; }
+.station-card__file { font-size: 0.76rem; color: var(--border); width: 100%; }
+.text-warn          { color: var(--danger); }
+
+/* Source radio options (step 2) */
+.source-opts { display: flex; flex-direction: column; gap: 8px; }
+.source-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+.source-opt input[type="radio"] { accent-color: var(--primary); }
+.source-opt small { color: var(--muted); font-size: 0.78rem; }
+.source-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Distance rows (step 2) */
+.dist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+}
+.dist-row__id   { flex: 1; }
+.dist-row__unit { color: var(--muted); }
+.dist-input {
+    width: 90px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.88rem;
+    padding: 5px 10px;
+    outline: none;
+    text-align: right;
+}
+.dist-input:focus { border-color: var(--primary); }
+
+/* Pick cards (step 3) */
+.pick-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+}
+.pick-card--source  { border-color: var(--accent); }
+.pick-card--picked  { border-color: var(--primary); }
+.pick-card__hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    font-size: 0.83rem;
+    border-bottom: 1px solid var(--border);
+}
+.pick-card__id   { font-weight: 700; flex: 1; }
+.pick-card__dist { color: var(--muted); white-space: nowrap; }
+.pick-card__time { color: var(--primary); font-size: 0.78rem; white-space: nowrap; }
+.pick-card__wave { height: 68px; background: #111; }
+.pick-card__wave canvas { width: 100% !important; height: 100% !important; display: block; }
+
+/* Hodochron canvas (step 4) */
+.hodo-wrap {
+    width: 100%;
+    height: 260px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: #0a0a0a;
+}
+.hodo-wrap canvas { width: 100% !important; height: 100% !important; display: block; }
+
+/* Segment slider (step 4) */
+.segment-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+.seg-label   { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+.split-slider { flex: 1; accent-color: var(--primary); }
+
+/* Results grid (step 4) */
+.results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.result-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+.result-item__label { font-size: 0.75rem; color: var(--muted); margin-bottom: 2px; }
+.result-item__value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+.result-item__unit  { font-size: 0.76rem; color: var(--muted); }
+.result-detail {
+    font-size: 0.79rem;
+    color: var(--muted);
+    text-align: center;
+    min-height: 1.2em;
+}
+
+
+/* ===================================
    PC 반응형 (768px+)
 =================================== */
 @media (min-width: 768px) {
