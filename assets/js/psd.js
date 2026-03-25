@@ -1,5 +1,5 @@
 /**
- * psd.js  v2.2
+ * psd.js  v2.3
  * Role   : Power Spectral Density (Welch's method, rolling average)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -48,8 +48,9 @@ const PsdModule = (() => {
     let _buf    = new Float32Array(FFT_SIZE);
     let _head   = 0;
     let _hopCount = 0;
-    let _sumPow = null;  // Float32Array(FFT_SIZE/2) — cumulative power sum
-    let _nWin   = 0;     // number of accumulated windows
+    let _sumPow    = null;  // Float32Array(FFT_SIZE/2) — cumulative power sum
+    let _nWin      = 0;     // number of accumulated windows
+    let _dispDbMax = DB_MAX; // sticky auto-scale ceiling (only moves up)
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -126,8 +127,25 @@ const PsdModule = (() => {
         const fMax = Math.min(50, nyq);
         const logRange = Math.log10(fMax / F_MIN);
 
-        function fx(f)   { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
-        function dby(db) { return PAD_T + PH - Math.round((db - DB_MIN) / (DB_MAX - DB_MIN) * PH); }
+        function fx(f) { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
+
+        // Auto-scale: compute display range from current averaged data
+        const avg0 = _averagedPsd();
+        if (avg0) {
+            let dataMax = DB_MIN;
+            for (let b = 1; b < FFT_SIZE / 2; b++) {
+                const f = b * _sr / FFT_SIZE;
+                if (f < F_MIN || f > fMax) continue;
+                const db = avg0[b] > 0 ? 10 * Math.log10(avg0[b]) : DB_MIN;
+                if (db > dataMax) dataMax = db;
+            }
+            if (dataMax > _dispDbMax - 10)
+                _dispDbMax = Math.ceil((dataMax + 15) / 20) * 20;
+        }
+        const dispMax = _dispDbMax;
+        const dispMin = dispMax - 100;
+
+        function dby(db) { return PAD_T + PH - Math.round((db - dispMin) / (dispMax - dispMin) * PH); }
 
         // Background
         _ctx.fillStyle = '#0a0a0a';
@@ -136,7 +154,7 @@ const PsdModule = (() => {
         // Grid
         _ctx.strokeStyle = '#1e1e1e';
         _ctx.lineWidth   = 1;
-        for (let db = DB_MIN; db <= DB_MAX; db += 20) {
+        for (let db = dispMin; db <= dispMax; db += 20) {
             const y = dby(db);
             _ctx.beginPath(); _ctx.moveTo(PAD_L, y); _ctx.lineTo(PAD_L + PW, y); _ctx.stroke();
         }
@@ -150,7 +168,7 @@ const PsdModule = (() => {
         _ctx.fillStyle = '#666';
         _ctx.font      = '9px sans-serif';
         _ctx.textAlign = 'right';
-        for (let db = DB_MIN; db <= DB_MAX; db += 20)
+        for (let db = dispMin; db <= dispMax; db += 20)
             _ctx.fillText(`${db}`, PAD_L - 4, dby(db) + 3);
 
         // Y axis title
@@ -169,7 +187,7 @@ const PsdModule = (() => {
         });
 
         // PSD curve
-        const avg = _averagedPsd();
+        const avg = avg0 || _averagedPsd();
         if (!avg) return;
 
         _ctx.strokeStyle = '#00d2d3';
@@ -179,8 +197,8 @@ const PsdModule = (() => {
         for (let b = 1; b < FFT_SIZE / 2; b++) {
             const f = b * _sr / FFT_SIZE;
             if (f < F_MIN || f > fMax) continue;
-            const db = avg[b] > 0 ? 10 * Math.log10(avg[b]) : DB_MIN;
-            const y  = dby(Math.max(DB_MIN, Math.min(DB_MAX, db)));
+            const db = avg[b] > 0 ? 10 * Math.log10(avg[b]) : dispMin;
+            const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
             if (!started) { _ctx.moveTo(fx(f), y); started = true; }
             else           _ctx.lineTo(fx(f), y);
         }
@@ -224,10 +242,11 @@ const PsdModule = (() => {
 
     function reset() {
         _buf.fill(0);
-        _head     = 0;
-        _hopCount = 0;
-        _sumPow   = null;
-        _nWin     = 0;
+        _head      = 0;
+        _hopCount  = 0;
+        _sumPow    = null;
+        _nWin      = 0;
+        _dispDbMax = DB_MAX;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);

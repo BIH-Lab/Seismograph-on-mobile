@@ -1,5 +1,5 @@
 /**
- * spectrogram.js  v3.0
+ * spectrogram.js  v3.1
  * Role   : Real-time FFT spectrogram Canvas rendering (horizontal waterfall)
  * Input  : acc_z samples via push()
  * Output : Canvas 2D waterfall — X axis = time (oldest left → newest right)
@@ -20,8 +20,8 @@ const SpectrogramModule = (() => {
     const HOP_SIZE    = 26;   // new samples per FFT frame (~90% overlap)
     const MAX_FREQ    = 100;  // Hz display ceiling; clipped to Nyquist at runtime
     const WINDOW_SEC  = 30;   // seconds of history kept and displayed
-    const LOG_MIN     = -3;   // log10 amplitude floor  (0.001 m/s²)
-    const LOG_MAX     = -1;   // log10 amplitude ceiling (0.1 m/s²)
+    const LOG_MIN     = -5;   // log10 amplitude floor  (0.00001 m/s²)
+    const LOG_MAX     = 0;    // log10 amplitude ceiling (1.0 m/s²)
     const FREQ_AXIS_W = 30;   // px reserved at left for frequency labels
     const TIME_AXIS_H = 12;   // px reserved at bottom for time labels
 
