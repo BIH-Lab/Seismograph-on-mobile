@@ -17,6 +17,7 @@ const SensorModule = (() => {
     let _onStatus     = null;
     let _running      = false;
     let _sensorSource = null;   // 'linear' | 'accel' | 'devicemotion' | null
+    let _ntpOffset    = 0;      // ms, read from localStorage once per start()
 
     // ── Calibration ───────────────────────────────────────────────
     const WARMUP_MS     = 3000; // discard samples for 3 s after start (absorb touch vibration)
@@ -74,7 +75,7 @@ const SensorModule = (() => {
         const magnitude = Math.sqrt(acc_x ** 2 + acc_y ** 2 + acc_z ** 2);
 
         if (_onData) _onData({
-            timestamp   : new Date(tsMs).toISOString(),
+            timestamp   : new Date(tsMs - _ntpOffset).toISOString(),
             acc_x,
             acc_y,
             acc_z,
@@ -196,8 +197,9 @@ const SensorModule = (() => {
      */
     function start(onData, onError, onStatus) {
         if (_running) return;
-        _onData   = onData;
-        _onStatus = onStatus || null;
+        _onData    = onData;
+        _onStatus  = onStatus || null;
+        _ntpOffset = parseInt(localStorage.getItem('ntp_offset_ms')) || 0;
         _resetCalib();
 
         if (typeof LinearAccelerationSensor !== 'undefined') {

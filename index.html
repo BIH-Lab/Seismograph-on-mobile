@@ -110,6 +110,8 @@
             <div class="ntp-section">
                 <button class="btn btn--ghost btn--sm" id="ntp-btn">인터넷 시간과 비교</button>
                 <div class="ntp-result" id="ntp-result" hidden></div>
+                <button class="btn btn--primary btn--sm" id="sync-apply-btn" hidden>동기화 저장</button>
+                <div class="sync-status" id="sync-status"></div>
             </div>
             <button class="btn btn--primary" id="time-modal-close">닫기</button>
         </div>
@@ -131,7 +133,28 @@
         const liveClock      = document.getElementById('live-clock');
         const ntpBtn         = document.getElementById('ntp-btn');
         const ntpResult      = document.getElementById('ntp-result');
+        const syncApplyBtn   = document.getElementById('sync-apply-btn');
+        const syncStatus     = document.getElementById('sync-status');
         let _clockTimer      = null;
+
+        function _showSyncStatus() {
+            const off = localStorage.getItem('ntp_offset_ms');
+            const at  = localStorage.getItem('ntp_synced_at');
+            if (off !== null && at) {
+                const sign = Number(off) >= 0 ? '+' : '';
+                syncStatus.className   = 'sync-status sync-status--ok';
+                syncStatus.textContent = `✅ 저장됨: ${sign}${off} ms  (${at.slice(0, 16).replace('T', ' ')})`;
+            } else {
+                syncStatus.className   = 'sync-status sync-status--none';
+                syncStatus.textContent = '저장된 동기화 없음';
+            }
+        }
+
+        function _updateFooterBadge() {
+            timeSyncBtn.textContent =
+                localStorage.getItem('ntp_offset_ms') !== null ? '⏱ 시계 확인 ✅' : '⏱ 시계 확인';
+        }
+        _updateFooterBadge();
 
         function _startClock() {
             _clockTimer = setInterval(() => {
@@ -147,8 +170,10 @@
         timeSyncBtn.addEventListener('click', () => {
             timeModal.hidden   = false;
             ntpResult.hidden   = true;
+            syncApplyBtn.hidden = true;
             ntpBtn.disabled    = false;
             ntpBtn.textContent = '인터넷 시간과 비교';
+            _showSyncStatus();
             _startClock();
         });
 
@@ -183,13 +208,25 @@
                 const icon = absOff < 200  ? '✅' : absOff < 1000 ? '⚠' : '❌';
                 ntpResult.className   = `ntp-result ${cls}`;
                 ntpResult.textContent = `${icon} 오차 ${sign}${offset} ms  (RTT ${rtt} ms)`;
+                syncApplyBtn.dataset.offset = String(offset);
+                syncApplyBtn.hidden = false;
             } catch {
                 ntpResult.className   = 'ntp-result ntp-result--warn';
                 ntpResult.textContent = '인터넷 연결이 없습니다. 위 시계로 비교하세요.';
+                syncApplyBtn.hidden = true;
             }
             ntpResult.hidden   = false;
             ntpBtn.disabled    = false;
             ntpBtn.textContent = '다시 확인';
+        });
+
+        syncApplyBtn.addEventListener('click', () => {
+            const off = parseInt(syncApplyBtn.dataset.offset);
+            localStorage.setItem('ntp_offset_ms', String(off));
+            localStorage.setItem('ntp_synced_at', new Date().toISOString());
+            syncApplyBtn.hidden = true;
+            _showSyncStatus();
+            _updateFooterBadge();
         });
 
         // ── Station ID ────────────────────────────────────────────

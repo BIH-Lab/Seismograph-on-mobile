@@ -105,8 +105,23 @@
             _axisMode = axisCheckbox.checked ? '3axis' : 'z';
         });
 
+        // ── NTP 오프셋 조회 (3초 타임아웃) ───────────────────────
+        async function _syncNtp() {
+            const t1   = performance.now();
+            const resp = await Promise.race([
+                fetch('https://timeapi.io/api/time/current/zone?timeZone=UTC', { cache: 'no-store' }),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+            ]);
+            const t2    = performance.now();
+            const json  = await resp.json();
+            const srvMs = new Date(json.dateTime.slice(0, 23) + 'Z').getTime();
+            const rtt   = Math.round(t2 - t1);
+            const cliMs = Math.round(performance.timeOrigin + t1 + rtt / 2);
+            return { offset: cliMs - srvMs, rtt };
+        }
+
         // ── 측정 시작 ─────────────────────────────────────────────
-        startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', async () => {
             if (_inReview) {
                 Review2Module.destroy();
                 _inReview = false;
@@ -119,7 +134,6 @@
             _metaRateSet            = false;
             _resetStopBtn();
             _setAxisToggleLocked(true);
-            statusMsg.textContent = 'GPS 위치 확인 중...';
             ExportModule.clear();
 
             if (typeof VisualModule !== 'undefined') {
@@ -132,7 +146,27 @@
             if (stationId) ExportModule.setMeta({ station_id: stationId });
             ExportModule.setMeta({ axis_mode: _axisMode });
 
+            // ── NTP 동기화 ────────────────────────────────────────
+            statusMsg.textContent = 'NTP 동기화 중…';
+            try {
+                const { offset } = await _syncNtp();
+                localStorage.setItem('ntp_offset_ms', String(offset));
+                localStorage.setItem('ntp_synced_at', new Date().toISOString());
+                const sign = offset >= 0 ? '+' : '';
+                statusMsg.textContent = `✅ NTP 동기화: ${sign}${offset} ms`;
+            } catch {
+                const stored = localStorage.getItem('ntp_offset_ms');
+                statusMsg.textContent = stored !== null
+                    ? `⚠ NTP 실패 (저장된 오프셋 ${stored} ms 사용)`
+                    : '⚠ NTP 실패 (오프셋 없이 기록)';
+            }
+
+            // NTP 오프셋을 CSV 메타데이터에 포함
+            const ntpOff = localStorage.getItem('ntp_offset_ms');
+            if (ntpOff !== null) ExportModule.setMeta({ ntp_offset_ms: ntpOff });
+
             // 1. GPS 취득 → 2. 센서 시작
+            statusMsg.textContent += ' — GPS 확인 중…';
             GpsModule.get()
                 .then((coords) => {
                     gpsLat.textContent = coords.latitude;

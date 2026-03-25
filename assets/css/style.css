@@ -617,6 +617,16 @@ html, body {
 .ntp-result--warn { color: var(--accent);  background: rgba(255, 159,  67, 0.12); }
 .ntp-result--err  { color: var(--danger);  background: rgba(255,  71,  87, 0.12); }
 
+.sync-status {
+    font-size: 0.82rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 4px;
+}
+.sync-status--ok   { color: var(--primary); background: rgba(46,213,115,0.10); }
+.sync-status--none { color: var(--muted); }
+
 
 /* ===================================
    Activity 4 — 주시곡선 탐사
