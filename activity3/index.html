@@ -78,10 +78,11 @@
                 <span id="csv-sr">—</span>
             </div>
 
-            <!-- 파형 캔버스 (파일 모드, 분석 완료 후 표시) -->
+            <!-- 파형 캔버스 (파일 모드) -->
             <div class="chart-wrapper" style="height:15vh;max-height:120px;" id="file-wave-wrapper" hidden>
                 <canvas id="fileWaveChart"></canvas>
             </div>
+            <p class="status-msg" id="sel-range-info" hidden></p>
 
             <!-- 분석 탭 (파일) -->
             <div class="analysis-tabs" id="file-analysis-tabs" hidden>
@@ -311,6 +312,15 @@
             else if (_sensorSnapshot) _drawSensorWave(startSample, winSamples);
         }
 
+        function _updateSelInfo() {
+            if (!_waveRows || _analysisComplete) return;
+            const N = _reviewTotal;
+            const s0 = Math.max(0, (N - _reviewOffset - _reviewCols) * HOP_SIZE);
+            const s1 = Math.min(_waveRows.length, Math.max(0, (N - _reviewOffset)) * HOP_SIZE);
+            const t0 = s0 / _waveSr, t1 = s1 / _waveSr;
+            selInfo.textContent = `선택 구간: ${fmtTime(t0)} ~ ${fmtTime(t1)} (${(t1-t0).toFixed(1)}s) — 드래그·핀치로 구간 조정`;
+        }
+
         function _onWaveDown(e) {
             e.preventDefault();
             _waveCanvas.setPointerCapture(e.pointerId);
@@ -338,8 +348,9 @@
                 const deltaCols = dx * _reviewCols / Math.max(1, SW);
                 const { o, c } = _reviewClamp(_reviewOffset + deltaCols, _reviewCols);
                 _reviewOffset = o; _reviewCols = c;
-                SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                if (_analysisComplete) SpectrogramModule.setView(_reviewOffset, _reviewCols);
                 _syncWave();
+                if (!_analysisComplete) _updateSelInfo();
             } else if (_reviewPointers.size === 2) {
                 const pts = [..._reviewPointers.values()];
                 const dist = Math.abs(pts[0].x - pts[1].x);
@@ -351,8 +362,9 @@
                     newCols
                 );
                 _reviewOffset = o; _reviewCols = c;
-                SpectrogramModule.setView(_reviewOffset, _reviewCols);
+                if (_analysisComplete) SpectrogramModule.setView(_reviewOffset, _reviewCols);
                 _syncWave();
+                if (!_analysisComplete) _updateSelInfo();
             }
         }
         function _onWaveUp(e) {
@@ -594,10 +606,12 @@
         const csvSr            = document.getElementById('csv-sr');
         const fileHvsrTab      = document.getElementById('file-hvsr-tab');
 
-        let _csvRows       = null;
-        let _csvSr         = 100;
-        let _fileHas3axis  = false;
-        let _fileActiveTab = 'spectro';
+        let _csvRows          = null;
+        let _csvSr            = 100;
+        let _fileHas3axis     = false;
+        let _fileActiveTab    = 'spectro';
+        let _analysisComplete = false;
+        const selInfo         = document.getElementById('sel-range-info');
 
         // ── File analysis tab switching ───────────────────────────────
         fileAnalysisTabs.querySelectorAll('.analysis-tabs__btn')
@@ -655,9 +669,25 @@
                 filePlayBtn.hidden  = false;
                 fileResetBtn.hidden = true;
 
-                fileStatus.textContent = _fileHas3axis
-                    ? '3축 CSV 감지 — 스펙트로그램·PSD·HVSR 모두 분석 가능합니다.'
-                    : '분석 시작 버튼을 눌러 결과를 생성합니다.';
+                // ── Stage 1: 즉시 파형 표시 ─────────────────────────────
+                _detachWaveEvents();
+                _analysisComplete = false;
+                _waveRows = rows; _waveSr = sr;
+                _reviewTotal  = Math.ceil(rows.length / HOP_SIZE);
+                _reviewCols   = Math.min(_reviewTotal, Math.ceil(sr * 30 / HOP_SIZE));
+                _reviewOffset = 0;
+
+                const fileWaveWrapper = document.getElementById('file-wave-wrapper');
+                const fileWaveCanvas  = document.getElementById('fileWaveChart');
+                fileWaveWrapper.hidden = false;
+                fileWaveCanvas.width  = fileWaveCanvas.clientWidth  || 300;
+                fileWaveCanvas.height = fileWaveCanvas.clientHeight || 120;
+                _syncWave();
+                _attachWaveEvents(fileWaveCanvas);
+                selInfo.hidden = false;
+                _updateSelInfo();
+
+                fileStatus.textContent = '드래그·핀치로 분석 구간을 선택하고 "분석 시작"을 누르세요.';
             };
             reader.readAsText(file);
         }
@@ -667,52 +697,66 @@
             if (!_csvRows) return;
             filePlayBtn.hidden  = true;
             fileResetBtn.hidden = true;
-            fileStatus.textContent = '분석 중...';
+            selInfo.hidden      = true;
+            _detachWaveEvents();
 
+            // 현재 뷰포트 → 선택 구간 샘플 인덱스 추출
+            const N        = _reviewTotal;
+            const selStart = Math.max(0, (N - _reviewOffset - _reviewCols) * HOP_SIZE);
+            const selEnd   = Math.min(_csvRows.length, Math.max(0, (N - _reviewOffset)) * HOP_SIZE);
+            const selRows  = _csvRows.slice(selStart, selEnd);
+            const sr       = _csvSr;
+
+            // ── Step 1: 스펙트로그램 ───────────────────────────────
+            fileStatus.textContent = '① 스펙트로그램 계산 중...';
             setTimeout(() => {
-                const rows = _csvRows, sr = _csvSr;
-
-                // Spectrogram: push all acc_z rows
                 SpectrogramModule.reset();
                 initCanvas(document.getElementById('fileSpectroChart'), SpectrogramModule, sr, null);
-                for (const row of rows)
+                for (const row of selRows)
                     SpectrogramModule.push(parseFloat(row.acc_z) || 0, sr);
                 SpectrogramModule.startReview();
                 _reviewTotal  = SpectrogramModule.historyLength();
                 _reviewCols   = _reviewTotal;
                 _reviewOffset = 0;
 
-                // PSD: Welch average from all rows
-                PsdModule.reset();
-                initCanvas(document.getElementById('filePsdChart'), PsdModule, sr);
-                PsdModule.computeFromRows(rows, sr, 'z');
+                // ── Step 2: PSD ────────────────────────────────────
+                fileStatus.textContent = '② PSD 계산 중...';
+                setTimeout(() => {
+                    PsdModule.reset();
+                    initCanvas(document.getElementById('filePsdChart'), PsdModule, sr);
+                    PsdModule.computeFromRows(selRows, sr, 'z');
 
-                // HVSR: Nakamura method (3축 CSV만)
-                if (_fileHas3axis) {
-                    HvsrModule.reset();
-                    initCanvas(document.getElementById('fileHvsrChart'), HvsrModule, sr);
-                    HvsrModule.computeFromRows(rows, sr);
-                }
+                    // ── Step 3: HVSR ───────────────────────────────
+                    fileStatus.textContent = '③ HVSR 계산 중...';
+                    setTimeout(() => {
+                        if (_fileHas3axis) {
+                            HvsrModule.reset();
+                            initCanvas(document.getElementById('fileHvsrChart'), HvsrModule, sr);
+                            HvsrModule.computeFromRows(selRows, sr);
+                        }
 
-                // 파형 캔버스 초기화 및 표시
-                _waveRows = rows; _waveSr = sr;
-                const fileWaveWrapper = document.getElementById('file-wave-wrapper');
-                const fileWaveCanvas  = document.getElementById('fileWaveChart');
-                fileWaveWrapper.hidden = false;
-                fileWaveCanvas.width  = fileWaveCanvas.clientWidth  || 300;
-                fileWaveCanvas.height = fileWaveCanvas.clientHeight || 120;
-                _drawFileWave(0, rows.length);
-                _attachWaveEvents(document.getElementById('fileWaveChart'));
+                        // ── 완료 ──────────────────────────────────
+                        _analysisComplete = true;
+                        _waveRows = selRows; _waveSr = sr;
+                        const fwc = document.getElementById('fileWaveChart');
+                        fwc.width  = fwc.clientWidth  || 300;
+                        fwc.height = fwc.clientHeight || 120;
+                        _drawFileWave(0, selRows.length);
+                        _attachWaveEvents(fwc);
 
-                fileStatus.textContent = '분석 완료. 탭을 눌러 결과를 확인하세요.';
-                fileResetBtn.hidden = false;
-            }, 30);
+                        fileStatus.textContent = '분석 완료. 탭을 눌러 결과를 확인하세요.';
+                        fileResetBtn.hidden = false;
+                    }, 20);
+                }, 20);
+            }, 20);
         });
 
         // ── File reset ────────────────────────────────────────────────
         fileResetBtn.addEventListener('click', () => {
             _detachReviewEvents();
             _detachWaveEvents();
+            _analysisComplete = false;
+            selInfo.hidden = true;
             document.getElementById('file-wave-wrapper').hidden = true;
             _waveRows = null;
             _csvRows = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
