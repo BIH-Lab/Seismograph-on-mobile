@@ -165,6 +165,15 @@
             return `${m}:${String(s).padStart(2, '0')}`;
         }
 
+        function fmtAbsTime(sec) {
+            if (!_fileStartTime || isNaN(_fileStartTime)) return fmtTime(sec);
+            const d = new Date(_fileStartTime + sec * 1000);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
         // ── Lazy canvas init: show panel briefly to get correct clientWidth ──
         function initCanvas(canvasEl, module, ...args) {
             const panel = canvasEl.parentElement;
@@ -253,7 +262,7 @@
             const step = durSec <= 5 ? 1 : durSec <= 30 ? 5 : durSec <= 120 ? 10 : 30;
             for (let t = Math.ceil(startSec / step) * step; t <= endSec; t += step) {
                 const px = PAD_L + (t - startSec) / durSec * PW;
-                ctx.fillText(`${t}s`, Math.max(PAD_L + 12, Math.min(px, W - 12)), H - 2);
+                ctx.fillText(fmtAbsTime(t), Math.max(PAD_L + 12, Math.min(px, W - 12)), H - 2);
             }
         }
 
@@ -318,7 +327,7 @@
             const s0 = Math.max(0, (N - _reviewOffset - _reviewCols) * HOP_SIZE);
             const s1 = Math.min(_waveRows.length, Math.max(0, (N - _reviewOffset)) * HOP_SIZE);
             const t0 = s0 / _waveSr, t1 = s1 / _waveSr;
-            selInfo.textContent = `선택 구간: ${fmtTime(t0)} ~ ${fmtTime(t1)} (${(t1-t0).toFixed(1)}s) — 드래그·핀치로 구간 조정`;
+            selInfo.textContent = `선택 구간: ${fmtAbsTime(t0)} ~ ${fmtAbsTime(t1)} (${(t1-t0).toFixed(1)}s) — 드래그·핀치로 구간 조정`;
         }
 
         function _onWaveDown(e) {
@@ -611,6 +620,7 @@
         let _fileHas3axis     = false;
         let _fileActiveTab    = 'spectro';
         let _analysisComplete = false;
+        let _fileStartTime    = 0;   // epoch ms of _waveRows[0].timestamp; 0 if unavailable
         const selInfo         = document.getElementById('sel-range-info');
 
         // ── File analysis tab switching ───────────────────────────────
@@ -673,6 +683,7 @@
                 _detachWaveEvents();
                 _analysisComplete = false;
                 _waveRows = rows; _waveSr = sr;
+                _fileStartTime = (rows[0]?.timestamp) ? new Date(rows[0].timestamp).getTime() : 0;
                 _reviewTotal  = Math.ceil(rows.length / HOP_SIZE);
                 _reviewCols   = Math.min(_reviewTotal, Math.ceil(sr * 30 / HOP_SIZE));
                 _reviewOffset = 0;
@@ -738,6 +749,7 @@
                         // ── 완료 ──────────────────────────────────
                         _analysisComplete = true;
                         _waveRows = selRows; _waveSr = sr;
+                        _fileStartTime = (selRows[0]?.timestamp) ? new Date(selRows[0].timestamp).getTime() : 0;
                         const fwc = document.getElementById('fileWaveChart');
                         fwc.width  = fwc.clientWidth  || 300;
                         fwc.height = fwc.clientHeight || 120;
@@ -756,6 +768,7 @@
             _detachReviewEvents();
             _detachWaveEvents();
             _analysisComplete = false;
+            _fileStartTime = 0;
             selInfo.hidden = true;
             document.getElementById('file-wave-wrapper').hidden = true;
             _waveRows = null;
