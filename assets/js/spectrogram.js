@@ -1,5 +1,5 @@
 /**
- * spectrogram.js  v3.1
+ * spectrogram.js  v3.2
  * Role   : Real-time FFT spectrogram Canvas rendering (horizontal waterfall)
  * Input  : acc_z samples via push()
  * Output : Canvas 2D waterfall — X axis = time (oldest left → newest right)
@@ -9,7 +9,7 @@
  *
  * Algorithm  : Cooley-Tukey radix-2 DIT FFT
  * Window     : Hann (spectral leakage suppression)
- * Color map  : Viridis-style LUT (dark purple → blue → teal → yellow)
+ * Color map  : Seismic-style LUT (black → blue → cyan → green → yellow → orange → red)
  * Rendering  : History-based full redraw (column-per-frame, horizontal scroll)
  */
 
@@ -82,14 +82,16 @@ const SpectrogramModule = (() => {
         }
     }
 
-    // ── Viridis-style color LUT (256 entries) ─────────────────────
+    // ── Seismic-style color LUT (256 entries) ─────────────────────
     const _lut = (() => {
         const stops = [
-            [ 68,   1,  84],
-            [ 59,  82, 139],
-            [ 33, 145, 140],
-            [ 94, 201,  98],
-            [253, 231,  37],
+            [  0,   0,   0],   // black      — no signal
+            [  0,   0, 200],   // blue
+            [  0, 160, 255],   // cyan-blue
+            [  0, 255, 120],   // cyan-green
+            [255, 255,   0],   // yellow
+            [255,  80,   0],   // orange
+            [255,   0,   0],   // red        — max signal
         ];
         const lut = new Uint8Array(256 * 3);
         for (let i = 0; i < 256; i++) {
