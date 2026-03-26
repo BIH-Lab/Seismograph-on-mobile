@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.4
+ * hvsr.js  v1.5
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -49,7 +49,7 @@ const HvsrModule = (() => {
     let _sumH2      = null;  // accumulated (|FFT_x|² + |FFT_y|²)/2 per bin
     let _sumV2      = null;  // accumulated |FFT_z|² per bin
     let _nWin       = 0;     // number of accumulated windows
-    let _hvDispMax  = 4;     // auto-scale Y ceiling (only moves up, min 4)
+    let _hvDispMax  = 2;     // auto-scale Y ceiling (only moves up, min 2)
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -161,7 +161,7 @@ const HvsrModule = (() => {
             for (let b = 1; b < FFT_SIZE / 2; b++)
                 if (hv[b] > dataMax) dataMax = hv[b];
             if (dataMax > _hvDispMax * 0.85)
-                _hvDispMax = Math.max(4, Math.ceil(dataMax * 1.3));
+                _hvDispMax = Math.max(2, Math.ceil(dataMax * 1.3));
         }
 
         function hvy(hvVal) {
@@ -175,7 +175,10 @@ const HvsrModule = (() => {
         // Grid
         _ctx.strokeStyle = '#1e1e1e';
         _ctx.lineWidth   = 1;
-        const gridStep = _hvDispMax <= 8 ? 2 : _hvDispMax <= 20 ? 4 : 5;
+        const gridStep = _hvDispMax <= 2  ? 0.5
+                       : _hvDispMax <= 5  ? 1
+                       : _hvDispMax <= 10 ? 2
+                       : _hvDispMax <= 20 ? 4 : 5;
         for (let v = 0; v <= _hvDispMax; v += gridStep) {
             const y = hvy(v);
             _ctx.beginPath(); _ctx.moveTo(PAD_L, y); _ctx.lineTo(PAD_L + PW, y); _ctx.stroke();
@@ -302,7 +305,7 @@ const HvsrModule = (() => {
         _sumH2      = null;
         _sumV2      = null;
         _nWin       = 0;
-        _hvDispMax  = 4;
+        _hvDispMax  = 2;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
