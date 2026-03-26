@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.5
+ * hvsr.js  v1.6
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -49,7 +49,7 @@ const HvsrModule = (() => {
     let _sumH2      = null;  // accumulated (|FFT_x|² + |FFT_y|²)/2 per bin
     let _sumV2      = null;  // accumulated |FFT_z|² per bin
     let _nWin       = 0;     // number of accumulated windows
-    let _hvDispMax  = 2;     // auto-scale Y ceiling (only moves up, min 2)
+    let _hvDispMax  = 2;     // display Y ceiling, recomputed each redraw from data
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -160,8 +160,10 @@ const HvsrModule = (() => {
             let dataMax = 0;
             for (let b = 1; b < FFT_SIZE / 2; b++)
                 if (hv[b] > dataMax) dataMax = hv[b];
-            if (dataMax > _hvDispMax * 0.85)
-                _hvDispMax = Math.max(2, Math.ceil(dataMax * 1.3));
+            const target = dataMax * 1.1;
+            _hvDispMax = target <= 2  ? Math.max(1, Math.ceil(target * 2) / 2)
+                       : target <= 10 ? Math.ceil(target)
+                       :                Math.ceil(target / 2) * 2;
         }
 
         function hvy(hvVal) {
