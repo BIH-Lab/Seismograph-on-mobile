@@ -586,6 +586,16 @@ html, body {
     opacity: 0.35;
     pointer-events: none;
 }
+.analysis-info-btn {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
 
 /* ===================================
    시계 동기화 모달

@@ -34,6 +34,7 @@
                 <button class="analysis-tabs__btn analysis-tabs__btn--active" data-analysis="spectro">스펙트로그램</button>
                 <button class="analysis-tabs__btn" data-analysis="psd">PSD</button>
                 <button class="analysis-tabs__btn" data-analysis="hvsr">HVSR</button>
+                <button class="btn btn--sm analysis-info-btn" id="sensor-info-btn">?</button>
             </div>
 
             <!-- 분석 캔버스 -->
@@ -89,6 +90,7 @@
                 <button class="analysis-tabs__btn analysis-tabs__btn--active" data-analysis="spectro">스펙트로그램</button>
                 <button class="analysis-tabs__btn" data-analysis="psd">PSD</button>
                 <button class="analysis-tabs__btn" data-analysis="hvsr" id="file-hvsr-tab">HVSR</button>
+                <button class="btn btn--sm analysis-info-btn" id="file-info-btn">?</button>
             </div>
 
             <!-- 분석 캔버스 (파일) -->
@@ -109,6 +111,55 @@
             <p class="status-msg" id="file-status">CSV 파일을 선택하면 주파수 분석을 시작합니다.</p>
 
         </div>
+
+    <!-- 스펙트로그램 설명 모달 -->
+    <div class="modal" id="modal-spectro" hidden>
+        <div class="modal__box">
+            <h3>스펙트로그램</h3>
+            <p class="modal__note">시간의 흐름에 따라 각 주파수에 담긴 에너지를 색상으로 표시합니다.</p>
+            <ol>
+                <li><strong>X축</strong> — 시간 (오른쪽=현재, 왼쪽=과거)</li>
+                <li><strong>Y축</strong> — 주파수 (Hz)</li>
+                <li><strong>색상</strong> — 검정→파랑→초록→노랑→빨강 순으로 에너지 증가</li>
+                <li>지진파 도달 시 특정 주파수 대역에서 밝은 색이 갑자기 나타납니다</li>
+            </ol>
+            <p class="modal__note">FFT 크기: 256, 홉: 26샘플 (~97.5% 오버랩), 표시 범위: 30초</p>
+            <button class="btn btn--ghost" id="modal-spectro-close">닫기</button>
+        </div>
+    </div>
+
+    <!-- PSD 설명 모달 -->
+    <div class="modal" id="modal-psd" hidden>
+        <div class="modal__box">
+            <h3>PSD (Power Spectral Density)</h3>
+            <p class="modal__note">각 주파수에 얼마나 많은 에너지가 담겨 있는지 측정합니다.</p>
+            <ol>
+                <li><strong>X축</strong> — 주파수 (로그 스케일, Hz)</li>
+                <li><strong>Y축</strong> — 에너지 밀도 (dB re 1 m²/s⁴/Hz)</li>
+                <li>여러 시간 구간을 평균내어 안정적인 스펙트럼을 계산합니다 (Welch 방법)</li>
+                <li>뾰족한 봉우리: 특정 주파수의 강한 신호 (기계 진동, 지반 공진 등)</li>
+            </ol>
+            <p class="modal__note">FFT 크기: 1024 (Δf ≈ 0.1 Hz), Hann 윈도우, DC 제거 적용</p>
+            <button class="btn btn--ghost" id="modal-psd-close">닫기</button>
+        </div>
+    </div>
+
+    <!-- HVSR 설명 모달 -->
+    <div class="modal" id="modal-hvsr" hidden>
+        <div class="modal__box">
+            <h3>HVSR (수평/수직 스펙트럼 비율)</h3>
+            <p class="modal__note">수평 진동과 수직 진동의 스펙트럼 비율로 지반 공진 주파수를 추정합니다.</p>
+            <ol>
+                <li><strong>X축</strong> — 주파수 (로그 스케일, Hz)</li>
+                <li><strong>Y축</strong> — H/V 비율</li>
+                <li>H/V 비율이 높은 주파수 = 지반 공진 주파수 (f₀) 후보</li>
+                <li>f₀ ≥ 2.0 이상의 뚜렷한 피크일 때 신뢰도 높음</li>
+                <li>3축 CSV 파일 (acc_x, acc_y, acc_z) 이 필요합니다</li>
+            </ol>
+            <p class="modal__note">파일 모드: Konno-Ohmachi 스무딩 (b=40), 50% 오버랩, 정상성 필터 적용</p>
+            <button class="btn btn--ghost" id="modal-hvsr-close">닫기</button>
+        </div>
+    </div>
 
     </main>
 
@@ -207,6 +258,24 @@
                 document.getElementById('sensor-hvsr-panel').hidden    = _sensorActiveTab !== 'hvsr';
                 peakFreqDisplay.hidden = _sensorActiveTab !== 'spectro';
             }));
+
+        // ── Analysis info modals ─────────────────────────────────────
+        const _infoModals = {
+            spectro: document.getElementById('modal-spectro'),
+            psd:     document.getElementById('modal-psd'),
+            hvsr:    document.getElementById('modal-hvsr'),
+        };
+        function _openInfoModal(activeTab) {
+            const modal = _infoModals[activeTab] || _infoModals.spectro;
+            modal.hidden = false;
+        }
+        ['spectro', 'psd', 'hvsr'].forEach(key => {
+            const modal = _infoModals[key];
+            modal.querySelector('button').addEventListener('click', () => { modal.hidden = true; });
+            modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+        });
+        document.getElementById('sensor-info-btn').addEventListener('click', () => _openInfoModal(_sensorActiveTab));
+        document.getElementById('file-info-btn').addEventListener('click',   () => _openInfoModal(_fileActiveTab));
 
         // ── Review mode (horizontal pan/pinch) ───────────────────────
         const _reviewPointers = new Map();
