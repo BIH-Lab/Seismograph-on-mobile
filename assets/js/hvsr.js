@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v1.6
+ * hvsr.js  v1.7
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -158,8 +158,11 @@ const HvsrModule = (() => {
         const hv = _computeHvsr();
         if (hv) {
             let dataMax = 0;
-            for (let b = 1; b < FFT_SIZE / 2; b++)
+            for (let b = 1; b < FFT_SIZE / 2; b++) {
+                const f = b * _sr / FFT_SIZE;
+                if (f < F_MIN || f > fMax) continue;
                 if (hv[b] > dataMax) dataMax = hv[b];
+            }
             const target = dataMax * 1.1;
             _hvDispMax = target <= 2  ? Math.max(1, Math.ceil(target * 2) / 2)
                        : target <= 10 ? Math.ceil(target)
