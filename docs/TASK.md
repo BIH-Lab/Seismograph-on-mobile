@@ -5,12 +5,51 @@
 ---
 
 ## 현재 단계
-**Cycle 3 완료 + 후속 수정 완료, Cycle 4 진입 준비 중** (2026-03-23)
+**Cycle 3 완료 + QA 개선 완료, Cycle 4 진입 준비 중** (2026-03-26)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
 - Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + 재구성 완료 (2026-03-23)
 - Cycle 3 후속 수정 완료 (2026-03-23): psd.js v2.2, hvsr.js v1.2, 파일 모드 재설계
+- Cycle 3 추가 QA 개선 완료 (2026-03-26): 스펙트로그램 포화·컬러맵·오토스케일·NTP
 - Cycle 4 진입 준비 완료
+
+---
+
+## Cycle 3 추가 QA 개선 (2026-03-26 완료)
+
+### index.html (root) — NTP 시계 동기화 저장 기능
+- [x] 시계 동기화 확인 모달 추가 (ntpBtn → 서버 시간 비교)
+- [x] "동기화 저장" 버튼 — offset을 localStorage(`ntp_offset_ms`, `ntp_synced_at`)에 저장
+- [x] 저장 후 footer 버튼 텍스트에 ✅ 표시 (_updateFooterBadge)
+- [x] 저장된 동기화 상태 표시 (.sync-status — 저장일시 + offset ms)
+- [x] sensor.js NTP offset 자동 적용 (측정 시작 시 타임스탬프 보정)
+
+### spectrogram.js v3.1 — 스펙트로그램 포화 해소
+- [x] LOG 범위 확장: LOG_MIN=-3→-5, LOG_MAX=-1→0 (5 디케이드, 0.00001~1.0 m/s²)
+- [x] 일반 손떨림 수준 신호도 부분 포화 없이 표시
+
+### spectrogram.js v3.2 — Seismic jet 컬러맵
+- [x] Viridis-style LUT → Seismic-style jet LUT (7 stops)
+- [x] 검정(무신호) → 파랑 → 시안 → 녹색 → 노랑 → 주황 → 빨강(최대)
+- [x] 지진학 표준 (ObsPy, MATLAB seismic toolbox 동일 계열)
+
+### psd.js v2.3 — Y축 오토스케일
+- [x] `_dispDbMax` 상태 변수 추가 (sticky: 데이터 최대값 기반 상향 갱신만)
+- [x] `dispMax = _dispDbMax`, `dispMin = dispMax - 100` (항상 100 dB 범위)
+- [x] 강한 신호가 뷰 밖으로 나가지 않도록 자동 조정
+- [x] `reset()`에 `_dispDbMax = DB_MAX` 추가
+
+### hvsr.js v1.3 → v1.4 — Y축 오토스케일 + HV_MAX 제거
+- [x] `HV_MAX = 10` 고정 상수 제거
+- [x] `_hvDispMax` 상태 변수 추가 (최솟값 4, 데이터 기반 상향 갱신)
+- [x] H/V > 10 인 강한 공진도 클리핑 없이 표시
+- [x] `reset()`에 `_hvDispMax = 4` 추가
+
+### activity3/index.html — 정지 후 인터랙션 개선
+- [x] 스펙트로그램 정지 후 스크롤 버그 수정: 초기 뷰 30초→10초 (팬 공간 확보)
+- [x] 센서 모드 정지 후 파형 리뷰 추가: `_sensorSnapshot`, `_drawSensorWave()`, `_attachWaveEvents(canvasEl)`
+- [x] 정지 후 스펙트로그램+파형 동기 드래그·핀치 가능
+- [x] 상태 메시지: "측정 정지됨. 드래그·핀치로 파형과 스펙트로그램을 탐색하세요."
 
 ---
 
