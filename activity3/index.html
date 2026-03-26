@@ -494,6 +494,8 @@
             // Clean up previous state (handles re-start after stop, and file→sensor transition)
             _detachReviewEvents();
             _detachWaveEvents();
+            _waveRows = null;        // clear any file-mode wave data so _syncWave uses sensor path
+            _sensorSnapshot = null;
             SpectrogramModule.reset();
             PsdModule.reset();
             HvsrModule.reset();
