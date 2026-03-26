@@ -1,5 +1,5 @@
 /**
- * psd.js  v2.3
+ * psd.js  v2.4
  * Role   : Power Spectral Density (Welch's method, rolling average)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -31,6 +31,24 @@ const PsdModule = (() => {
 
     // Padding (px)
     const PAD_L = 40, PAD_R = 10, PAD_T = 10, PAD_B = 20;
+
+    // ── Peterson (1993) Noise Models ──────────────────────────────
+    // P(T) = A + B * log10(T)   [dB re 1 (m/s²)²/Hz]
+    // T: period breakpoints (s); valid range 0.10 – 10000 s
+    // Source: Peterson (1993) Open-File Report 93-322, Table 1
+    const _NLNM = {
+        T: [0.10, 0.17, 0.40, 0.80, 1.24, 2.40, 4.30, 5.00, 6.00,
+            10.0, 12.0, 15.6, 21.9, 31.6, 45.0, 70.0, 101., 154., 328., 600., 10000.],
+        A: [-162.36, -166.7, -170.0, -166.4, -168.6, -159.98, -141.1, -71.36, -97.26,
+            -132.18, -205.27, 250.20, -10.44, -93.11, 86.132, -31.51, 79.61, -6.80, -4.69, 0.0, 0.0],
+        B: [5.64, 0.0, -8.3, 28.9, 52.48, 29.81, 0.0, -99.77, 52.48,
+            29.81, 0.0, -168.35, 9.44, 49.15, -32.51, -8.29, 22.26, 42.21, 21.13, 7.74, 0.0]
+    };
+    const _NHNM = {
+        T: [0.10, 0.22, 0.32, 0.80, 3.80, 4.60, 6.30, 7.90, 15.4, 20.0, 354.8, 10000.],
+        A: [-108.73, -150.34, -122.31, -116.85, -108.48, -74.66, 0.66, -93.37, 73.54, -151.52, -206.66, 0.0],
+        B: [-17.23, -2.17, -20.79, 26.91, 10.01, -1.30, -72.40, 30.12, -23.99, 31.43, 8.22, 0.0]
+    };
 
     // ── Hann window + energy normalization constant ────────────────
     const _hann = new Float32Array(FFT_SIZE);
@@ -106,6 +124,18 @@ const PsdModule = (() => {
         return pow;
     }
 
+    // ── Peterson (1993) model evaluation ─────────────────────────
+    // Returns PSD in dB re 1 (m/s²)²/Hz for frequency f (Hz), or null if out of range.
+    function _petersonDb(model, f) {
+        if (f <= 0) return null;
+        const T  = 1 / f;
+        const Ts = model.T;
+        if (T < Ts[0] || T > Ts[Ts.length - 1]) return null;
+        let i = 0;
+        while (i < Ts.length - 2 && T >= Ts[i + 1]) i++;
+        return model.A[i] + model.B[i] * Math.log10(T);
+    }
+
     // ── Compute averaged PSD from accumulated sum ─────────────────
     function _averagedPsd() {
         if (!_sumPow || _nWin === 0) return null;
@@ -163,6 +193,37 @@ const PsdModule = (() => {
             const x = fx(f);
             _ctx.beginPath(); _ctx.moveTo(x, PAD_T); _ctx.lineTo(x, PAD_T + PH); _ctx.stroke();
         });
+
+        // NLNM / NHNM reference lines (Peterson 1993)
+        function _drawPeterson(model, color, label) {
+            _ctx.strokeStyle = color;
+            _ctx.lineWidth   = 1;
+            _ctx.setLineDash([4, 4]);
+            _ctx.beginPath();
+            let started = false;
+            let lastX = PAD_L, lastY = PAD_T;
+            for (let b = 1; b < FFT_SIZE / 2; b++) {
+                const f  = b * _sr / FFT_SIZE;
+                if (f < F_MIN || f > fMax) continue;
+                const db = _petersonDb(model, f);
+                if (db === null) { started = false; continue; }
+                const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
+                const x  = fx(f);
+                if (!started) { _ctx.moveTo(x, y); started = true; }
+                else           _ctx.lineTo(x, y);
+                lastX = x; lastY = y;
+            }
+            _ctx.stroke();
+            _ctx.setLineDash([]);
+            if (started) {
+                _ctx.fillStyle = color;
+                _ctx.font      = '8px sans-serif';
+                _ctx.textAlign = 'left';
+                _ctx.fillText(label, Math.min(lastX + 2, PAD_L + PW - 30), lastY - 2);
+            }
+        }
+        _drawPeterson(_NHNM, 'rgba(200, 80, 80, 0.5)',  'NHNM');
+        _drawPeterson(_NLNM, 'rgba(80, 180, 80, 0.5)',  'NLNM');
 
         // Y axis labels (dB)
         _ctx.fillStyle = '#666';
