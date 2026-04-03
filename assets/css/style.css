@@ -596,6 +596,11 @@ html, body {
     border-radius: var(--radius);
     cursor: pointer;
 }
+.psd-controls {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 6px 2px;
+}
 
 /* ===================================
    시계 동기화 모달

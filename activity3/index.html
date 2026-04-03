@@ -43,6 +43,9 @@
             </div>
             <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
                 <canvas id="psdChart"></canvas>
+                <div class="psd-controls">
+                    <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
+                </div>
             </div>
             <div class="spectrogram-panel" id="sensor-hvsr-panel" hidden>
                 <canvas id="hvsrChart"></canvas>
@@ -99,6 +102,9 @@
             </div>
             <div class="spectrogram-panel" id="file-psd-panel" hidden>
                 <canvas id="filePsdChart"></canvas>
+                <div class="psd-controls">
+                    <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
+                </div>
             </div>
             <div class="spectrogram-panel" id="file-hvsr-panel" hidden>
                 <canvas id="fileHvsrChart"></canvas>
@@ -166,7 +172,7 @@
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js?v=4.9"></script>
     <script src="../assets/js/spectrogram.js?v=3.2"></script>
-    <script src="../assets/js/psd.js?v=2.3"></script>
+    <script src="../assets/js/psd.js?v=3.0"></script>
     <script src="../assets/js/hvsr.js?v=2.0"></script>
 
     <script>
@@ -276,6 +282,22 @@
         });
         document.getElementById('sensor-info-btn').addEventListener('click', () => _openInfoModal(_sensorActiveTab));
         document.getElementById('file-info-btn').addEventListener('click',   () => _openInfoModal(_fileActiveTab));
+
+        // ── Peterson NLNM/NHNM toggle ─────────────────────────────────
+        let _petersonOn = false;
+        ['sensor', 'file'].forEach(prefix => {
+            const btn = document.getElementById(`${prefix}-peterson-btn`);
+            btn.addEventListener('click', () => {
+                _petersonOn = !_petersonOn;
+                PsdModule.setShowPeterson(_petersonOn);
+                btn.textContent = _petersonOn ? '참조선 숨기기' : '참조선 표시';
+                // 반대쪽 버튼도 동기화
+                const other = document.getElementById(
+                    prefix === 'sensor' ? 'file-peterson-btn' : 'sensor-peterson-btn'
+                );
+                other.textContent = btn.textContent;
+            });
+        });
 
         // ── Review mode (horizontal pan/pinch) ───────────────────────
         const _reviewPointers = new Map();
@@ -883,6 +905,7 @@
                 panelFile.hidden   = false;
                 panelSensor.hidden = true;
                 _detachReviewEvents();  // 항상 정리 (센서 정지 상태 포함)
+                _detachWaveEvents();    // 센서 리뷰 중 wave 이벤트도 정리
                 if (SensorModule.isRunning()) {
                     SensorModule.stop();
                     VisualModule.reset();

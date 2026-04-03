@@ -1,23 +1,25 @@
 /**
- * psd.js  v2.3
- * Role   : Power Spectral Density (Welch's method, rolling average)
+ * psd.js  v3.0
+ * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
  *          X axis = frequency (log scale, F_MIN – Nyquist Hz)
- *          Y axis = power density (dB, DB_MIN – DB_MAX)
+ *          Y axis = power density (dB re (m/s²)²/Hz)
  *
- * Algorithm : Cooley-Tukey FFT → squared magnitude → rolling mean of N_AVG frames
+ * Rendering layers:
+ *   1. [optional] Peterson NLNM/NHNM reference lines (toggle via setShowPeterson)
+ *   2. Individual window PSD curves (semi-transparent red)
+ *   3. Welch mean PSD curve (cyan, thick)
  *
  * Correct Welch PSD formula (one-sided, Hann window energy compensated):
  *   PSD[b] = 2 × |FFT_b|² / (sr × sum_w2)
  *   where sum_w2 = Σ hann[i]²  (≈ 3N/8 for Hann)
  *   dB = 10 × log₁₀(PSD[b])
  *
- * v2.0 fixes vs v1.0:
- *   1. DC offset removed per window (subtract mean before Hann)
- *   2. Hann window energy loss compensated (÷ sum_w2 instead of ÷ FFT_SIZE)
- *   3. One-sided spectrum factor ×2 applied
- *   4. FFT_SIZE 256→1024 (Δf: 0.39Hz→0.098Hz), F_MIN 0.5→0.1Hz
+ * v3.0 changes vs v2.3:
+ *   1. Store individual window PSDs in _windows[] for per-window rendering
+ *   2. FILE_HOP = FFT_SIZE/2 (50% overlap) for file mode
+ *   3. Peterson (1993) NLNM/NHNM reference lines (toggle button)
  */
 
 const PsdModule = (() => {
@@ -25,6 +27,7 @@ const PsdModule = (() => {
     // ── Config ────────────────────────────────────────────────────
     const FFT_SIZE = 1024;
     const HOP_SIZE = 26;
+    const FILE_HOP = FFT_SIZE / 2;  // 512 — 50% overlap for file mode
     const DB_MIN   = -120;
     const DB_MAX   = -20;
     const F_MIN    = 0.1;  // Hz: left edge of plot
@@ -32,7 +35,32 @@ const PsdModule = (() => {
     // Padding (px)
     const PAD_L = 40, PAD_R = 10, PAD_T = 10, PAD_B = 20;
 
-// ── Hann window + energy normalization constant ────────────────
+    // ── Peterson (1993) NLNM/NHNM ────────────────────────────────
+    // P(T) = A + B·log10(T)  [dB re (m/s²)²/Hz]
+    // Source: SEIZMO — https://github.com/g2e/seizmo
+    const NLNM = [
+        [0.10, -162.36,   5.64], [0.17, -166.70,   0.00],
+        [0.40, -170.00,  -8.30], [0.80, -166.40,  28.90],
+        [1.24, -168.60,  52.48], [2.40, -159.98,  29.81],
+        [4.30, -141.10,   0.00], [5.00,  -71.36, -99.77],
+        [6.00,  -97.26, -66.49], [10.0, -132.18, -31.57],
+        [12.0, -205.27,  36.16], [15.6,  -37.65,-104.33],
+        [21.9, -114.37, -47.10], [31.6, -160.58, -16.28],
+        [45.0, -187.50,   0.00], [70.0, -216.47,  15.70],
+        [101,  -185.00,   0.00], [154,  -168.34,  -7.61],
+        [328,  -217.43,  11.90], [600,  -258.28,  26.60],
+        [10000,-346.88,  48.75],
+    ];
+    const NHNM = [
+        [0.10, -108.73, -17.23], [0.22, -150.34, -80.50],
+        [0.32, -122.31, -23.87], [0.80, -116.85,  32.51],
+        [3.80, -108.48,  18.08], [4.60,  -74.66, -32.95],
+        [6.30,    0.66,-127.18], [7.90,  -93.37, -22.42],
+        [15.4,   73.54,-162.98], [20.0, -151.52,  10.01],
+        [354.8,-206.66,  31.63],
+    ];
+
+    // ── Hann window + energy normalization constant ────────────────
     const _hann = new Float32Array(FFT_SIZE);
     for (let i = 0; i < FFT_SIZE; i++)
         _hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
@@ -42,15 +70,17 @@ const PsdModule = (() => {
     for (let i = 0; i < FFT_SIZE; i++) _sumW2 += _hann[i] * _hann[i];
 
     // ── State ─────────────────────────────────────────────────────
-    let _canvas = null;
-    let _ctx    = null;
-    let _sr     = 100;
-    let _buf    = new Float32Array(FFT_SIZE);
-    let _head   = 0;
-    let _hopCount = 0;
-    let _sumPow    = null;  // Float32Array(FFT_SIZE/2) — cumulative power sum
-    let _nWin      = 0;     // number of accumulated windows
-    let _dispDbMax = DB_MAX; // sticky auto-scale ceiling (only moves up)
+    let _canvas       = null;
+    let _ctx          = null;
+    let _sr           = 100;
+    let _buf          = new Float32Array(FFT_SIZE);
+    let _head         = 0;
+    let _hopCount     = 0;
+    let _sumPow       = null;  // Float32Array(FFT_SIZE/2) — cumulative power sum
+    let _nWin         = 0;     // number of accumulated windows
+    let _dispDbMax    = DB_MAX; // sticky auto-scale ceiling (only moves up)
+    let _windows      = [];    // Float32Array(FFT_SIZE/2)[] — per-window PSDs
+    let _showPeterson = false; // toggle Peterson reference lines
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -106,7 +136,7 @@ const PsdModule = (() => {
         return pow;
     }
 
-// ── Compute averaged PSD from accumulated sum ─────────────────
+    // ── Compute averaged PSD from accumulated sum ─────────────────
     function _averagedPsd() {
         if (!_sumPow || _nWin === 0) return null;
         const avg = new Float32Array(FFT_SIZE / 2);
@@ -114,7 +144,42 @@ const PsdModule = (() => {
         return avg;
     }
 
-    // ── Render PSD curve ──────────────────────────────────────────
+    // ── Peterson model helpers ────────────────────────────────────
+    function _petersonDb(pab, T) {
+        for (let i = 0; i < pab.length - 1; i++)
+            if (T >= pab[i][0] && T < pab[i + 1][0])
+                return pab[i][1] + pab[i][2] * Math.log10(T);
+        return null; // out of defined range
+    }
+
+    function _drawPetersonLine(pab, label, fx, dby, fMax, dispMin, dispMax) {
+        _ctx.strokeStyle = 'rgba(210,210,210,0.7)';
+        _ctx.lineWidth   = 1.5;
+        _ctx.setLineDash([5, 4]);
+        _ctx.beginPath();
+        let started = false, lx = 0, ly = 0;
+        for (let b = 1; b < FFT_SIZE / 2; b++) {
+            const f  = b * _sr / FFT_SIZE;
+            if (f < F_MIN || f > fMax) continue;
+            const db = _petersonDb(pab, 1 / f);
+            if (db === null) continue;
+            const x  = fx(f);
+            const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
+            if (!started) { _ctx.moveTo(x, y); started = true; }
+            else           _ctx.lineTo(x, y);
+            lx = x; ly = y;
+        }
+        _ctx.stroke();
+        _ctx.setLineDash([]);
+        if (started) {
+            _ctx.fillStyle = 'rgba(210,210,210,0.7)';
+            _ctx.font      = '9px sans-serif';
+            _ctx.textAlign = 'left';
+            _ctx.fillText(label, lx + 3, Math.max(PAD_T + 10, ly + 3));
+        }
+    }
+
+    // ── Render PSD ────────────────────────────────────────────────
     function _redraw() {
         if (!_canvas || !_ctx) return;
         const W  = _canvas.width;
@@ -123,11 +188,11 @@ const PsdModule = (() => {
         const PH = H - PAD_T - PAD_B;
         if (PW < 2 || PH < 2) return;
 
-        const nyq  = _sr / 2;
-        const fMax = Math.min(50, nyq);
+        const nyq      = _sr / 2;
+        const fMax     = Math.min(50, nyq);
         const logRange = Math.log10(fMax / F_MIN);
 
-        function fx(f) { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
+        function fx(f)  { return PAD_L + Math.round(Math.log10(f / F_MIN) / logRange * PW); }
 
         // Auto-scale: compute display range from current averaged data
         const avg0 = _averagedPsd();
@@ -164,7 +229,7 @@ const PsdModule = (() => {
             _ctx.beginPath(); _ctx.moveTo(x, PAD_T); _ctx.lineTo(x, PAD_T + PH); _ctx.stroke();
         });
 
-// Y axis labels (dB)
+        // Y axis labels (dB)
         _ctx.fillStyle = '#666';
         _ctx.font      = '9px sans-serif';
         _ctx.textAlign = 'right';
@@ -180,18 +245,44 @@ const PsdModule = (() => {
         _ctx.restore();
 
         // X axis labels (Hz)
+        _ctx.fillStyle = '#666';
         _ctx.textAlign = 'center';
         [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50].forEach(f => {
             if (f < F_MIN || f > fMax) return;
             _ctx.fillText(`${f}Hz`, fx(f), PAD_T + PH + PAD_B - 4);
         });
 
-        // PSD curve
+        // ── Layer 1: Peterson NLNM/NHNM ──────────────────────────
+        if (_showPeterson) {
+            _drawPetersonLine(NLNM, 'NLNM', fx, dby, fMax, dispMin, dispMax);
+            _drawPetersonLine(NHNM, 'NHNM', fx, dby, fMax, dispMin, dispMax);
+        }
+
+        // ── Layer 2: Individual window curves ────────────────────
+        if (_windows.length > 0) {
+            _ctx.strokeStyle = 'rgba(220,50,50,0.18)';
+            _ctx.lineWidth   = 1;
+            for (const win of _windows) {
+                _ctx.beginPath();
+                let started = false;
+                for (let b = 1; b < FFT_SIZE / 2; b++) {
+                    const f = b * _sr / FFT_SIZE;
+                    if (f < F_MIN || f > fMax) continue;
+                    const db = win[b] > 0 ? 10 * Math.log10(win[b]) : dispMin;
+                    const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
+                    if (!started) { _ctx.moveTo(fx(f), y); started = true; }
+                    else           _ctx.lineTo(fx(f), y);
+                }
+                _ctx.stroke();
+            }
+        }
+
+        // ── Layer 3: Welch mean curve ─────────────────────────────
         const avg = avg0 || _averagedPsd();
         if (!avg) return;
 
         _ctx.strokeStyle = '#00d2d3';
-        _ctx.lineWidth   = 1.5;
+        _ctx.lineWidth   = 2;
         _ctx.beginPath();
         let started = false;
         for (let b = 1; b < FFT_SIZE / 2; b++) {
@@ -208,19 +299,20 @@ const PsdModule = (() => {
         _ctx.fillStyle = 'rgba(255,255,255,0.45)';
         _ctx.textAlign = 'left';
         _ctx.fillText(`${_nWin} frames avg`, PAD_L + 4, PAD_T + 11);
-        _ctx.textAlign = 'left';
     }
 
     // ── Public API ────────────────────────────────────────────────
 
     function init(canvasEl, sampleRate) {
-        _canvas = canvasEl;
-        _ctx    = canvasEl.getContext('2d');
+        _canvas       = canvasEl;
+        _ctx          = canvasEl.getContext('2d');
         if (sampleRate && sampleRate > 0) _sr = sampleRate;
         _canvas.width  = _canvas.clientWidth  || 300;
         _canvas.height = _canvas.clientHeight || 150;
-        _sumPow = null;
-        _nWin   = 0;
+        _sumPow       = null;
+        _nWin         = 0;
+        _windows      = [];
+        _showPeterson = false;
         _ctx.fillStyle = '#0a0a0a';
         _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
     }
@@ -236,17 +328,20 @@ const PsdModule = (() => {
             const pow = _computePower();
             for (let b = 0; b < FFT_SIZE / 2; b++) _sumPow[b] += pow[b];
             _nWin++;
+            _windows.push(pow);
             _redraw();
         }
     }
 
     function reset() {
         _buf.fill(0);
-        _head      = 0;
-        _hopCount  = 0;
-        _sumPow    = null;
-        _nWin      = 0;
-        _dispDbMax = DB_MAX;
+        _head         = 0;
+        _hopCount     = 0;
+        _sumPow       = null;
+        _nWin         = 0;
+        _dispDbMax    = DB_MAX;
+        _windows      = [];
+        _showPeterson = false;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
@@ -255,6 +350,7 @@ const PsdModule = (() => {
 
     /**
      * Compute PSD from pre-loaded CSV rows (file mode).
+     * Uses FILE_HOP (50% overlap) for reasonable window count.
      * @param {Array}  rows   parsed CSV row objects
      * @param {number} sr     sample rate (Hz)
      * @param {string} axis   'z' | 'x' | 'y'
@@ -263,12 +359,13 @@ const PsdModule = (() => {
         if (!_canvas || !rows || rows.length < FFT_SIZE) return;
         if (sr && sr > 0) _sr = sr;
 
-        const re = new Float32Array(FFT_SIZE);
-        const im = new Float32Array(FFT_SIZE);
+        const re     = new Float32Array(FFT_SIZE);
+        const im     = new Float32Array(FFT_SIZE);
         const sumPow = new Float32Array(FFT_SIZE / 2);
-        let count = 0;
+        const wins   = [];
+        let count    = 0;
 
-        for (let start = 0; start + FFT_SIZE <= rows.length; start += HOP_SIZE) {
+        for (let start = 0; start + FFT_SIZE <= rows.length; start += FILE_HOP) {
             // 1) Read raw samples
             re.fill(0); im.fill(0);
             let mean = 0;
@@ -287,16 +384,26 @@ const PsdModule = (() => {
                 re[i] = (re[i] - mean) * _hann[i];
             _fft(re, im);
             // 4) One-sided PSD with Hann window compensation
-            for (let b = 0; b < FFT_SIZE / 2; b++)
-                sumPow[b] += 2 * (re[b]**2 + im[b]**2) / (_sr * _sumW2);
+            const pow = new Float32Array(FFT_SIZE / 2);
+            for (let b = 0; b < FFT_SIZE / 2; b++) {
+                pow[b] = 2 * (re[b]**2 + im[b]**2) / (_sr * _sumW2);
+                sumPow[b] += pow[b];
+            }
+            wins.push(pow);
             count++;
         }
         if (count === 0) return;
 
-        _sumPow = sumPow;
-        _nWin   = count;
+        _sumPow  = sumPow;
+        _nWin    = count;
+        _windows = wins;
         _redraw();
     }
 
-    return { init, push, reset, computeFromRows };
+    function setShowPeterson(val) {
+        _showPeterson = !!val;
+        _redraw();
+    }
+
+    return { init, push, reset, computeFromRows, setShowPeterson };
 })();
