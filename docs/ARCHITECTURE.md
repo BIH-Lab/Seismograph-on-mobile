@@ -9,7 +9,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-04)
+## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-08)
 
 ```
 project-root/
@@ -74,6 +74,10 @@ project-root/
   - 메타데이터 헤더(# key: value): station_id, latitude, longitude, accuracy, sample_rate
   - 모바일: Web Share API → `<a download>` 폴백
   - 데스크톱: showSaveFilePicker → Web Share API → `<a download>` 폴백
+- **iOS 버그 수정 (2026-04-08)**: 측정 시작 버튼이 동기 핸들러로 변경
+  - `SensorModule.start()` 를 클릭 직후 제스처 컨텍스트 안에서 먼저 호출
+  - NTP·GPS는 센서 시작 이후 백그라운드 병렬 처리
+  - 이전: `async/await _syncNtp()` 이후 `.then()` 안에서 호출 → iOS 권한 팝업 미표시
 ### activity3/index.html — 주파수 분석 (스펙트로그램·PSD·HVSR)  [Cycle 3]
 - 상위 모드 탭: 센서 측정 / 파일 선택
 - 분석 탭: 스펙트로그램 / PSD / HVSR (탭 전환으로 결과 비교)
@@ -158,31 +162,38 @@ API   : init(canvasEl, data, onRegion), destroy()
 API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setView(offset, cols), historyLength()
 ```
 
-### psd.js  v3.1  [Cycle 3]
+### psd.js  v3.4  [Cycle 3]
 ```
 역할  : Welch's method 기반 전력 스펙트럼 밀도 (PSD) Canvas 렌더링
 입력  : push(acc_z, sr) 또는 computeFromRows(rows, sr, axis)
-출력  : X=주파수(로그 스케일, 0.2~50Hz), Y=파워(dB, 오토스케일) 다중 선 그래프
+출력  : X=주파수(로그 스케일, 0.2~50Hz), Y=파워(dB, 오토스케일)
 알고리즘 : PSD[b] = 2 × |FFT_b|² / (sr × Σhann²)  →  dB = 10 × log₁₀(PSD)
           DC offset 제거(per-window mean subtraction), Hann 에너지 보정(÷sum_w2), 단측 ×2
 파라미터 : FFT_SIZE=1024, HOP_SIZE=26 (센서), FILE_HOP=512 (파일, 50% 오버랩), F_MIN=0.2Hz
-렌더링 : 개별 윈도우 곡선(rgba(220,50,50,0.18)) + Welch 평균선(#00d2d3, lw=2) 2층 표시
+렌더링 레이어:
+  1. [선택] Peterson NLNM/NHNM 참조선 (회색 점선, SEIZMO 검증 계수)
+  2. 밀도 히트맵: 픽셀별 윈도우 통과 횟수 → 로그 정규화 → 파랑→시안→노랑→빨강
+     - 픽셀→빈 역방향 순회 + 선형 보간으로 저주파 빈칸 제거
+  3. Welch 평균선 (흰색 rgba(255,255,255,0.9), lw=1)
 누적  : _windows[] (개별 윈도우 저장), _sumPow[] + _nWin (평균용)
 Y축  : _dispDbMax — 데이터 최대값 기반 sticky 상향 갱신, 항상 100 dB 범위 표시
 파일 모드 : computeFromRows()로 FILE_HOP 50% 오버랩 윈도우 누적 계산 후 즉시 렌더
-Peterson : NLNM/NHNM 참조선 내장 (SEIZMO 검증 계수), setShowPeterson(bool)으로 토글
+Peterson : NLNM/NHNM 참조선 토글, setShowPeterson(bool)으로 제어
 API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis), setShowPeterson(bool)
 ```
 
-### hvsr.js  v2.0  [Cycle 3]
+### hvsr.js  v2.1  [Cycle 3]
 ```
 역할  : Nakamura(1989) + SESAME 2004 준수 HVSR Canvas 렌더링
 입력  : push(acc_x, acc_y, acc_z, sr) 또는 computeFromRows(rows, sr)  ← 3축 필수
 출력  : X=주파수(로그 스케일, 0.2~50Hz), Y=H/V 비율(오토스케일) 선 그래프
 공식  : H(f) = √((|FFT_x|²+|FFT_y|²)/2),  V(f) = |FFT_z|
         HVSR(f) = mean[H(f)/V(f)] per window  ← SESAME-correct averaging order
-센서 모드 : _sumHV[] per-window H/V 누적 → _nWin으로 나눔, ±2-bin MA 스무딩
-파일 모드 : 50% 오버랩(FILE_HOP=512), 정상성 필터(RMS ∈ [0.5×, 2×]×중앙값), KO 스무딩(b=40)
+센서 모드 : _sumHV[] per-window H/V 누적 → _nWin으로 나눔 (스무딩 없음)
+파일 모드 : 87.5% 오버랩(FILE_HOP=128), 정상성 필터(RMS ∈ [0.5×, 2×]×중앙값) (스무딩 없음)
+           60초@100Hz 기준 ~39개 윈도우 (이전 v2.0 FILE_HOP=512 → 10개 → 각져 보이던 문제 해결)
+스무딩 없음 이유: 윈도우 수가 충분하면 평균이 자연스럽게 부드러워짐;
+           KO(저주파 좁은 대역폭)·MA(고주파 왜곡) 모두 제거
 Y축  : _hvDispMax — 데이터 최대값 기반 자동 조정 (sticky)
 피크  : 0.2~20Hz 범위 최대 H/V → f₀ 수직 점선 (H/V ≥ 2.0 기준)
 신뢰도 : _nWin < MIN_WINDOWS(50) → 주황색 경고 (약 10분 측정 권장)
