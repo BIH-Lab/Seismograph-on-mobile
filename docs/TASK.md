@@ -5,13 +5,82 @@
 ---
 
 ## 현재 단계
-**Cycle 3 완료 + QA 개선 완료, Cycle 4 진입 준비 중** (2026-03-26)
+**Cycle 3 완료 + QA 개선 완료 + PNG 내보내기 완료, Cycle 4 진입 준비 중** (2026-04-04)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
 - Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + 재구성 완료 (2026-03-23)
 - Cycle 3 후속 수정 완료 (2026-03-23): psd.js v2.2, hvsr.js v1.2, 파일 모드 재설계
 - Cycle 3 추가 QA 개선 완료 (2026-03-26): 스펙트로그램 포화·컬러맵·오토스케일·NTP
+- Cycle 3 학술 개선 + UX 추가 완료 (2026-03-27): hvsr.js v2.0 SESAME 준수, 설명 모달, 절대 시각 표시
+- psd.js v3.1 완료 (2026-04-04): 다중 윈도우 누적 표시, Peterson NLNM/NHNM 토글, X축 0.2Hz 통일
+- Activity 3 PNG 내보내기 완료 (2026-04-04): export-image.js v1.0, 8개 "↓ PNG" 버튼
 - Cycle 4 진입 준비 완료
+
+---
+
+## Activity 3 PNG 내보내기 (2026-04-04 완료)
+
+### export-image.js v1.0 + activity3/index.html + style.css
+- [x] `assets/js/export-image.js` 신규 모듈 — `ImageExportModule.download(canvas, meta)`
+- [x] 오프스크린 캔버스: 다크 헤더(56px) + 그래프 본체 합성, 최소 800px 폭 스케일 업
+- [x] 헤더 1행: `STN-01  ·  Z-axis  ·  100 Hz` (스테이션·축·샘플레이트)
+- [x] 헤더 2행: `PSD (Welch)  ·  2026-04-04T12:34:56Z  ·  0.1–50 Hz` (그래프종류·시각·주파수범위)
+- [x] `canvas.toDataURL('image/png')` → `<a download>` 트리거
+- [x] 파일명 형식: `seismo_{type}_{station}_{date}.png`
+- [x] "↓ PNG" 버튼 8개 추가 (파형·스펙트로그램·PSD·HVSR × 센서/파일 모드)
+- [x] PSD 패널: 기존 `.psd-controls` 행에 버튼 추가
+- [x] 나머지 패널: `.export-row` 신규 div 추가
+- [x] `style.css` `.export-row` 스타일 추가
+- [x] `_fileMeta` 변수 추가 — CSV 메타데이터(`station_id` 등) 보존
+- [x] `_buildExportMeta(graphType, mode)` 헬퍼 함수
+
+---
+
+## psd.js 학술 시각화 개선 (2026-04-04 완료)
+
+### psd.js v2.3 → v3.1 — 다중 윈도우 누적 + Peterson 참조선 + X축 통일
+- [x] 개별 윈도우 PSD 곡선 `_windows[]`에 누적 저장 → 반투명 빨간 선으로 렌더링
+- [x] Welch 평균선(청록, lineWidth=2)과 2층 렌더링
+- [x] 파일 모드 `FILE_HOP=512` (50% 오버랩) 적용 — 10분 CSV ≈ 117개 윈도우
+- [x] Peterson (1993) NLNM/NHNM 참조선 내장 (SEIZMO 검증 계수)
+- [x] "참조선 표시/숨기기" 토글 버튼 (센서·파일 패널 각각, 상태 동기화)
+- [x] `setShowPeterson(bool)` API 공개
+- [x] `F_MIN 0.1Hz → 0.2Hz` — HVSR과 X축 범위 통일
+- [x] `.psd-controls` CSS 추가
+- [x] cache busting: `psd.js?v=2.3 → v=3.0 → v=3.1`
+
+---
+
+## Cycle 3 학술 개선 + UX 추가 (2026-03-27 완료)
+
+### hvsr.js v1.7 → v2.0 — SESAME 2004 준수 전면 개선
+- [x] 평균 방식 교체: 파워 누적(_sumH2/_sumV2) → per-window H/V 비율 누적(_sumHV) (SESAME-correct)
+- [x] 파일 모드 오버랩: HOP_SIZE=26(97.5%) → FILE_HOP=512(50%) — 통계적 독립성 확보
+- [x] 파일 모드 스무딩: ±2-bin MA → Konno-Ohmachi(b=40) (_koSmooth 신규 구현)
+- [x] 정상성 필터: Pass 1 RMS 계산 → 중앙값 기반 [0.5×, 2×] 범위 밖 윈도우 제거 (Pass 2)
+- [x] f₀ 탐색 범위 확장: 1~10Hz → 0.2~20Hz
+- [x] f₀ 임계값 강화: H/V ≥ 1.5 → 2.0
+- [x] 표시 주파수 범위 확장: F_MIN 0.5Hz → 0.2Hz
+- [x] cache busting: hvsr.js?v=1.7 → v=2.0
+
+### activity3/index.html — 분석 설명 모달 추가
+- [x] 분석 탭 우측 `?` 버튼 추가 (센서·파일 모드 각 1개, `.analysis-info-btn`)
+- [x] 스펙트로그램·PSD·HVSR 설명 모달 3개 추가 (`#modal-spectro`, `#modal-psd`, `#modal-hvsr`)
+- [x] `_openInfoModal(activeTab)` — 활성 탭에 맞는 모달 자동 선택
+- [x] 배경 클릭·닫기 버튼으로 모달 닫기
+- [x] style.css `.analysis-info-btn` 스타일 추가
+
+### activity3/index.html — 파일 모드 절대 시각 표시
+- [x] `_fileStartTime` 상태 변수 추가 (rows[0].timestamp epoch ms, 0 if unavailable)
+- [x] `fmtAbsTime(sec)` 헬퍼 추가 — `_fileStartTime + sec×1000` 기반 HH:MM:SS 포맷
+- [x] `_drawFileWave()` X축 레이블: 상대 시간 → `fmtAbsTime(t)` 절대 시각
+- [x] `_updateSelInfo()` 구간 안내문: 상대 시간 → 절대 시각
+- [x] `loadFile()` Stage 1, `filePlayBtn` 완료 블록에서 `_fileStartTime` 설정
+- [x] `fileResetBtn` 핸들러에서 `_fileStartTime = 0` 초기화
+- [x] timestamp 없는 CSV → `fmtTime()` 폴백으로 하위 호환
+
+### 버그 수정 (2026-03-27)
+- [x] `switchTab('file')` 누락된 `_detachWaveEvents()` 호출 추가 — 센서 리뷰 중 파일 탭 전환 시 이벤트 리스너 누수 해결
 
 ---
 

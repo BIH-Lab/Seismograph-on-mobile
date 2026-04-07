@@ -601,6 +601,11 @@ html, body {
     justify-content: flex-end;
     padding: 4px 6px 2px;
 }
+.export-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 8px 2px;
+}
 
 /* ===================================
    시계 동기화 모달

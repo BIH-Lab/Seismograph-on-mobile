@@ -9,7 +9,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준)
+## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-04)
 
 ```
 project-root/
@@ -31,7 +31,8 @@ project-root/
 │       ├── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
 │       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 (FFT → Canvas)  [Cycle 3]
 │       ├── psd.js          # Welch PSD 모듈 (전력 스펙트럼 밀도)       [Cycle 3]
-│       └── hvsr.js         # Nakamura HVSR 모듈 (부지 공진 주파수)     [Cycle 3]
+│       ├── hvsr.js         # Nakamura HVSR 모듈 (부지 공진 주파수)     [Cycle 3]
+│       └── export-image.js # PNG 내보내기 모듈 (ObsPy 스타일 헤더)     [Cycle 3 후속]
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -85,6 +86,14 @@ project-root/
   - 스펙트로그램은 passive display — _syncWave()로 파형 뷰포트 추종
   - "분석 시작" 클릭 시 3모듈 일괄 계산 → 탭 전환으로 각 결과 확인
   - Z전용 CSV: HVSR 탭 disabled, 3축 CSV: 모든 탭 활성화
+  - 파일 X축: CSV timestamp 기반 절대 시각 표시 (`fmtAbsTime`, `_fileStartTime`)
+- **분석 설명 모달**: 각 분석 탭 세트에 `?` 버튼 → 활성 탭에 맞는 설명 모달 팝업
+  - `_openInfoModal(activeTab)` — 'spectro'|'psd'|'hvsr' 키로 모달 선택
+  - 배경 클릭 또는 닫기 버튼으로 닫음
+- **PNG 내보내기**: 각 그래프 패널에 "↓ PNG" 버튼 (파형·스펙트로그램·PSD·HVSR × 센서/파일)
+  - `ImageExportModule.download(canvas, meta)` — export-image.js v1.0
+  - ObsPy 스타일 다크 헤더(스테이션·축·샘플레이트·타임스탬프·주파수범위) + 그래프 본체
+  - 최소 800px 폭 자동 스케일 업, 파일명: `seismo_{type}_{station}_{date}.png`
 - Firefox Android interval 오보고 대응: 50~250Hz 범위 필터로 샘플레이트 오인식 방지
 
 ---
@@ -134,7 +143,7 @@ API   : init(canvasEl, data, onRegion), destroy()
 특이  : HTTPS 필수, 측정 시작 시 좌표 고정 (이동 추적 아님)
 ```
 
-### spectrogram.js  v3.0  [Cycle 3]
+### spectrogram.js  v3.2  [Cycle 3]
 ```
 역할  : 가로 워터폴 스펙트로그램 Canvas 렌더링 (ObsPy 표준 레이아웃)
 입력  : push(acc_z, sr) — HOP_SIZE마다 FFT 계산
@@ -142,39 +151,43 @@ API   : init(canvasEl, data, onRegion), destroy()
 레이아웃 : 왼쪽 FREQ_AXIS_W=30px 주파수 레이블, 아래 TIME_AXIS_H=12px 시간 레이블
 저장 포맷 : colData = Uint8ClampedArray(DH×4) per frame, _history[0]=최신
 렌더링 : 오프스크린 1×DH 캔버스 + drawImage(imageSmoothingEnabled=false) 컬럼 스케일링
-알고리즘 : Cooley-Tukey FFT (Vanilla JS), Hann 윈도우, Viridis-style LUT
-파라미터 : FFT_SIZE=256, HOP_SIZE=26, WINDOW_SEC=30초, LOG_MIN=-3, LOG_MAX=-1
-리뷰 모드 : startReview() / setView(offset, cols) — 수평 팬/핀치 탐색
+알고리즘 : Cooley-Tukey FFT (Vanilla JS), Hann 윈도우, Seismic jet LUT (7 stops)
+컬러맵 : 검정→파랑→시안→녹색→노랑→주황→빨강 (지진학 표준)
+파라미터 : FFT_SIZE=256, HOP_SIZE=26, WINDOW_SEC=30초, LOG_MIN=-5, LOG_MAX=0 (5 디케이드)
+리뷰 모드 : startReview() / setView(offset, cols) — 수평 팬/핀치 탐색, 초기 뷰 10초
 API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setView(offset, cols), historyLength()
 ```
 
-### psd.js  v2.2  [Cycle 3]
+### psd.js  v3.1  [Cycle 3]
 ```
 역할  : Welch's method 기반 전력 스펙트럼 밀도 (PSD) Canvas 렌더링
 입력  : push(acc_z, sr) 또는 computeFromRows(rows, sr, axis)
-출력  : X=주파수(로그 스케일, 0.1~50Hz), Y=파워(-120~-20 dB) 선 그래프
+출력  : X=주파수(로그 스케일, 0.2~50Hz), Y=파워(dB, 오토스케일) 다중 선 그래프
 알고리즘 : PSD[b] = 2 × |FFT_b|² / (sr × Σhann²)  →  dB = 10 × log₁₀(PSD)
           DC offset 제거(per-window mean subtraction), Hann 에너지 보정(÷sum_w2), 단측 ×2
-파라미터 : FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.1Hz
-누적  : _sumPow[] + _nWin — 전체 윈도우 누적 평균 (롤링 아님)
-파일 모드 : computeFromRows()로 전체 윈도우 평균 계산 후 즉시 렌더
-API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis)
-활용  : 배경 노이즈 수준 평가, 관측소 품질 판단 (Peterson NLNM/NHNM 비교 기준)
+파라미터 : FFT_SIZE=1024, HOP_SIZE=26 (센서), FILE_HOP=512 (파일, 50% 오버랩), F_MIN=0.2Hz
+렌더링 : 개별 윈도우 곡선(rgba(220,50,50,0.18)) + Welch 평균선(#00d2d3, lw=2) 2층 표시
+누적  : _windows[] (개별 윈도우 저장), _sumPow[] + _nWin (평균용)
+Y축  : _dispDbMax — 데이터 최대값 기반 sticky 상향 갱신, 항상 100 dB 범위 표시
+파일 모드 : computeFromRows()로 FILE_HOP 50% 오버랩 윈도우 누적 계산 후 즉시 렌더
+Peterson : NLNM/NHNM 참조선 내장 (SEIZMO 검증 계수), setShowPeterson(bool)으로 토글
+API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis), setShowPeterson(bool)
 ```
 
-### hvsr.js  v1.2  [Cycle 3]
+### hvsr.js  v2.0  [Cycle 3]
 ```
-역할  : Nakamura(1989) 수평/수직 스펙트럼 비율 (HVSR) Canvas 렌더링
+역할  : Nakamura(1989) + SESAME 2004 준수 HVSR Canvas 렌더링
 입력  : push(acc_x, acc_y, acc_z, sr) 또는 computeFromRows(rows, sr)  ← 3축 필수
-출력  : X=주파수(로그 스케일, 0.5~50Hz), Y=H/V 비율(0~10) 선 그래프
-공식  : H(f) = √((|FFT_x|²+|FFT_y|²)/2),  V(f) = |FFT_z|,  HVSR(f) = H/V
-누적  : _sumH2[], _sumV2[] 모든 윈도우 합산 → _nWin 개수로 평균
-DC offset : per-window mean subtraction (_accumulateWindow + computeFromRows 양쪽)
-스무딩 : ±2-bin 이동 평균 (SMOOTH_HALF=2)
-피크  : 1~10Hz 범위 최대 H/V → f₀ 수직 점선 + 레이블 표시 (H/V > 1.5 기준)
+출력  : X=주파수(로그 스케일, 0.2~50Hz), Y=H/V 비율(오토스케일) 선 그래프
+공식  : H(f) = √((|FFT_x|²+|FFT_y|²)/2),  V(f) = |FFT_z|
+        HVSR(f) = mean[H(f)/V(f)] per window  ← SESAME-correct averaging order
+센서 모드 : _sumHV[] per-window H/V 누적 → _nWin으로 나눔, ±2-bin MA 스무딩
+파일 모드 : 50% 오버랩(FILE_HOP=512), 정상성 필터(RMS ∈ [0.5×, 2×]×중앙값), KO 스무딩(b=40)
+Y축  : _hvDispMax — 데이터 최대값 기반 자동 조정 (sticky)
+피크  : 0.2~20Hz 범위 최대 H/V → f₀ 수직 점선 (H/V ≥ 2.0 기준)
 신뢰도 : _nWin < MIN_WINDOWS(50) → 주황색 경고 (약 10분 측정 권장)
 API   : init(canvasEl, sr), push(x, y, z, sr), reset(), windowCount(), computeFromRows(rows, sr)
-참고  : 정희옥 외(2010) 한반도 서남부 HVSR 분석, SESAME guidelines(2004)
+참고  : Nakamura(1989), SESAME guidelines(2004), 정희옥 외(2010)
 ```
 
 ### export.js

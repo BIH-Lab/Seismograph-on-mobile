@@ -28,6 +28,9 @@
             <div class="chart-wrapper" style="height: 20vh; max-height: 150px;">
                 <canvas id="waveChart"></canvas>
             </div>
+            <div class="export-row">
+                <button class="btn btn--sm btn--ghost" id="sensor-wave-export-btn">↓ PNG</button>
+            </div>
 
             <!-- 분석 탭 -->
             <div class="analysis-tabs" id="sensor-analysis-tabs">
@@ -40,15 +43,22 @@
             <!-- 분석 캔버스 -->
             <div class="spectrogram-panel" id="sensor-spectro-panel">
                 <canvas id="spectroChart"></canvas>
+                <div class="export-row">
+                    <button class="btn btn--sm btn--ghost" id="sensor-spectro-export-btn">↓ PNG</button>
+                </div>
             </div>
             <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
                 <canvas id="psdChart"></canvas>
                 <div class="psd-controls">
                     <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
+                    <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PNG</button>
                 </div>
             </div>
             <div class="spectrogram-panel" id="sensor-hvsr-panel" hidden>
                 <canvas id="hvsrChart"></canvas>
+                <div class="export-row">
+                    <button class="btn btn--sm btn--ghost" id="sensor-hvsr-export-btn">↓ PNG</button>
+                </div>
             </div>
 
             <!-- 피크 주파수 (스펙트로그램 탭 전용) -->
@@ -86,6 +96,9 @@
             <div class="chart-wrapper" style="height:15vh;max-height:120px;" id="file-wave-wrapper" hidden>
                 <canvas id="fileWaveChart"></canvas>
             </div>
+            <div class="export-row" id="file-wave-export-row" hidden>
+                <button class="btn btn--sm btn--ghost" id="file-wave-export-btn">↓ PNG</button>
+            </div>
             <p class="status-msg" id="sel-range-info" hidden></p>
 
             <!-- 분석 탭 (파일) -->
@@ -99,15 +112,22 @@
             <!-- 분석 캔버스 (파일) -->
             <div class="spectrogram-panel" id="file-spectro-panel" hidden>
                 <canvas id="fileSpectroChart"></canvas>
+                <div class="export-row">
+                    <button class="btn btn--sm btn--ghost" id="file-spectro-export-btn">↓ PNG</button>
+                </div>
             </div>
             <div class="spectrogram-panel" id="file-psd-panel" hidden>
                 <canvas id="filePsdChart"></canvas>
                 <div class="psd-controls">
                     <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
+                    <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PNG</button>
                 </div>
             </div>
             <div class="spectrogram-panel" id="file-hvsr-panel" hidden>
                 <canvas id="fileHvsrChart"></canvas>
+                <div class="export-row">
+                    <button class="btn btn--sm btn--ghost" id="file-hvsr-export-btn">↓ PNG</button>
+                </div>
             </div>
 
             <div class="controls" id="file-controls" hidden>
@@ -172,8 +192,9 @@
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js?v=4.9"></script>
     <script src="../assets/js/spectrogram.js?v=3.2"></script>
-    <script src="../assets/js/psd.js?v=3.0"></script>
+    <script src="../assets/js/psd.js?v=3.1"></script>
     <script src="../assets/js/hvsr.js?v=2.0"></script>
+    <script src="../assets/js/export-image.js?v=1.0"></script>
 
     <script>
         // ── Constants ────────────────────────────────────────────────
@@ -710,6 +731,7 @@
 
         let _csvRows          = null;
         let _csvSr            = 100;
+        let _fileMeta         = null;
         let _fileHas3axis     = false;
         let _fileActiveTab    = 'spectro';
         let _analysisComplete = false;
@@ -747,7 +769,7 @@
                     fileStatus.textContent = '⚠️ 데이터가 없거나 형식이 맞지 않습니다.';
                     return;
                 }
-                _csvRows = rows; _csvSr = sr;
+                _csvRows = rows; _csvSr = sr; _fileMeta = meta;
                 _fileHas3axis = !!(rows[0] && rows[0].acc_x !== undefined);
                 _fileActiveTab = 'spectro';
 
@@ -789,6 +811,7 @@
                 _syncWave();
                 _attachWaveEvents(fileWaveCanvas);
                 selInfo.hidden = false;
+                document.getElementById('file-wave-export-row').hidden = false;
                 _updateSelInfo();
 
                 fileStatus.textContent = '드래그·핀치로 분석 구간을 선택하고 "분석 시작"을 누르세요.';
@@ -865,7 +888,8 @@
             selInfo.hidden = true;
             document.getElementById('file-wave-wrapper').hidden = true;
             _waveRows = null;
-            _csvRows = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
+            _csvRows = null; _fileMeta = null; _fileHas3axis = false; _fileActiveTab = 'spectro';
+            document.getElementById('file-wave-export-row').hidden = true;
             SpectrogramModule.reset();
             PsdModule.reset();
             HvsrModule.reset();
@@ -923,6 +947,49 @@
 
         tabSensor.addEventListener('click', () => switchTab('sensor'));
         tabFile.addEventListener('click',   () => switchTab('file'));
+
+        // ═════════════════════════════════════════════════════════════
+        // PNG EXPORT
+        // ═════════════════════════════════════════════════════════════
+        function _buildExportMeta(graphType, mode) {
+            const stn  = (mode === 'file' && _fileMeta) ? (_fileMeta.station_id || 'UNKNOWN') : 'SENSOR';
+            const sr   = (mode === 'file' ? _csvSr : _sr) || 100;
+            const axis = (graphType === 'hvsr') ? 'XYZ' : 'Z-axis';
+            const ts   = (mode === 'file' && _waveRows && _waveRows.length)
+                         ? _waveRows[0].timestamp
+                         : new Date().toISOString().slice(0, 19) + 'Z';
+            const nyq  = Math.round(sr / 2);
+            const subtitleMap = {
+                spectro : `Spectrogram  ·  ${ts}  ·  0–${nyq} Hz`,
+                psd     : `PSD (Welch)  ·  ${ts}  ·  0.1–${nyq} Hz`,
+                hvsr    : `HVSR (Nakamura)  ·  ${ts}  ·  0.1–${nyq} Hz`,
+                wave    : `Waveform  ·  ${ts}  ·  ${sr} Hz`
+            };
+            const dateStr = (ts || '').slice(0, 10).replace(/-/g, '') || 'unknown';
+            return {
+                title    : `${stn}  ·  ${axis}  ·  ${sr} Hz`,
+                subtitle : subtitleMap[graphType] || graphType,
+                filename : `seismo_${graphType}_${stn}_${dateStr}.png`
+            };
+        }
+
+        [
+            ['sensor-wave-export-btn',    'waveChart',         'wave',    'sensor'],
+            ['sensor-spectro-export-btn', 'spectroChart',      'spectro', 'sensor'],
+            ['sensor-psd-export-btn',     'psdChart',          'psd',     'sensor'],
+            ['sensor-hvsr-export-btn',    'hvsrChart',         'hvsr',    'sensor'],
+            ['file-wave-export-btn',      'fileWaveChart',     'wave',    'file'],
+            ['file-spectro-export-btn',   'fileSpectroChart',  'spectro', 'file'],
+            ['file-psd-export-btn',       'filePsdChart',      'psd',     'file'],
+            ['file-hvsr-export-btn',      'fileHvsrChart',     'hvsr',    'file'],
+        ].forEach(([btnId, canvasId, graphType, mode]) => {
+            document.getElementById(btnId).addEventListener('click', () => {
+                ImageExportModule.download(
+                    document.getElementById(canvasId),
+                    _buildExportMeta(graphType, mode)
+                );
+            });
+        });
     </script>
 
 </body>

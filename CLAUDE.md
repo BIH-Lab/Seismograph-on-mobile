@@ -37,8 +37,9 @@ project-root/
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (toFixed(9))
 │       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 v3.2 (FFT → Canvas, Seismic jet 컬러맵)
-│       ├── psd.js          # Welch PSD 모듈 v2.3 (전력 스펙트럼 밀도, Y축 오토스케일)
-│       └── hvsr.js         # Nakamura HVSR 모듈 v1.4 (부지 공진 주파수, Y축 오토스케일)
+│       ├── psd.js          # Welch PSD 모듈 v3.1 (전력 스펙트럼 밀도, Y축 오토스케일)
+│       ├── hvsr.js         # Nakamura HVSR 모듈 v2.0 (부지 공진 주파수, Y축 오토스케일)
+│       └── export-image.js # PNG 내보내기 모듈 v1.0 (ObsPy 스타일 헤더 + canvas toDataURL)
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -74,12 +75,16 @@ project-root/
   - PSD/HVSR Y축 오토스케일 (_dispDbMax, _hvDispMax)
   - 정지 후 스펙트로그램 스크롤 버그 수정, 센서 파형 리뷰 인터랙션 추가
   - NTP 시계 동기화 저장 기능 (root index.html)
+- Activity 3 PNG 내보내기 완료 (2026-04-04):
+  - export-image.js v1.0: ObsPy 스타일 메타데이터 헤더 + canvas 캡처 → PNG 다운로드
+  - 8개 "↓ PNG" 버튼 추가 (파형·스펙트로그램·PSD·HVSR × 센서/파일 모드)
+  - 파일명 형식: `seismo_{type}_{station}_{date}.png`
 - Cycle 4 예정: Activity 4 — 신호 비교하기
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
 - spectrogram.js v3.2: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s
   - 컬러맵: Seismic jet (검정→파랑→시안→녹색→노랑→주황→빨강), LOG_MIN=-5, LOG_MAX=0
-- psd.js v2.3: FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.1Hz, Welch+Hann 에너지 보정, 누적 평균, Y축 오토스케일(_dispDbMax)
-- hvsr.js v1.4: FFT_SIZE=1024, HOP_SIZE=26, F_MAX=50Hz (Nyquist), DC offset 제거, Y축 오토스케일(_hvDispMax)
+- psd.js v3.1: FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.2Hz, Welch+Hann 에너지 보정, 다중 윈도우 누적, Peterson NLNM/NHNM 참조선, Y축 오토스케일(_dispDbMax)
+- hvsr.js v2.0: FFT_SIZE=1024, HOP_SIZE=26, F_MAX=50Hz (Nyquist), SESAME 준수, Konno-Ohmachi 스무딩(파일), 정상성 필터, Y축 오토스케일(_hvDispMax)
 - 공통: Hann 윈도우, 히스토리 기반 전체 재렌더
 - 알려진 이슈: Firefox Android DeviceMotionEvent.interval 오보고(100ms) → activity3에서 50~250Hz 범위 체크로 필터링
