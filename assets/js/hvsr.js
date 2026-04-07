@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v2.0
+ * hvsr.js  v2.1
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()
@@ -12,17 +12,13 @@
  *   V(f) = |FFT_z(f)|
  *   HVSR(f) = mean over windows of [ H(f)/V(f) ]   ← per-window ratio (SESAME-correct)
  *
- * Sensor mode : Hann, ±2-bin MA smoothing, live accumulation
- * File mode   : Hann, 50% overlap, stationarity filter, Konno-Ohmachi (b=40) smoothing
+ * Sensor mode : Hann, hop=26 (~97.5% overlap), live accumulation
+ * File mode   : Hann, hop=128 (87.5% overlap), stationarity filter
+ * Both modes  : no post-hoc smoothing — averaging over windows provides natural smoothing
  *
- * Improvements over v1.7 (SESAME 2004 compliance):
- *   1. Averaging order : per-window H/V ratio then mean (was: mean H², mean V², then ratio)
- *   2. File mode overlap: 50 % (HOP=FFT_SIZE/2) instead of 97.5 %
- *   3. Smoothing        : Konno-Ohmachi (b=40) for file mode; ±2-bin MA for sensor mode
- *   4. Stationarity     : reject windows with total RMS outside [0.5×, 2×] median
- *   5. f₀ search range  : 0.2–20 Hz (was 1–10 Hz)
- *   6. f₀ threshold     : 2.0 (was 1.5)
- *   7. Plot range       : F_MIN = 0.2 Hz (was 0.5 Hz)
+ * v2.1 changes vs v2.0:
+ *   - Removed KO and MA smoothing: with sufficient windows, averaging is enough
+ *   - FILE_HOP: 512 → 128 (87.5% overlap); 60s@100Hz gives ~39 windows (was 10)
  *
  * Reference : Nakamura (1989); SESAME guidelines (2004);
  *             Jung et al. (2010) — HVSR study of SW Korean Peninsula
@@ -33,12 +29,10 @@ const HvsrModule = (() => {
     // ── Config ────────────────────────────────────────────────────
     const FFT_SIZE    = 1024;
     const HOP_SIZE    = 26;     // sensor mode: ~97.5% overlap
-    const FILE_HOP    = 512;    // file mode: 50% overlap
+    const FILE_HOP    = 128;    // file mode: 87.5% overlap
     const F_MIN       = 0.2;    // Hz: left edge of plot
     const F_MAX       = 50;     // Hz: right edge of plot
     const MIN_WINDOWS = 50;     // below this: show low-reliability warning
-    const KO_BW       = 40;     // Konno-Ohmachi bandwidth coefficient b
-    const SMOOTH_HALF = 2;      // ±bins for sensor-mode MA smoothing
     const STAT_LO     = 0.5;    // stationarity: reject if < LO × median RMS
     const STAT_HI     = 2.0;    // stationarity: reject if > HI × median RMS
     const F0_MIN      = 0.2;    // Hz: f₀ peak search range min
@@ -65,7 +59,6 @@ const HvsrModule = (() => {
     let _sumHV    = null;   // accumulated per-window H/V ratios per bin
     let _nWin     = 0;      // number of accumulated windows
     let _hvDispMax = 2;     // display Y ceiling, recomputed each redraw
-    let _useKO    = false;  // true while displaying file-mode results
 
     // ── FFT (Cooley-Tukey radix-2 DIT) ───────────────────────────
     function _fft(re, im) {
@@ -96,47 +89,6 @@ const HvsrModule = (() => {
                 }
             }
         }
-    }
-
-    // ── Konno-Ohmachi smoothing (file mode) ───────────────────────
-    // W(f, fc) = [sin(b·log₁₀(f/fc)) / (b·log₁₀(f/fc))]⁴
-    function _koSmooth(spectrum) {
-        const N   = spectrum.length;
-        const out = new Float32Array(N);
-        for (let ci = 1; ci < N; ci++) {
-            const fc = ci * _sr / (2 * N);
-            let wsum = 0, vsum = 0;
-            for (let fi = 1; fi < N; fi++) {
-                const f = fi * _sr / (2 * N);
-                const x = KO_BW * Math.log10(f / fc);
-                let w;
-                if (Math.abs(x) < 1e-4) {
-                    w = 1;
-                } else {
-                    const sx = Math.sin(x) / x;
-                    w = sx * sx * sx * sx;
-                }
-                vsum += w * spectrum[fi];
-                wsum += w;
-            }
-            out[ci] = wsum > 1e-12 ? vsum / wsum : 0;
-        }
-        return out;
-    }
-
-    // ── ±SMOOTH_HALF moving-average smoothing (sensor mode) ───────
-    function _maSmooth(spectrum) {
-        const N   = spectrum.length;
-        const out = new Float32Array(N);
-        for (let b = 0; b < N; b++) {
-            let sum = 0, cnt = 0;
-            for (let k = -SMOOTH_HALF; k <= SMOOTH_HALF; k++) {
-                const idx = b + k;
-                if (idx >= 0 && idx < N) { sum += spectrum[idx]; cnt++; }
-            }
-            out[b] = sum / cnt;
-        }
-        return out;
     }
 
     // ── Accumulate one FFT window from ring buffers (sensor mode) ─
@@ -172,13 +124,13 @@ const HvsrModule = (() => {
         _nWin++;
     }
 
-    // ── Compute averaged + smoothed HVSR curve ─────────────────────
+    // ── Compute averaged HVSR curve (no smoothing) ────────────────
     function _computeHvsr() {
         if (!_sumHV || _nWin === 0) return null;
-        const raw = new Float32Array(FFT_SIZE / 2);
+        const out = new Float32Array(FFT_SIZE / 2);
         for (let b = 0; b < FFT_SIZE / 2; b++)
-            raw[b] = _sumHV[b] / _nWin;
-        return _useKO ? _koSmooth(raw) : _maSmooth(raw);
+            out[b] = _sumHV[b] / _nWin;
+        return out;
     }
 
     // ── Render ────────────────────────────────────────────────────
@@ -326,7 +278,6 @@ const HvsrModule = (() => {
         _nWin     = 0;
         _head     = 0;
         _hopCount = 0;
-        _useKO    = false;
         _hvDispMax = 2;
         _bufX.fill(0); _bufY.fill(0); _bufZ.fill(0);
         _ctx.fillStyle = '#0a0a0a';
@@ -354,7 +305,6 @@ const HvsrModule = (() => {
         _sumHV     = null;
         _nWin      = 0;
         _hvDispMax = 2;
-        _useKO     = false;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
@@ -365,7 +315,7 @@ const HvsrModule = (() => {
 
     /**
      * Compute HVSR from pre-loaded 3-axis CSV rows (file mode).
-     * Uses 50 % overlap, stationarity filtering, Konno-Ohmachi smoothing.
+     * Uses FILE_HOP (87.5% overlap) and stationarity filtering.
      * @param {Array}  rows  parsed CSV row objects
      * @param {number} sr    sample rate (Hz)
      */
@@ -439,7 +389,6 @@ const HvsrModule = (() => {
             _nWin++;
         }
 
-        _useKO = true;
         _redraw();
     }
 
