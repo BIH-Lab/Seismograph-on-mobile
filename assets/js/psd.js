@@ -1,5 +1,5 @@
 /**
- * psd.js  v3.3
+ * psd.js  v3.4
  * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -331,8 +331,8 @@ const PsdModule = (() => {
         const avg = avg0 || _averagedPsd();
         if (!avg) return;
 
-        _ctx.strokeStyle = '#00d2d3';
-        _ctx.lineWidth   = 2;
+        _ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        _ctx.lineWidth   = 1;
         _ctx.beginPath();
         let started = false;
         for (let b = 1; b < FFT_SIZE / 2; b++) {
