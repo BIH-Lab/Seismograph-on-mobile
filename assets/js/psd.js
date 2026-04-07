@@ -1,5 +1,5 @@
 /**
- * psd.js  v3.0
+ * psd.js  v3.2
  * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -8,7 +8,8 @@
  *
  * Rendering layers:
  *   1. [optional] Peterson NLNM/NHNM reference lines (toggle via setShowPeterson)
- *   2. Individual window PSD curves (semi-transparent red)
+ *   2. Density heatmap: each (frequency, dB) pixel counts how many windows pass
+ *      through it; count is mapped to color blue→cyan→yellow→red (ObsPy PPSD style)
  *   3. Welch mean PSD curve (cyan, thick)
  *
  * Correct Welch PSD formula (one-sided, Hann window energy compensated):
@@ -16,10 +17,9 @@
  *   where sum_w2 = Σ hann[i]²  (≈ 3N/8 for Hann)
  *   dB = 10 × log₁₀(PSD[b])
  *
- * v3.0 changes vs v2.3:
- *   1. Store individual window PSDs in _windows[] for per-window rendering
- *   2. FILE_HOP = FFT_SIZE/2 (50% overlap) for file mode
- *   3. Peterson (1993) NLNM/NHNM reference lines (toggle button)
+ * v3.2 changes vs v3.1:
+ *   - Layer 2 replaced: individual semi-transparent lines →
+ *     pixel-level density heatmap (log-normalized, blue→red colormap)
  */
 
 const PsdModule = (() => {
@@ -30,7 +30,7 @@ const PsdModule = (() => {
     const FILE_HOP = FFT_SIZE / 2;  // 512 — 50% overlap for file mode
     const DB_MIN   = -120;
     const DB_MAX   = -20;
-    const F_MIN    = 0.1;  // Hz: left edge of plot
+    const F_MIN    = 0.2;  // Hz: left edge of plot (matches HVSR)
 
     // Padding (px)
     const PAD_L = 40, PAD_R = 10, PAD_T = 10, PAD_B = 20;
@@ -258,23 +258,60 @@ const PsdModule = (() => {
             _drawPetersonLine(NHNM, 'NHNM', fx, dby, fMax, dispMin, dispMax);
         }
 
-        // ── Layer 2: Individual window curves ────────────────────
+        // ── Layer 2: Density heatmap ──────────────────────────────
+        // Count how many window PSD curves pass through each plot pixel.
+        // Log-normalise the count, then map to blue→cyan→yellow→red.
         if (_windows.length > 0) {
-            _ctx.strokeStyle = 'rgba(220,50,50,0.18)';
-            _ctx.lineWidth   = 1;
+            const density = new Uint32Array(PW * PH);
+
             for (const win of _windows) {
-                _ctx.beginPath();
-                let started = false;
                 for (let b = 1; b < FFT_SIZE / 2; b++) {
                     const f = b * _sr / FFT_SIZE;
                     if (f < F_MIN || f > fMax) continue;
-                    const db = win[b] > 0 ? 10 * Math.log10(win[b]) : dispMin;
-                    const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
-                    if (!started) { _ctx.moveTo(fx(f), y); started = true; }
-                    else           _ctx.lineTo(fx(f), y);
+                    const db  = win[b] > 0 ? 10 * Math.log10(win[b]) : dispMin;
+                    const px  = fx(f) - PAD_L;
+                    const py  = dby(Math.max(dispMin, Math.min(dispMax, db))) - PAD_T;
+                    if (px < 0 || px >= PW || py < 0 || py >= PH) continue;
+                    density[py * PW + px]++;
                 }
-                _ctx.stroke();
             }
+
+            let maxDens = 1;
+            for (let i = 0; i < density.length; i++)
+                if (density[i] > maxDens) maxDens = density[i];
+
+            const logMax = Math.log(maxDens + 1);
+            const img    = _ctx.createImageData(PW, PH);
+
+            for (let i = 0; i < PW * PH; i++) {
+                const d = density[i];
+                if (d === 0) continue;
+                // log normalisation so sparse hits still get visible color
+                const t   = Math.log(d + 1) / logMax;
+                const off = i * 4;
+                let r, g, b;
+                if (t < 1/3) {
+                    const s  = t * 3;
+                    r = 0;
+                    g = Math.round(s * 220);
+                    b = Math.round(150 + s * 105);
+                } else if (t < 2/3) {
+                    const s  = (t - 1/3) * 3;
+                    r = Math.round(s * 240);
+                    g = Math.round(220 + s * 35);
+                    b = Math.round(255 * (1 - s));
+                } else {
+                    const s  = (t - 2/3) * 3;
+                    r = Math.round(240 + s * 15);
+                    g = Math.round(255 * (1 - s * 0.88));
+                    b = 0;
+                }
+                img.data[off]     = r;
+                img.data[off + 1] = g;
+                img.data[off + 2] = b;
+                img.data[off + 3] = Math.round(180 + t * 75);
+            }
+            _ctx.putImageData(img, PAD_L, PAD_T);
         }
 
         // ── Layer 3: Welch mean curve ─────────────────────────────
