@@ -1,5 +1,5 @@
 /**
- * psd.js  v3.2
+ * psd.js  v3.3
  * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -20,6 +20,9 @@
  * v3.2 changes vs v3.1:
  *   - Layer 2 replaced: individual semi-transparent lines →
  *     pixel-level density heatmap (log-normalized, blue→red colormap)
+ * v3.3 changes vs v3.2:
+ *   - Heatmap fill direction: bin→pixel → pixel→bin with linear interpolation
+ *     Fixes gaps at low frequencies where log pixel spacing > bin spacing
  */
 
 const PsdModule = (() => {
@@ -264,14 +267,24 @@ const PsdModule = (() => {
         if (_windows.length > 0) {
             const density = new Uint32Array(PW * PH);
 
+            // Iterate pixel columns → bin (not bin → pixel).
+            // This eliminates gaps at low frequencies where log-spaced pixels
+            // are much wider than the linear FFT bin spacing.
             for (const win of _windows) {
-                for (let b = 1; b < FFT_SIZE / 2; b++) {
-                    const f = b * _sr / FFT_SIZE;
-                    if (f < F_MIN || f > fMax) continue;
-                    const db  = win[b] > 0 ? 10 * Math.log10(win[b]) : dispMin;
-                    const px  = fx(f) - PAD_L;
-                    const py  = dby(Math.max(dispMin, Math.min(dispMax, db))) - PAD_T;
-                    if (px < 0 || px >= PW || py < 0 || py >= PH) continue;
+                for (let px = 0; px < PW; px++) {
+                    // frequency at this pixel column (inverse of fx)
+                    const f = F_MIN * Math.pow(10, px / PW * logRange);
+                    if (f > fMax) break;
+                    // fractional bin index + linear interpolation in power domain
+                    const bf = f * FFT_SIZE / _sr;
+                    const b0 = Math.floor(bf);
+                    const b1 = Math.min(b0 + 1, FFT_SIZE / 2 - 1);
+                    if (b0 < 1) continue;
+                    const t  = bf - b0;
+                    const p  = win[b0] * (1 - t) + win[b1] * t;
+                    const db = p > 0 ? 10 * Math.log10(p) : dispMin;
+                    const py = dby(Math.max(dispMin, Math.min(dispMax, db))) - PAD_T;
+                    if (py < 0 || py >= PH) continue;
                     density[py * PW + px]++;
                 }
             }
