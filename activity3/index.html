@@ -43,23 +43,28 @@
             <!-- 분석 캔버스 -->
             <div class="spectrogram-panel" id="sensor-spectro-panel">
                 <canvas id="spectroChart"></canvas>
-                <div class="export-row">
-                    <button class="btn btn--sm btn--ghost" id="sensor-spectro-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls export-row" id="sensor-spectro-controls">
+                <button class="btn btn--sm btn--ghost" id="sensor-spectro-export-btn">↓ PNG</button>
             </div>
             <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
                 <canvas id="psdChart"></canvas>
-                <div class="psd-controls">
-                    <button class="btn btn--sm" id="sensor-psd-density-btn">누적 히트맵</button>
-                    <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
-                    <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls psd-controls" id="sensor-psd-controls" hidden>
+                <label class="mmi-toggle" id="sensor-density-toggle">
+                    <span class="mmi-toggle__label">실시간</span>
+                    <input type="checkbox" id="sensor-density-checkbox">
+                    <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+                    <span class="mmi-toggle__label">누적</span>
+                </label>
+                <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
+                <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PNG</button>
             </div>
             <div class="spectrogram-panel" id="sensor-hvsr-panel" hidden>
                 <canvas id="hvsrChart"></canvas>
-                <div class="export-row">
-                    <button class="btn btn--sm btn--ghost" id="sensor-hvsr-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls export-row" id="sensor-hvsr-controls" hidden>
+                <button class="btn btn--sm btn--ghost" id="sensor-hvsr-export-btn">↓ PNG</button>
             </div>
 
             <!-- 피크 주파수 (스펙트로그램 탭 전용) -->
@@ -113,23 +118,28 @@
             <!-- 분석 캔버스 (파일) -->
             <div class="spectrogram-panel" id="file-spectro-panel" hidden>
                 <canvas id="fileSpectroChart"></canvas>
-                <div class="export-row">
-                    <button class="btn btn--sm btn--ghost" id="file-spectro-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls export-row" id="file-spectro-controls" hidden>
+                <button class="btn btn--sm btn--ghost" id="file-spectro-export-btn">↓ PNG</button>
             </div>
             <div class="spectrogram-panel" id="file-psd-panel" hidden>
                 <canvas id="filePsdChart"></canvas>
-                <div class="psd-controls">
-                    <button class="btn btn--sm" id="file-psd-density-btn">누적 히트맵</button>
-                    <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
-                    <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls psd-controls" id="file-psd-controls" hidden>
+                <label class="mmi-toggle" id="file-density-toggle">
+                    <span class="mmi-toggle__label">실시간</span>
+                    <input type="checkbox" id="file-density-checkbox">
+                    <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+                    <span class="mmi-toggle__label">누적</span>
+                </label>
+                <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
+                <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PNG</button>
             </div>
             <div class="spectrogram-panel" id="file-hvsr-panel" hidden>
                 <canvas id="fileHvsrChart"></canvas>
-                <div class="export-row">
-                    <button class="btn btn--sm btn--ghost" id="file-hvsr-export-btn">↓ PNG</button>
-                </div>
+            </div>
+            <div class="graph-controls export-row" id="file-hvsr-controls" hidden>
+                <button class="btn btn--sm btn--ghost" id="file-hvsr-export-btn">↓ PNG</button>
             </div>
 
             <div class="controls" id="file-controls" hidden>
@@ -282,9 +292,12 @@
                 _sensorActiveTab = btn.dataset.analysis;
                 document.getElementById('sensor-analysis-tabs').querySelectorAll('.analysis-tabs__btn')
                     .forEach(b => b.classList.toggle('analysis-tabs__btn--active', b === btn));
-                document.getElementById('sensor-spectro-panel').hidden = _sensorActiveTab !== 'spectro';
-                document.getElementById('sensor-psd-panel').hidden     = _sensorActiveTab !== 'psd';
-                document.getElementById('sensor-hvsr-panel').hidden    = _sensorActiveTab !== 'hvsr';
+                document.getElementById('sensor-spectro-panel').hidden    = _sensorActiveTab !== 'spectro';
+                document.getElementById('sensor-spectro-controls').hidden = _sensorActiveTab !== 'spectro';
+                document.getElementById('sensor-psd-panel').hidden        = _sensorActiveTab !== 'psd';
+                document.getElementById('sensor-psd-controls').hidden     = _sensorActiveTab !== 'psd';
+                document.getElementById('sensor-hvsr-panel').hidden       = _sensorActiveTab !== 'hvsr';
+                document.getElementById('sensor-hvsr-controls').hidden    = _sensorActiveTab !== 'hvsr';
                 peakFreqDisplay.hidden = _sensorActiveTab !== 'spectro';
             }));
 
@@ -309,16 +322,15 @@
         // ── PSD density heatmap toggle ────────────────────────────────
         let _densityModeOn = false;
         ['sensor', 'file'].forEach(prefix => {
-            const btn = document.getElementById(`${prefix}-psd-density-btn`);
-            btn.addEventListener('click', () => {
-                _densityModeOn = !_densityModeOn;
+            const cb = document.getElementById(`${prefix}-density-checkbox`);
+            cb.addEventListener('change', () => {
+                _densityModeOn = cb.checked;
                 PsdModule.setDensityMode(_densityModeOn);
-                const label = _densityModeOn ? '누적 히트맵 ON' : '누적 히트맵';
-                btn.textContent = label;
+                // 반대쪽 토글도 동기화
                 const other = document.getElementById(
-                    prefix === 'sensor' ? 'file-psd-density-btn' : 'sensor-psd-density-btn'
+                    prefix === 'sensor' ? 'file-density-checkbox' : 'sensor-density-checkbox'
                 );
-                other.textContent = label;
+                other.checked = cb.checked;
             });
         });
 
@@ -762,9 +774,12 @@
                 _fileActiveTab = btn.dataset.analysis;
                 fileAnalysisTabs.querySelectorAll('.analysis-tabs__btn')
                     .forEach(b => b.classList.toggle('analysis-tabs__btn--active', b === btn));
-                document.getElementById('file-spectro-panel').hidden = _fileActiveTab !== 'spectro';
-                document.getElementById('file-psd-panel').hidden     = _fileActiveTab !== 'psd';
-                document.getElementById('file-hvsr-panel').hidden    = _fileActiveTab !== 'hvsr';
+                document.getElementById('file-spectro-panel').hidden    = _fileActiveTab !== 'spectro';
+                document.getElementById('file-spectro-controls').hidden = _fileActiveTab !== 'spectro';
+                document.getElementById('file-psd-panel').hidden        = _fileActiveTab !== 'psd';
+                document.getElementById('file-psd-controls').hidden     = _fileActiveTab !== 'psd';
+                document.getElementById('file-hvsr-panel').hidden       = _fileActiveTab !== 'hvsr';
+                document.getElementById('file-hvsr-controls').hidden    = _fileActiveTab !== 'hvsr';
             }));
 
         // ── Drag and drop ─────────────────────────────────────────────
@@ -805,9 +820,12 @@
                 dropZone.hidden          = true;
                 csvFileInfo.hidden       = false;
                 fileAnalysisTabs.hidden  = false;
-                document.getElementById('file-spectro-panel').hidden = false;
-                document.getElementById('file-psd-panel').hidden     = true;
-                document.getElementById('file-hvsr-panel').hidden    = true;
+                document.getElementById('file-spectro-panel').hidden    = false;
+                document.getElementById('file-spectro-controls').hidden = false;
+                document.getElementById('file-psd-panel').hidden        = true;
+                document.getElementById('file-psd-controls').hidden     = true;
+                document.getElementById('file-hvsr-panel').hidden       = true;
+                document.getElementById('file-hvsr-controls').hidden    = true;
                 fileControls.hidden = false;
                 filePlayBtn.hidden  = false;
                 fileResetBtn.hidden = true;
@@ -915,9 +933,12 @@
             dropZone.hidden         = false;
             csvFileInfo.hidden      = true;
             fileAnalysisTabs.hidden = true;
-            document.getElementById('file-spectro-panel').hidden = true;
-            document.getElementById('file-psd-panel').hidden     = true;
-            document.getElementById('file-hvsr-panel').hidden    = true;
+            document.getElementById('file-spectro-panel').hidden    = true;
+            document.getElementById('file-spectro-controls').hidden = true;
+            document.getElementById('file-psd-panel').hidden        = true;
+            document.getElementById('file-psd-controls').hidden     = true;
+            document.getElementById('file-hvsr-panel').hidden       = true;
+            document.getElementById('file-hvsr-controls').hidden    = true;
             fileControls.hidden     = true;
             fileInput.value         = '';
             fileHvsrTab.disabled    = false;
