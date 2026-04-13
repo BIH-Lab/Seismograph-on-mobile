@@ -597,14 +597,20 @@ html, body {
     cursor: pointer;
 }
 .psd-controls {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
     display: flex;
-    justify-content: flex-end;
-    padding: 4px 6px 2px;
+    gap: 4px;
+    z-index: 1;
 }
 .export-row {
+    position: absolute;
+    bottom: 4px;
+    right: 8px;
     display: flex;
-    justify-content: flex-end;
-    padding: 4px 8px 2px;
+    gap: 4px;
+    z-index: 1;
 }
 
 /* ===================================
