@@ -9,7 +9,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-08)
+## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-13)
 
 ```
 project-root/
@@ -30,7 +30,7 @@ project-root/
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (컬럼 자동 생성)
 │       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 (FFT → Canvas)  [Cycle 3]
-│       ├── psd.js          # Welch PSD 모듈 (전력 스펙트럼 밀도)       [Cycle 3]
+│       ├── psd.js          # Welch PSD 모듈 v3.6 (실시간/누적 토글)    [Cycle 3]
 │       ├── hvsr.js         # Nakamura HVSR 모듈 (부지 공진 주파수)     [Cycle 3]
 │       └── export-image.js # PNG 내보내기 모듈 (ObsPy 스타일 헤더)     [Cycle 3 후속]
 ├── docs/
@@ -94,10 +94,13 @@ project-root/
 - **분석 설명 모달**: 각 분석 탭 세트에 `?` 버튼 → 활성 탭에 맞는 설명 모달 팝업
   - `_openInfoModal(activeTab)` — 'spectro'|'psd'|'hvsr' 키로 모달 선택
   - 배경 클릭 또는 닫기 버튼으로 닫음
-- **PNG 내보내기**: 각 그래프 패널에 "↓ PNG" 버튼 (파형·스펙트로그램·PSD·HVSR × 센서/파일)
+- **PNG 내보내기**: 각 그래프 패널 아래 레이블 버튼 (↓ 파형 / ↓ 스펙트로그램 / ↓ PSD / ↓ HVSR × 센서/파일)
   - `ImageExportModule.download(canvas, meta)` — export-image.js v1.0
   - ObsPy 스타일 다크 헤더(스테이션·축·샘플레이트·타임스탬프·주파수범위) + 그래프 본체
   - 최소 800px 폭 자동 스케일 업, 파일명: `seismo_{type}_{station}_{date}.png`
+- **PSD 실시간/누적 토글**: PSD 탭 활성 시 측정 정지 버튼 위에 `실시간 ←[스위치]→ 누적` 표시
+  - OFF(실시간): 최신 FFT 윈도우 청록 라인 / ON(누적): 밀도 히트맵 + 평균선
+- **컨트롤 배치**: 모든 그래프 컨트롤을 패널 외부(`graph-controls`)에 배치 → 그래프 가림 없음
 - Firefox Android interval 오보고 대응: 50~250Hz 범위 필터로 샘플레이트 오인식 방지
 
 ---
@@ -162,7 +165,7 @@ API   : init(canvasEl, data, onRegion), destroy()
 API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setView(offset, cols), historyLength()
 ```
 
-### psd.js  v3.4  [Cycle 3]
+### psd.js  v3.6  [Cycle 3]
 ```
 역할  : Welch's method 기반 전력 스펙트럼 밀도 (PSD) Canvas 렌더링
 입력  : push(acc_z, sr) 또는 computeFromRows(rows, sr, axis)
@@ -170,16 +173,14 @@ API   : init(canvasEl, sr, onPeakHz), push(z, sr), reset(), startReview(), setVi
 알고리즘 : PSD[b] = 2 × |FFT_b|² / (sr × Σhann²)  →  dB = 10 × log₁₀(PSD)
           DC offset 제거(per-window mean subtraction), Hann 에너지 보정(÷sum_w2), 단측 ×2
 파라미터 : FFT_SIZE=1024, HOP_SIZE=26 (센서), FILE_HOP=512 (파일, 50% 오버랩), F_MIN=0.2Hz
-렌더링 레이어:
-  1. [선택] Peterson NLNM/NHNM 참조선 (회색 점선, SEIZMO 검증 계수)
-  2. 밀도 히트맵: 픽셀별 윈도우 통과 횟수 → 로그 정규화 → 파랑→시안→노랑→빨강
-     - 픽셀→빈 역방향 순회 + 선형 보간으로 저주파 빈칸 제거
-  3. Welch 평균선 (흰색 rgba(255,255,255,0.9), lw=1)
+렌더링 모드 (_densityMode 토글):
+  OFF (실시간): 최신 윈도우 1개를 청록 라인으로 표시 (live · N frames)
+  ON  (누적)  : 밀도 히트맵 (픽셀→빈 역방향+선형보간, 파랑→시안→노랑→빨강)
+               + Welch 평균선 (흰색 rgba(255,255,255,0.9), lw=1)  (N frames avg)
 누적  : _windows[] (개별 윈도우 저장), _sumPow[] + _nWin (평균용)
 Y축  : _dispDbMax — 데이터 최대값 기반 sticky 상향 갱신, 항상 100 dB 범위 표시
 파일 모드 : computeFromRows()로 FILE_HOP 50% 오버랩 윈도우 누적 계산 후 즉시 렌더
-Peterson : NLNM/NHNM 참조선 토글, setShowPeterson(bool)으로 제어
-API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis), setShowPeterson(bool)
+API   : init(canvasEl, sr), push(z, sr), reset(), computeFromRows(rows, sr, axis), setDensityMode(bool)
 ```
 
 ### hvsr.js  v2.1  [Cycle 3]

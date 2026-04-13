@@ -5,7 +5,7 @@
 ---
 
 ## 현재 단계
-**Cycle 3 완료 + 후속 개선 완료, Cycle 4 진입 준비 중** (2026-04-08)
+**Cycle 3 완료 + 후속 개선 완료, Cycle 4 진입 준비 중** (2026-04-13)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
 - Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + 재구성 완료 (2026-03-23)
@@ -13,10 +13,12 @@
 - Cycle 3 추가 QA 개선 완료 (2026-03-26): 스펙트로그램 포화·컬러맵·오토스케일·NTP
 - Cycle 3 학술 개선 + UX 추가 완료 (2026-03-27): hvsr.js v2.0 SESAME 준수, 설명 모달, 절대 시각 표시
 - psd.js v3.1 완료 (2026-04-04): 다중 윈도우 누적 표시, Peterson NLNM/NHNM 토글, X축 0.2Hz 통일
-- Activity 3 PNG 내보내기 완료 (2026-04-04): export-image.js v1.0, 8개 "↓ PNG" 버튼
+- Activity 3 PNG 내보내기 완료 (2026-04-04): export-image.js v1.0, 8개 PNG 버튼
 - activity2 iOS 버그 수정 (2026-04-08): 제스처 컨텍스트 복구, 센서 먼저 시작 후 NTP·GPS 백그라운드 처리
 - psd.js v3.2~v3.4 완료 (2026-04-08): 밀도 히트맵 (파랑→빨강), 저주파 빈칸 수정, 평균선 흰색 1px
 - hvsr.js v2.1 완료 (2026-04-08): 스무딩 제거 + FILE_HOP 512→128 (87.5% 오버랩)
+- psd.js v3.5~v3.6 완료 (2026-04-13): 실시간/누적 토글, Peterson 참조선 제거
+- Activity 3 UX 개선 완료 (2026-04-13): 컨트롤 외부 배치, 토글 스위치, PNG 버튼 레이블
 - Cycle 4 진입 준비 완료
 
 ---
@@ -31,6 +33,34 @@
 - [x] 저장된 NTP 오프셋 즉시 적용 (백그라운드 갱신 전 fallback)
 - 원인: iOS Safari는 `DeviceMotionEvent.requestPermission()`을 동기 제스처 컨텍스트에서만 허용.
   `await` 이후 호출 시 팝업 없이 `'denied'` 반환 → 측정 불가
+
+---
+
+## psd.js v3.5~v3.6 + Activity 3 UX 개선 (2026-04-13 완료)
+
+### psd.js v3.5 — 실시간/누적 히트맵 토글
+- [x] `_densityMode` 상태 변수 추가 (false=실시간, true=누적 히트맵)
+- [x] `setDensityMode(val)` 공개 API 추가
+- [x] OFF 모드: 최신 FFT 윈도우 1개를 청록 라인으로 표시 (`live · N frames` 레이블)
+- [x] ON 모드: 기존 밀도 히트맵 + 흰색 평균선 (`N frames avg` 레이블)
+
+### psd.js v3.6 — Peterson 참조선 완전 제거
+- [x] NLNM·NHNM 상수 배열 삭제 (~25줄)
+- [x] `_petersonDb()`, `_drawPetersonLine()` 함수 삭제
+- [x] `_showPeterson` 상태 변수 삭제
+- [x] `_redraw()` 내 Layer 1 Peterson 블록 삭제
+- [x] `setShowPeterson()` 공개 함수 삭제
+- 이유: 스마트폰 센서 노이즈 레벨(-60~-40 dB)이 NLNM(-180 dB)보다 훨씬 높아 활용 불가
+
+### Activity 3 UX 개선
+- [x] 모든 그래프 컨트롤을 `.spectrogram-panel` 밖으로 분리 (`graph-controls` class)
+  - 패널 `overflow:hidden` + `canvas height:100%`로 인한 버튼 가림 문제 완전 해소
+  - 탭 전환/파일 로드/리셋 시 패널과 컨트롤 동기화
+- [x] "누적 히트맵" 버튼 → `mmi-toggle` 스위치 (실시간 ↔ 누적)로 교체
+- [x] 센서 모드 토글을 측정 정지 버튼 위 가운데(`#sensor-density-row`)로 이동
+  - PSD 탭 활성 시에만 표시
+- [x] "참조선 표시" 버튼 UI 제거 (`_petersonOn` 핸들러 포함)
+- [x] PNG 버튼 레이블 명확화: "↓ PNG" → "↓ 파형" / "↓ 스펙트로그램" / "↓ PSD" / "↓ HVSR"
 
 ---
 
