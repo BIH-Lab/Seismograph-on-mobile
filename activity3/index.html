@@ -29,7 +29,7 @@
                 <canvas id="waveChart"></canvas>
             </div>
             <div class="export-row">
-                <button class="btn btn--sm btn--ghost" id="sensor-wave-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="sensor-wave-export-btn">↓ 파형</button>
             </div>
 
             <!-- 분석 탭 -->
@@ -45,26 +45,19 @@
                 <canvas id="spectroChart"></canvas>
             </div>
             <div class="graph-controls export-row" id="sensor-spectro-controls">
-                <button class="btn btn--sm btn--ghost" id="sensor-spectro-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="sensor-spectro-export-btn">↓ 스펙트로그램</button>
             </div>
             <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
                 <canvas id="psdChart"></canvas>
             </div>
-            <div class="graph-controls psd-controls" id="sensor-psd-controls" hidden>
-                <label class="mmi-toggle" id="sensor-density-toggle">
-                    <span class="mmi-toggle__label">실시간</span>
-                    <input type="checkbox" id="sensor-density-checkbox">
-                    <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
-                    <span class="mmi-toggle__label">누적</span>
-                </label>
-                <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
-                <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PNG</button>
+            <div class="graph-controls export-row" id="sensor-psd-controls" hidden>
+                <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PSD</button>
             </div>
             <div class="spectrogram-panel" id="sensor-hvsr-panel" hidden>
                 <canvas id="hvsrChart"></canvas>
             </div>
             <div class="graph-controls export-row" id="sensor-hvsr-controls" hidden>
-                <button class="btn btn--sm btn--ghost" id="sensor-hvsr-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="sensor-hvsr-export-btn">↓ HVSR</button>
             </div>
 
             <!-- 피크 주파수 (스펙트로그램 탭 전용) -->
@@ -72,6 +65,14 @@
                 주요 주파수: <span id="peak-freq-val">—</span> Hz
             </div>
 
+            <div id="sensor-density-row" hidden>
+                <label class="mmi-toggle" id="sensor-density-toggle">
+                    <span class="mmi-toggle__label">실시간</span>
+                    <input type="checkbox" id="sensor-density-checkbox">
+                    <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
+                    <span class="mmi-toggle__label">누적</span>
+                </label>
+            </div>
             <div class="controls">
                 <button class="btn btn--primary btn--lg" id="sensor-start-btn">측정 시작</button>
                 <button class="btn btn--danger btn--lg" id="sensor-stop-btn" hidden>측정 정지</button>
@@ -103,7 +104,7 @@
                 <canvas id="fileWaveChart"></canvas>
             </div>
             <div class="export-row" id="file-wave-export-row" hidden>
-                <button class="btn btn--sm btn--ghost" id="file-wave-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="file-wave-export-btn">↓ 파형</button>
             </div>
             <p class="status-msg" id="sel-range-info" hidden></p>
 
@@ -120,7 +121,7 @@
                 <canvas id="fileSpectroChart"></canvas>
             </div>
             <div class="graph-controls export-row" id="file-spectro-controls" hidden>
-                <button class="btn btn--sm btn--ghost" id="file-spectro-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="file-spectro-export-btn">↓ 스펙트로그램</button>
             </div>
             <div class="spectrogram-panel" id="file-psd-panel" hidden>
                 <canvas id="filePsdChart"></canvas>
@@ -132,14 +133,13 @@
                     <span class="mmi-toggle__track"><span class="mmi-toggle__thumb"></span></span>
                     <span class="mmi-toggle__label">누적</span>
                 </label>
-                <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
-                <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PSD</button>
             </div>
             <div class="spectrogram-panel" id="file-hvsr-panel" hidden>
                 <canvas id="fileHvsrChart"></canvas>
             </div>
             <div class="graph-controls export-row" id="file-hvsr-controls" hidden>
-                <button class="btn btn--sm btn--ghost" id="file-hvsr-export-btn">↓ PNG</button>
+                <button class="btn btn--sm btn--ghost" id="file-hvsr-export-btn">↓ HVSR</button>
             </div>
 
             <div class="controls" id="file-controls" hidden>
@@ -204,7 +204,7 @@
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js?v=4.9"></script>
     <script src="../assets/js/spectrogram.js?v=3.2"></script>
-    <script src="../assets/js/psd.js?v=3.5"></script>
+    <script src="../assets/js/psd.js?v=3.6"></script>
     <script src="../assets/js/hvsr.js?v=2.1"></script>
     <script src="../assets/js/export-image.js?v=1.0"></script>
 
@@ -296,6 +296,7 @@
                 document.getElementById('sensor-spectro-controls').hidden = _sensorActiveTab !== 'spectro';
                 document.getElementById('sensor-psd-panel').hidden        = _sensorActiveTab !== 'psd';
                 document.getElementById('sensor-psd-controls').hidden     = _sensorActiveTab !== 'psd';
+                document.getElementById('sensor-density-row').hidden      = _sensorActiveTab !== 'psd';
                 document.getElementById('sensor-hvsr-panel').hidden       = _sensorActiveTab !== 'hvsr';
                 document.getElementById('sensor-hvsr-controls').hidden    = _sensorActiveTab !== 'hvsr';
                 peakFreqDisplay.hidden = _sensorActiveTab !== 'spectro';
@@ -331,22 +332,6 @@
                     prefix === 'sensor' ? 'file-density-checkbox' : 'sensor-density-checkbox'
                 );
                 other.checked = cb.checked;
-            });
-        });
-
-        // ── Peterson NLNM/NHNM toggle ─────────────────────────────────
-        let _petersonOn = false;
-        ['sensor', 'file'].forEach(prefix => {
-            const btn = document.getElementById(`${prefix}-peterson-btn`);
-            btn.addEventListener('click', () => {
-                _petersonOn = !_petersonOn;
-                PsdModule.setShowPeterson(_petersonOn);
-                btn.textContent = _petersonOn ? '참조선 숨기기' : '참조선 표시';
-                // 반대쪽 버튼도 동기화
-                const other = document.getElementById(
-                    prefix === 'sensor' ? 'file-peterson-btn' : 'sensor-peterson-btn'
-                );
-                other.textContent = btn.textContent;
             });
         });
 

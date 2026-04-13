@@ -1,5 +1,5 @@
 /**
- * psd.js  v3.5
+ * psd.js  v3.6
  * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -7,8 +7,7 @@
  *          Y axis = power density (dB re (m/s²)²/Hz)
  *
  * Rendering layers:
- *   1. [optional] Peterson NLNM/NHNM reference lines (toggle via setShowPeterson)
- *   2a. [densityMode=true]  Density heatmap: blue→cyan→yellow→red (ObsPy PPSD style)
+ *   1. [densityMode=true]  Density heatmap: blue→cyan→yellow→red (ObsPy PPSD style)
  *                           + Welch mean curve (white, 1px)
  *   2b. [densityMode=false] Latest window only: single teal line (realtime view)
  *
@@ -26,6 +25,8 @@
  * v3.5 changes vs v3.4:
  *   - Added _densityMode toggle (setDensityMode): default=false shows realtime
  *     single-window line; true restores density heatmap + mean line
+ * v3.6 changes vs v3.5:
+ *   - Removed Peterson NLNM/NHNM reference lines (high noise floor makes them unusable)
  */
 
 const PsdModule = (() => {
@@ -40,31 +41,6 @@ const PsdModule = (() => {
 
     // Padding (px)
     const PAD_L = 40, PAD_R = 10, PAD_T = 10, PAD_B = 20;
-
-    // ── Peterson (1993) NLNM/NHNM ────────────────────────────────
-    // P(T) = A + B·log10(T)  [dB re (m/s²)²/Hz]
-    // Source: SEIZMO — https://github.com/g2e/seizmo
-    const NLNM = [
-        [0.10, -162.36,   5.64], [0.17, -166.70,   0.00],
-        [0.40, -170.00,  -8.30], [0.80, -166.40,  28.90],
-        [1.24, -168.60,  52.48], [2.40, -159.98,  29.81],
-        [4.30, -141.10,   0.00], [5.00,  -71.36, -99.77],
-        [6.00,  -97.26, -66.49], [10.0, -132.18, -31.57],
-        [12.0, -205.27,  36.16], [15.6,  -37.65,-104.33],
-        [21.9, -114.37, -47.10], [31.6, -160.58, -16.28],
-        [45.0, -187.50,   0.00], [70.0, -216.47,  15.70],
-        [101,  -185.00,   0.00], [154,  -168.34,  -7.61],
-        [328,  -217.43,  11.90], [600,  -258.28,  26.60],
-        [10000,-346.88,  48.75],
-    ];
-    const NHNM = [
-        [0.10, -108.73, -17.23], [0.22, -150.34, -80.50],
-        [0.32, -122.31, -23.87], [0.80, -116.85,  32.51],
-        [3.80, -108.48,  18.08], [4.60,  -74.66, -32.95],
-        [6.30,    0.66,-127.18], [7.90,  -93.37, -22.42],
-        [15.4,   73.54,-162.98], [20.0, -151.52,  10.01],
-        [354.8,-206.66,  31.63],
-    ];
 
     // ── Hann window + energy normalization constant ────────────────
     const _hann = new Float32Array(FFT_SIZE);
@@ -86,7 +62,6 @@ const PsdModule = (() => {
     let _nWin         = 0;     // number of accumulated windows
     let _dispDbMax    = DB_MAX; // sticky auto-scale ceiling (only moves up)
     let _windows      = [];    // Float32Array(FFT_SIZE/2)[] — per-window PSDs
-    let _showPeterson = false; // toggle Peterson reference lines
     let _densityMode  = false; // false=realtime latest-window line, true=density heatmap
 
     // ── FFT ───────────────────────────────────────────────────────
@@ -149,41 +124,6 @@ const PsdModule = (() => {
         const avg = new Float32Array(FFT_SIZE / 2);
         for (let b = 0; b < FFT_SIZE / 2; b++) avg[b] = _sumPow[b] / _nWin;
         return avg;
-    }
-
-    // ── Peterson model helpers ────────────────────────────────────
-    function _petersonDb(pab, T) {
-        for (let i = 0; i < pab.length - 1; i++)
-            if (T >= pab[i][0] && T < pab[i + 1][0])
-                return pab[i][1] + pab[i][2] * Math.log10(T);
-        return null; // out of defined range
-    }
-
-    function _drawPetersonLine(pab, label, fx, dby, fMax, dispMin, dispMax) {
-        _ctx.strokeStyle = 'rgba(210,210,210,0.7)';
-        _ctx.lineWidth   = 1.5;
-        _ctx.setLineDash([5, 4]);
-        _ctx.beginPath();
-        let started = false, lx = 0, ly = 0;
-        for (let b = 1; b < FFT_SIZE / 2; b++) {
-            const f  = b * _sr / FFT_SIZE;
-            if (f < F_MIN || f > fMax) continue;
-            const db = _petersonDb(pab, 1 / f);
-            if (db === null) continue;
-            const x  = fx(f);
-            const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
-            if (!started) { _ctx.moveTo(x, y); started = true; }
-            else           _ctx.lineTo(x, y);
-            lx = x; ly = y;
-        }
-        _ctx.stroke();
-        _ctx.setLineDash([]);
-        if (started) {
-            _ctx.fillStyle = 'rgba(210,210,210,0.7)';
-            _ctx.font      = '9px sans-serif';
-            _ctx.textAlign = 'left';
-            _ctx.fillText(label, lx + 3, Math.max(PAD_T + 10, ly + 3));
-        }
     }
 
     // ── Render PSD ────────────────────────────────────────────────
@@ -258,12 +198,6 @@ const PsdModule = (() => {
             if (f < F_MIN || f > fMax) return;
             _ctx.fillText(`${f}Hz`, fx(f), PAD_T + PH + PAD_B - 4);
         });
-
-        // ── Layer 1: Peterson NLNM/NHNM ──────────────────────────
-        if (_showPeterson) {
-            _drawPetersonLine(NLNM, 'NLNM', fx, dby, fMax, dispMin, dispMax);
-            _drawPetersonLine(NHNM, 'NHNM', fx, dby, fMax, dispMin, dispMax);
-        }
 
         if (_windows.length === 0) return;
 
@@ -481,15 +415,10 @@ const PsdModule = (() => {
         _redraw();
     }
 
-    function setShowPeterson(val) {
-        _showPeterson = !!val;
-        _redraw();
-    }
-
     function setDensityMode(val) {
         _densityMode = !!val;
         _redraw();
     }
 
-    return { init, push, reset, computeFromRows, setShowPeterson, setDensityMode };
+    return { init, push, reset, computeFromRows, setDensityMode };
 })();

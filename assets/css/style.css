@@ -605,6 +605,11 @@ html, body {
 }
 .psd-controls { gap: 6px; }
 .export-row   { gap: 4px; }
+#sensor-density-row {
+    display: flex;
+    justify-content: center;
+    padding: 6px 0 2px;
+}
 
 /* ===================================
    시계 동기화 모달
