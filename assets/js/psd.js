@@ -1,5 +1,5 @@
 /**
- * psd.js  v3.4
+ * psd.js  v3.5
  * Role   : Power Spectral Density (Welch's method)
  * Input  : acc_z samples via push() or pre-loaded rows via computeFromRows()
  * Output : Canvas 2D line graph
@@ -8,9 +8,9 @@
  *
  * Rendering layers:
  *   1. [optional] Peterson NLNM/NHNM reference lines (toggle via setShowPeterson)
- *   2. Density heatmap: each (frequency, dB) pixel counts how many windows pass
- *      through it; count is mapped to color blue→cyan→yellow→red (ObsPy PPSD style)
- *   3. Welch mean PSD curve (cyan, thick)
+ *   2a. [densityMode=true]  Density heatmap: blue→cyan→yellow→red (ObsPy PPSD style)
+ *                           + Welch mean curve (white, 1px)
+ *   2b. [densityMode=false] Latest window only: single teal line (realtime view)
  *
  * Correct Welch PSD formula (one-sided, Hann window energy compensated):
  *   PSD[b] = 2 × |FFT_b|² / (sr × sum_w2)
@@ -23,6 +23,9 @@
  * v3.3 changes vs v3.2:
  *   - Heatmap fill direction: bin→pixel → pixel→bin with linear interpolation
  *     Fixes gaps at low frequencies where log pixel spacing > bin spacing
+ * v3.5 changes vs v3.4:
+ *   - Added _densityMode toggle (setDensityMode): default=false shows realtime
+ *     single-window line; true restores density heatmap + mean line
  */
 
 const PsdModule = (() => {
@@ -84,6 +87,7 @@ const PsdModule = (() => {
     let _dispDbMax    = DB_MAX; // sticky auto-scale ceiling (only moves up)
     let _windows      = [];    // Float32Array(FFT_SIZE/2)[] — per-window PSDs
     let _showPeterson = false; // toggle Peterson reference lines
+    let _densityMode  = false; // false=realtime latest-window line, true=density heatmap
 
     // ── FFT ───────────────────────────────────────────────────────
     function _fft(re, im) {
@@ -261,10 +265,12 @@ const PsdModule = (() => {
             _drawPetersonLine(NHNM, 'NHNM', fx, dby, fMax, dispMin, dispMax);
         }
 
-        // ── Layer 2: Density heatmap ──────────────────────────────
-        // Count how many window PSD curves pass through each plot pixel.
-        // Log-normalise the count, then map to blue→cyan→yellow→red.
-        if (_windows.length > 0) {
+        if (_windows.length === 0) return;
+
+        if (_densityMode) {
+            // ── Layer 2a: Density heatmap ─────────────────────────
+            // Count how many window PSD curves pass through each plot pixel.
+            // Log-normalise the count, then map to blue→cyan→yellow→red.
             const density = new Uint32Array(PW * PH);
 
             // Iterate pixel columns → bin (not bin → pixel).
@@ -272,10 +278,8 @@ const PsdModule = (() => {
             // are much wider than the linear FFT bin spacing.
             for (const win of _windows) {
                 for (let px = 0; px < PW; px++) {
-                    // frequency at this pixel column (inverse of fx)
                     const f = F_MIN * Math.pow(10, px / PW * logRange);
                     if (f > fMax) break;
-                    // fractional bin index + linear interpolation in power domain
                     const bf = f * FFT_SIZE / _sr;
                     const b0 = Math.floor(bf);
                     const b1 = Math.min(b0 + 1, FFT_SIZE / 2 - 1);
@@ -299,7 +303,6 @@ const PsdModule = (() => {
             for (let i = 0; i < PW * PH; i++) {
                 const d = density[i];
                 if (d === 0) continue;
-                // log normalisation so sparse hits still get visible color
                 const t   = Math.log(d + 1) / logMax;
                 const off = i * 4;
                 let r, g, b;
@@ -325,30 +328,58 @@ const PsdModule = (() => {
                 img.data[off + 3] = Math.round(180 + t * 75);
             }
             _ctx.putImageData(img, PAD_L, PAD_T);
+
+            // ── Layer 3: Welch mean curve ─────────────────────────
+            const avg = avg0 || _averagedPsd();
+            if (avg) {
+                _ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                _ctx.lineWidth   = 1;
+                _ctx.beginPath();
+                let started = false;
+                for (let b = 1; b < FFT_SIZE / 2; b++) {
+                    const f = b * _sr / FFT_SIZE;
+                    if (f < F_MIN || f > fMax) continue;
+                    const db = avg[b] > 0 ? 10 * Math.log10(avg[b]) : dispMin;
+                    const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
+                    if (!started) { _ctx.moveTo(fx(f), y); started = true; }
+                    else           _ctx.lineTo(fx(f), y);
+                }
+                _ctx.stroke();
+            }
+
+            // Frame count label
+            _ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            _ctx.textAlign = 'left';
+            _ctx.fillText(`${_nWin} frames avg`, PAD_L + 4, PAD_T + 11);
+
+        } else {
+            // ── Layer 2b: Realtime — latest single window line ────
+            const latest = _windows[_windows.length - 1];
+            _ctx.beginPath();
+            _ctx.strokeStyle = 'rgba(0, 210, 180, 0.9)';
+            _ctx.lineWidth   = 1.5;
+            let first = true;
+            for (let px = 0; px < PW; px++) {
+                const f = F_MIN * Math.pow(10, px / PW * logRange);
+                if (f > fMax) break;
+                const bf = f * FFT_SIZE / _sr;
+                const b0 = Math.floor(bf);
+                const b1 = Math.min(b0 + 1, FFT_SIZE / 2 - 1);
+                if (b0 < 1) continue;
+                const t  = bf - b0;
+                const p  = latest[b0] * (1 - t) + latest[b1] * t;
+                const db = p > 0 ? 10 * Math.log10(p) : dispMin;
+                const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
+                if (first) { _ctx.moveTo(PAD_L + px, y); first = false; }
+                else        { _ctx.lineTo(PAD_L + px, y); }
+            }
+            _ctx.stroke();
+
+            // Frame count label
+            _ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            _ctx.textAlign = 'left';
+            _ctx.fillText(`live · ${_nWin} frames`, PAD_L + 4, PAD_T + 11);
         }
-
-        // ── Layer 3: Welch mean curve ─────────────────────────────
-        const avg = avg0 || _averagedPsd();
-        if (!avg) return;
-
-        _ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        _ctx.lineWidth   = 1;
-        _ctx.beginPath();
-        let started = false;
-        for (let b = 1; b < FFT_SIZE / 2; b++) {
-            const f = b * _sr / FFT_SIZE;
-            if (f < F_MIN || f > fMax) continue;
-            const db = avg[b] > 0 ? 10 * Math.log10(avg[b]) : dispMin;
-            const y  = dby(Math.max(dispMin, Math.min(dispMax, db)));
-            if (!started) { _ctx.moveTo(fx(f), y); started = true; }
-            else           _ctx.lineTo(fx(f), y);
-        }
-        _ctx.stroke();
-
-        // Frame count label
-        _ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        _ctx.textAlign = 'left';
-        _ctx.fillText(`${_nWin} frames avg`, PAD_L + 4, PAD_T + 11);
     }
 
     // ── Public API ────────────────────────────────────────────────
@@ -455,5 +486,10 @@ const PsdModule = (() => {
         _redraw();
     }
 
-    return { init, push, reset, computeFromRows, setShowPeterson };
+    function setDensityMode(val) {
+        _densityMode = !!val;
+        _redraw();
+    }
+
+    return { init, push, reset, computeFromRows, setShowPeterson, setDensityMode };
 })();

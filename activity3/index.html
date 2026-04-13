@@ -50,6 +50,7 @@
             <div class="spectrogram-panel" id="sensor-psd-panel" hidden>
                 <canvas id="psdChart"></canvas>
                 <div class="psd-controls">
+                    <button class="btn btn--sm" id="sensor-psd-density-btn">누적 히트맵</button>
                     <button class="btn btn--sm" id="sensor-peterson-btn">참조선 표시</button>
                     <button class="btn btn--sm btn--ghost" id="sensor-psd-export-btn">↓ PNG</button>
                 </div>
@@ -119,6 +120,7 @@
             <div class="spectrogram-panel" id="file-psd-panel" hidden>
                 <canvas id="filePsdChart"></canvas>
                 <div class="psd-controls">
+                    <button class="btn btn--sm" id="file-psd-density-btn">누적 히트맵</button>
                     <button class="btn btn--sm" id="file-peterson-btn">참조선 표시</button>
                     <button class="btn btn--sm btn--ghost" id="file-psd-export-btn">↓ PNG</button>
                 </div>
@@ -192,7 +194,7 @@
     <script src="../assets/js/sensor.js"></script>
     <script src="../assets/js/visual.js?v=4.9"></script>
     <script src="../assets/js/spectrogram.js?v=3.2"></script>
-    <script src="../assets/js/psd.js?v=3.4"></script>
+    <script src="../assets/js/psd.js?v=3.5"></script>
     <script src="../assets/js/hvsr.js?v=2.1"></script>
     <script src="../assets/js/export-image.js?v=1.0"></script>
 
@@ -303,6 +305,22 @@
         });
         document.getElementById('sensor-info-btn').addEventListener('click', () => _openInfoModal(_sensorActiveTab));
         document.getElementById('file-info-btn').addEventListener('click',   () => _openInfoModal(_fileActiveTab));
+
+        // ── PSD density heatmap toggle ────────────────────────────────
+        let _densityModeOn = false;
+        ['sensor', 'file'].forEach(prefix => {
+            const btn = document.getElementById(`${prefix}-psd-density-btn`);
+            btn.addEventListener('click', () => {
+                _densityModeOn = !_densityModeOn;
+                PsdModule.setDensityMode(_densityModeOn);
+                const label = _densityModeOn ? '누적 히트맵 ON' : '누적 히트맵';
+                btn.textContent = label;
+                const other = document.getElementById(
+                    prefix === 'sensor' ? 'file-psd-density-btn' : 'sensor-psd-density-btn'
+                );
+                other.textContent = label;
+            });
+        });
 
         // ── Peterson NLNM/NHNM toggle ─────────────────────────────────
         let _petersonOn = false;
