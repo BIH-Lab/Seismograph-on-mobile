@@ -5,7 +5,7 @@
 ---
 
 ## 현재 단계
-**Cycle 3 완료 + 후속 개선 완료, Cycle 4 진입 준비 중** (2026-04-13)
+**Cycle 4 진행 중** (2026-04-14)
 - Cycle 1 완료 (2026-03-08) + Activity 1 추가 개선 완료 (2026-03-22)
 - Cycle 2 완료 (2026-03-09)
 - Cycle 3 완료 (2026-03-10) + QA 개선 완료 (2026-03-11) + 재구성 완료 (2026-03-23)
@@ -19,7 +19,51 @@
 - hvsr.js v2.1 완료 (2026-04-08): 스무딩 제거 + FILE_HOP 512→128 (87.5% 오버랩)
 - psd.js v3.5~v3.6 완료 (2026-04-13): 실시간/누적 토글, Peterson 참조선 제거
 - Activity 3 UX 개선 완료 (2026-04-13): 컨트롤 외부 배치, 토글 스위치, PNG 버튼 레이블
-- Cycle 4 진입 준비 완료
+- Activity 4 v1 완료 (2026-04-14): 3탭 구조 + 시간조정 탭 + 수동 주시곡선
+
+---
+
+## Activity 4 v1 — 굴절법 주시곡선 탐사 (2026-04-14 완료)
+
+### 탭 구조 재편 (4단계 → 3탭)
+- [x] Step nav 4단계(`파일·거리·픽킹·결과`) → 3탭(`파싱/거리·시간조정·픽킹/분석`)
+- [x] `_showStep()` 이터레이션 `[1,2,3,4]` → `[1,2,3]`
+
+### Tab 1 — 파싱/거리 (기존 Steps 1+2 병합)
+- [x] 파일 로드 완료 시 거리 설정 서브패널 인라인 표시
+- [x] `_stations[]`에 `timeOffset: 0` 상태 추가
+- [x] `parseCSV()`, `haversine()`, `_computeDistances()` 기존 코드 보존
+
+### Tab 2 (신규) — 시간 조정 (Record Section)
+- [x] Record Section 캔버스: 트레이스 거리순 정렬, 공통 5초 시간 윈도우
+  - 데시메이션: rows.length > PW×2 이면 stride 계산으로 렌더링 최적화
+- [x] 빨간 점선 기준선: `_refLineT`, 포인터 드래그 이동 가능 (setPointerCapture)
+- [x] 스테이션별 오프셋 컨트롤: 범위 ±2000ms, 슬라이더 ↔ 숫자 입력 양방향 동기화
+- [x] 오프셋 변경 즉시 캔버스 재렌더
+
+### Tab 3 — 픽킹/주시곡선
+- [x] 기존 픽킹 카드 그대로 유지
+- [x] `timeOffset` 반영: `t = (s.pickTime + s.timeOffset) - (src.pickTime + src.timeOffset)`
+- [x] 주시곡선 모드 토글 추가 (`자동 회귀` / `수동 선 그리기`)
+  - 자동 모드: 기존 슬라이더 회귀선
+  - 수동 모드: "V₁ 선 추가" / "V₂ 선 추가" → 드래그 핸들 → 속도 실시간 계산
+  - 두 선 모두 있으면 xc(교차거리)·h(표층두께) 자동 계산·표시
+- [x] `onManualUpdate` 콜백 → `manual-vel-display` + `results-grid` 실시간 갱신
+- [x] 결과 저장 CSV에 `time_offset_ms` 컬럼 추가
+
+### hodochron.js v1.0 → v1.1
+- [x] `_getTransforms()` 좌표 변환 헬퍼 추출 (dist↔canvasX, t↔canvasY 양방향)
+- [x] `setMode('auto'|'manual')` API 추가
+- [x] `addLine(role)`: 역할당 1개, 초기 위치 자동 배치
+- [x] `clearLines()`: 수동 선 전체 초기화
+- [x] `onManualUpdate(cb)`: 드래그 시 속도 계산 결과 콜백
+- [x] 포인터 이벤트: hit radius 14px(터치 대응), setPointerCapture, init() 재호출 시 리스너 교체
+- [x] `_computeManual()`: slope → V, y절편 → ti → h, xc 계산
+- [x] 수동 선 렌더링: 핸들(원+흰 테두리), 연장 점선, xc 수직선, 범례
+
+### style.css 추가
+- [x] `.recsec-wrap`, `.offset-row`, `.offset-slider`, `.offset-num`
+- [x] `.hodo-mode-toggle`, `.hodo-mode-btn`, `.manual-line-ctrl`, `.manual-vel-display`
 
 ---
 

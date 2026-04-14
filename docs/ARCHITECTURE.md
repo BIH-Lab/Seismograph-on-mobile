@@ -9,7 +9,7 @@
 
 ---
 
-## 전체 파일 구조 (Cycle 3 완료 + 후속 수정 기준, 최종 업데이트 2026-04-13)
+## 전체 파일 구조 (Cycle 4 v1 기준, 최종 업데이트 2026-04-14)
 
 ```
 project-root/
@@ -20,6 +20,8 @@ project-root/
 │   └── index.html          # Activity 2 - 지진파 기록하기
 ├── activity3/
 │   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)  [Cycle 3]
+├── activity4/
+│   └── index.html          # Activity 4 - 주시곡선 탐사 (굴절법)               [Cycle 4]
 ├── assets/
 │   ├── css/
 │   │   └── style.css
@@ -32,7 +34,8 @@ project-root/
 │       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 (FFT → Canvas)  [Cycle 3]
 │       ├── psd.js          # Welch PSD 모듈 v3.6 (실시간/누적 토글)    [Cycle 3]
 │       ├── hvsr.js         # Nakamura HVSR 모듈 (부지 공진 주파수)     [Cycle 3]
-│       └── export-image.js # PNG 내보내기 모듈 (ObsPy 스타일 헤더)     [Cycle 3 후속]
+│       ├── export-image.js # PNG 내보내기 모듈 (ObsPy 스타일 헤더)     [Cycle 3 후속]
+│       └── hodochron.js    # 주시곡선 Canvas 렌더러 v1.1 (자동+수동)   [Cycle 4]
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -202,6 +205,21 @@ API   : init(canvasEl, sr), push(x, y, z, sr), reset(), windowCount(), computeFr
 참고  : Nakamura(1989), SESAME guidelines(2004), 정희옥 외(2010)
 ```
 
+### hodochron.js  v1.1  [Cycle 4]
+```
+역할  : 굴절법 주시곡선 Canvas 렌더링 (자동 회귀 + 수동 선 그리기)
+입력  : setData([{dist(m), t(ms), label, accM}])
+출력  : X=거리(m), Y=도달시간(ms) 산점도 + 회귀선 또는 수동 선
+자동 모드 : setSplit(distM) → 직접파·굴절파 선형 회귀 → {V1, V2, h, xc, ti, r2_1, r2_2}
+수동 모드 : addLine('direct'|'refracted') → 드래그 핸들로 기울기 조절 → 실시간 속도 계산
+좌표 변환 : _getTransforms() — dist↔canvasX, t↔canvasY 양방향 헬퍼 (포인터 드래그 공용)
+수동 계산 : slope = Δt/Δdist → V=1000/slope, ti=y절편/1000 → h=(ti×V1×V2)/(2√(V2²−V1²))
+렌더링 : 자동=파란(직접파)·주황(굴절파) 회귀선, 수동=드래그 핸들(원+흰 테두리)+연장 점선
+         xc 빨간 수직 점선, 범례 (V₁/V₂ m/s)
+API   : init(canvasEl), setData(points), setSplit(distM),
+        setMode('auto'|'manual'), addLine(role), clearLines(), onManualUpdate(cb), redraw()
+```
+
 ### export.js
 ```
 역할  : 수집된 데이터 메모리 저장 및 CSV 변환/다운로드
@@ -250,9 +268,10 @@ CSV 포맷:
 Cycle 1 완료  →  activity1/ (지진파 색으로 보기 + MMI 시각화 + 리뷰 모드)
 Cycle 2 완료  →  activity2/ (GPS + Z축 + CSV)
 Cycle 3 완료  →  activity3/ (스펙트로그램·PSD·HVSR 3분석 — 센서+파일 모드)
+Cycle 4 진행 →  activity4/ (굴절법 주시곡선 탐사 — 3탭: 파싱/거리·시간조정·픽킹/분석)
+                 v1: 다중 CSV 로드, GPS 거리 계산, Record Section 시간조정, 픽킹, 자동+수동 주시곡선
 
-Cycle 4  →  activity4/ (다중 CSV 드롭 + 신호 비교 + 기본 통계)
-Cycle 5  →  activity5/ (주시곡선 + GPS 진원 역산)
+Cycle 5  →  activity5/ (P파·S파 위상 픽킹 + GPS 진원 역산)
 Cycle 6  →  실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
 ```
 

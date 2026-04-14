@@ -8,7 +8,7 @@
 
 연구 결과물로 제작되며, 나선형 개발 방법론(Boehm, 1986)을 따릅니다.
 
-## 기술 스택 (현재 — Cycle 3 완료 + 후속 QA 개선)
+## 기술 스택 (현재 — Cycle 4 진행 중)
 - Frontend : Vanilla JS + CSS (빌드 도구 없음)
 - 그래프   : Canvas API (외부 라이브러리 없음)
 - 센서 API : Generic Sensor API (`LinearAccelerationSensor` → `Accelerometer`) + `DeviceMotionEvent` (3단계 자동 폴백)
@@ -27,6 +27,8 @@ project-root/
 │   └── index.html          # Activity 2 - 지진파 기록하기
 ├── activity3/
 │   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)
+├── activity4/
+│   └── index.html          # Activity 4 - 주시곡선 탐사 (굴절법)
 ├── assets/
 │   ├── css/
 │   │   └── style.css
@@ -39,7 +41,8 @@ project-root/
 │       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 v3.2 (FFT → Canvas, Seismic jet 컬러맵)
 │       ├── psd.js          # Welch PSD 모듈 v3.6 (실시간/누적 히트맵 토글, Y축 오토스케일)
 │       ├── hvsr.js         # Nakamura HVSR 모듈 v2.1 (스무딩 없음, FILE_HOP=128, Y축 오토스케일)
-│       └── export-image.js # PNG 내보내기 모듈 v1.0 (ObsPy 스타일 헤더 + canvas toDataURL)
+│       ├── export-image.js # PNG 내보내기 모듈 v1.0 (ObsPy 스타일 헤더 + canvas toDataURL)
+│       └── hodochron.js    # 주시곡선 모듈 v1.1 (자동 회귀 + 수동 선 그리기)
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -62,7 +65,7 @@ project-root/
 - 새 기능 추가 전 반드시 TASK.md 확인
 
 ## 현재 개발 단계
-**Cycle 3 완료 + QA 개선 완료, Cycle 4 준비 중** — TASK.md 참고
+**Cycle 4 진행 중** — TASK.md 참고
 - Cycle 1 완료: Activity 1 (지진파 색으로 보기 + KMA MMI + 리뷰 모드)
 - Cycle 2 완료: Activity 2 (GPS + Z축 + CSV, Android/iOS 테스트 완료)
 - Cycle 3 완료: Activity 3 (스펙트로그램·PSD·HVSR 3분석 — 센서 + 파일 모드)
@@ -93,7 +96,12 @@ project-root/
   - 컨트롤(버튼) 그래프 패널 외부로 분리 (graph-controls) → 그래프 가림 해소
   - 실시간↔누적 토글: PSD 탭 활성 시 측정 정지 버튼 위 가운데 표시 (센서 모드)
   - PNG 버튼 레이블 명확화: "↓ PNG" → "↓ 파형" / "↓ 스펙트로그램" / "↓ PSD" / "↓ HVSR"
-- Cycle 4 예정: Activity 4 — 신호 비교하기
+- Activity 4 v1 완료 (2026-04-14):
+  - 3탭 구조 (파싱/거리 · 시간조정 · 픽킹/분석)
+  - Tab 2 Record Section: 트레이스 거리순 정렬, 빨간 기준선 드래그, ±2000ms 오프셋 슬라이더
+  - Tab 3 주시곡선: 자동 회귀 모드 + 수동 선 그리기 모드 (드래그 핸들 → V1/V2/xc/h 실시간)
+  - hodochron.js v1.1: _getTransforms(), addLine/clearLines/setMode/onManualUpdate API
+- Cycle 5 예정: Activity 5 — P파·S파 위상 픽킹 + GPS 진원 역산
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
 - spectrogram.js v3.2: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s
