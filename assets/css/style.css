@@ -848,6 +848,76 @@ html, body {
     min-height: 1.2em;
 }
 
+/* Record Section (step 2 — 시간 조정) */
+.recsec-wrap {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #0a0a0a;
+    overflow: hidden;
+    touch-action: none;
+}
+.recsec-wrap canvas { width: 100% !important; display: block; }
+
+.offset-list { display: flex; flex-direction: column; }
+.offset-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.84rem;
+}
+.offset-row__id  { flex: 0 0 90px; font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.offset-slider   { flex: 1; accent-color: var(--wave); min-width: 0; }
+.offset-num {
+    width: 68px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.82rem;
+    padding: 4px 8px;
+    text-align: right;
+    outline: none;
+}
+.offset-num:focus { border-color: var(--wave); }
+.offset-row__unit { color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
+
+/* Hodochron mode toggle (step 3) */
+.hodo-mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+.hodo-mode-btn {
+    flex: 1;
+    padding: 7px 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.hodo-mode-btn--active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--bg);
+}
+.manual-line-ctrl {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 6px 0;
+}
+.manual-vel-display {
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 4px 0;
+    min-height: 1.4em;
+}
+.manual-vel-display strong { color: var(--text); }
+
 
 /* ===================================
    PC 반응형 (768px+)
