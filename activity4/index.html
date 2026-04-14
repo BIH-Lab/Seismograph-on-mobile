@@ -62,13 +62,16 @@
         <!-- ── Step 2: Time adjustment (Record Section) ───────────── -->
         <section id="step2" class="step-section" hidden>
             <h2 class="step-title">2단계: 시간 조정</h2>
-            <p class="step-desc">X축=거리, Y축=시간(위→아래). 각 스테이션의 초동이 같은 시간 선 위에 오도록 오프셋 슬라이더로 정렬하세요. 빨간 기준선(수평)을 드래그해 기준 시각을 이동할 수 있습니다.</p>
+            <p class="step-desc">X축=거리, Y축=시간(위→아래). 각 트레이스를 위아래로 드래그해 초동을 빨간 기준선에 맞추세요. 노란 선을 드래그해 분석 창 끝을 설정합니다.</p>
 
             <div class="recsec-wrap" id="recsec-wrap">
                 <canvas id="recsecChart"></canvas>
             </div>
 
-            <div id="offset-list" class="offset-list"></div>
+            <details class="offset-details">
+                <summary class="offset-details__summary">정밀 조정 (ms 입력)</summary>
+                <div id="offset-list" class="offset-list"></div>
+            </details>
 
             <div class="controls">
                 <button class="btn btn--ghost btn--sm" id="back1">← 뒤로</button>
@@ -354,11 +357,15 @@
         // STEP 2 — Time adjustment (Record Section)
         // ════════════════════════════════════════════════════════════
         const RS_PAD_L  = 44, RS_PAD_R = 12, RS_PAD_T = 16, RS_PAD_B = 40;
-        const WINDOW_MS = 5000;
 
-        let _refLineT    = 0;
-        let _draggingRef = false;
-        let _rsTMin      = 0;
+        let _windowMs      = 10000;  // computed from data
+        let _rsTMin        = 0;      // frozen at step2 init
+        let _refLineT      = 0;      // red reference line (t=0)
+        let _refEndT       = 0;      // yellow end-of-window line
+        let _draggingRef   = false;
+        let _draggingEnd   = false;
+        let _activeDragStn = -1;     // _stations[] index being dragged
+        let _dragPrevY     = 0;
 
         function _buildStep2() {
             _buildOffsetList();
@@ -376,11 +383,17 @@
         }
 
         function _initRefLine() {
-            const sorted = [..._stations].filter(s => s.dist !== null).sort((a, b) => a.dist - b.dist);
-            _rsTMin = Math.min(...sorted.map(s =>
+            const valid = _stations.filter(s => s.dist !== null && s.rows.length > 0);
+            if (!valid.length) return;
+            _rsTMin = Math.min(...valid.map(s =>
                 new Date(s.rows[0].timestamp).getTime() + s.timeOffset
             ));
-            _refLineT = _rsTMin + WINDOW_MS * 0.15;
+            const rsTMax = Math.max(...valid.map(s =>
+                new Date(s.rows[s.rows.length - 1].timestamp).getTime() + s.timeOffset
+            ));
+            _windowMs = Math.min(rsTMax - _rsTMin + 500, 60000);
+            _refLineT = _rsTMin + _windowMs * 0.1;
+            _refEndT  = _refLineT + Math.min(3000, _windowMs * 0.3);
         }
 
         function _drawRecordSection() {
@@ -394,27 +407,42 @@
             const sorted = [..._stations].filter(s => s.dist !== null).sort((a, b) => a.dist - b.dist);
             if (!sorted.length) return;
 
-            _rsTMin = Math.min(...sorted.map(s =>
-                new Date(s.rows[0].timestamp).getTime() + s.timeOffset
-            ));
-
+            // Use frozen _rsTMin / _windowMs (set in _initRefLine, not recomputed here)
             const maxDist = Math.max(...sorted.map(s => s.dist), 1);
 
-            // Coordinate transforms: X=distance, Y=time (top=start)
             function cxD(distM) { return RS_PAD_L + (distM / maxDist) * PW; }
-            function cyT(tMs)   { return RS_PAD_T + (tMs - _rsTMin) / WINDOW_MS * PH; }
+            function cyT(tMs)   { return RS_PAD_T + (tMs - _rsTMin) / _windowMs * PH; }
 
-            // Amplitude scale: 40% of average inter-station spacing
+            // Amplitude: generous scale per-station with global context
+            // xAmpMax = 1.5x inter-station spacing (allows overlap, shows relative amplitude)
             const xAmpMax = sorted.length > 1
-                ? (PW / (sorted.length - 1)) * 0.4
-                : PW * 0.08;
+                ? (PW / (sorted.length - 1)) * 1.5
+                : PW * 0.2;
+
+            // Global max across all stations for relative amplitude display
+            let globalMaxAbs = 0.001;
+            sorted.forEach(s => {
+                const ak = s.rows[0] ? (s.rows[0].acc_z !== undefined ? 'acc_z' : s.rows[0].acc_x !== undefined ? 'acc_x' : null) : null;
+                if (!ak) return;
+                const step = Math.max(1, Math.ceil(s.rows.length / 2000));
+                for (let ri = 0; ri < s.rows.length; ri += step)
+                    globalMaxAbs = Math.max(globalMaxAbs, Math.abs(parseFloat(s.rows[ri][ak]) || 0));
+            });
 
             ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, W, H);
 
-            // Y-axis: time ticks + horizontal grid (left side)
+            // Analysis window overlay (between ref line and end line)
+            const ryA = cyT(_refLineT), ryB = cyT(_refEndT);
+            if (ryA < ryB) {
+                ctx.fillStyle = 'rgba(255,71,87,0.06)';
+                ctx.fillRect(RS_PAD_L, ryA, PW, ryB - ryA);
+            }
+
+            // Y-axis: time ticks + horizontal grid
+            const tickStep = Math.ceil(_windowMs / 10 / 500) * 500;
             ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
-            for (let ms = 0; ms <= WINDOW_MS; ms += 500) {
+            for (let ms = 0; ms <= _windowMs; ms += tickStep) {
                 const y = cyT(_rsTMin + ms);
                 ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(RS_PAD_L, y); ctx.lineTo(RS_PAD_L + PW, y); ctx.stroke();
@@ -434,21 +462,16 @@
                 ctx.fillText(s.dist.toFixed(0) + 'm', x, H - RS_PAD_B + 22);
             });
 
-            // Wiggle traces
+            // Wiggle traces (global amplitude normalization)
             sorted.forEach(s => {
                 const xCenter = cxD(s.dist);
-
                 const accKey = s.rows[0]
                     ? (s.rows[0].acc_z !== undefined ? 'acc_z'
                      : s.rows[0].acc_x !== undefined ? 'acc_x' : null)
                     : null;
                 if (!accKey) return;
 
-                let maxAbs = 0;
-                for (const r of s.rows) maxAbs = Math.max(maxAbs, Math.abs(parseFloat(r[accKey]) || 0));
-                maxAbs = Math.max(maxAbs, 0.001);
-                const xScale = xAmpMax / maxAbs;
-
+                const xScale = xAmpMax / globalMaxAbs;
                 const stride = Math.max(1, Math.ceil(s.rows.length / (PH * 2)));
                 ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -456,7 +479,7 @@
                 for (let ri = 0; ri < s.rows.length; ri += stride) {
                     const r   = s.rows[ri];
                     const tMs = new Date(r.timestamp).getTime() + s.timeOffset;
-                    if (tMs < _rsTMin - 50 || tMs > _rsTMin + WINDOW_MS + 50) { first = true; continue; }
+                    if (tMs < _rsTMin - 50 || tMs > _rsTMin + _windowMs + 50) { first = true; continue; }
                     const y = cyT(tMs);
                     const v = parseFloat(r[accKey]) || 0;
                     const x = xCenter + Math.max(-xAmpMax, Math.min(xAmpMax, v * xScale));
@@ -466,46 +489,107 @@
                 ctx.stroke();
             });
 
-            // Reference line: horizontal red dashed, draggable
-            const ry = cyT(_refLineT);
-            if (ry >= RS_PAD_T && ry <= RS_PAD_T + PH) {
+            // End-of-window line: yellow dashed
+            const ryEnd = cyT(_refEndT);
+            if (ryEnd >= RS_PAD_T && ryEnd <= RS_PAD_T + PH) {
+                ctx.strokeStyle = '#ffd32a'; ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(RS_PAD_L, ryEnd); ctx.lineTo(RS_PAD_L + PW, ryEnd);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#ffd32a'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+                const winSec = ((_refEndT - _refLineT) / 1000).toFixed(2);
+                ctx.fillText('▲ 창 끝 (' + winSec + 's)', RS_PAD_L + PW, ryEnd - 3);
+            }
+
+            // Reference line: horizontal red solid, draggable
+            const ryRef = cyT(_refLineT);
+            if (ryRef >= RS_PAD_T && ryRef <= RS_PAD_T + PH) {
                 ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 2;
                 ctx.setLineDash([6, 4]);
                 ctx.beginPath();
-                ctx.moveTo(RS_PAD_L, ry); ctx.lineTo(RS_PAD_L + PW, ry);
+                ctx.moveTo(RS_PAD_L, ryRef); ctx.lineTo(RS_PAD_L + PW, ryRef);
                 ctx.stroke();
                 ctx.setLineDash([]);
                 ctx.fillStyle = '#ff4757'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
-                ctx.fillText('기준', RS_PAD_L + 3, ry - 3);
+                ctx.fillText('▼ 기준 (t=0)', RS_PAD_L + 3, ryRef + 12);
             }
         }
 
         function _attachRecSecEvents(canvas) {
-            // Remove any previously attached listeners by replacing with cloned node
             const fresh = canvas.cloneNode(true);
             canvas.parentNode.replaceChild(fresh, canvas);
 
-            fresh.addEventListener('pointerdown', e => {
+            function scaledY(e) {
                 const rect = fresh.getBoundingClientRect();
-                const py   = (e.clientY - rect.top) * (fresh.height / rect.height);
-                const PH   = fresh.height - RS_PAD_T - RS_PAD_B;
-                const refY = RS_PAD_T + (_refLineT - _rsTMin) / WINDOW_MS * PH;
-                if (Math.abs(py - refY) < 16) {
+                return (e.clientY - rect.top) * (fresh.height / rect.height);
+            }
+            function scaledX(e) {
+                const rect = fresh.getBoundingClientRect();
+                return (e.clientX - rect.left) * (fresh.width / rect.width);
+            }
+
+            fresh.addEventListener('pointerdown', e => {
+                const py = scaledY(e);
+                const px = scaledX(e);
+                const PH = fresh.height - RS_PAD_T - RS_PAD_B;
+
+                const refY = RS_PAD_T + (_refLineT - _rsTMin) / _windowMs * PH;
+                const endY = RS_PAD_T + (_refEndT  - _rsTMin) / _windowMs * PH;
+
+                if (Math.abs(py - refY) < 14) {
                     _draggingRef = true;
                     fresh.setPointerCapture(e.pointerId);
+                } else if (Math.abs(py - endY) < 14) {
+                    _draggingEnd = true;
+                    fresh.setPointerCapture(e.pointerId);
+                } else {
+                    // Find nearest station by X
+                    const PW = fresh.width - RS_PAD_L - RS_PAD_R;
+                    const sorted = [..._stations].filter(s => s.dist !== null).sort((a, b) => a.dist - b.dist);
+                    const maxDist = Math.max(...sorted.map(s => s.dist), 1);
+                    let best = -1, bestDist = Infinity;
+                    sorted.forEach(s => {
+                        const cx = RS_PAD_L + (s.dist / maxDist) * PW;
+                        const d  = Math.abs(px - cx);
+                        if (d < bestDist) { bestDist = d; best = _stations.indexOf(s); }
+                    });
+                    if (best >= 0 && bestDist < PW / sorted.length) {
+                        _activeDragStn = best;
+                        _dragPrevY = py;
+                        fresh.setPointerCapture(e.pointerId);
+                    }
                 }
             });
+
             fresh.addEventListener('pointermove', e => {
-                if (!_draggingRef) return;
-                const rect = fresh.getBoundingClientRect();
-                const py   = (e.clientY - rect.top) * (fresh.height / rect.height);
-                const PH   = fresh.height - RS_PAD_T - RS_PAD_B;
-                _refLineT  = _rsTMin + (py - RS_PAD_T) / PH * WINDOW_MS;
-                _refLineT  = Math.max(_rsTMin, Math.min(_rsTMin + WINDOW_MS, _refLineT));
-                _drawRecordSection();
+                const py = scaledY(e);
+                const PH = fresh.height - RS_PAD_T - RS_PAD_B;
+
+                if (_draggingRef) {
+                    _refLineT = _rsTMin + (py - RS_PAD_T) / PH * _windowMs;
+                    _refLineT = Math.max(_rsTMin, Math.min(_rsTMin + _windowMs, _refLineT));
+                    if (_refEndT <= _refLineT) _refEndT = _refLineT + 500;
+                    _drawRecordSection();
+                } else if (_draggingEnd) {
+                    _refEndT = _rsTMin + (py - RS_PAD_T) / PH * _windowMs;
+                    _refEndT = Math.max(_refLineT + 200, Math.min(_rsTMin + _windowMs, _refEndT));
+                    _drawRecordSection();
+                } else if (_activeDragStn >= 0) {
+                    const dy = py - _dragPrevY;
+                    const msPerPx = _windowMs / PH;
+                    _stations[_activeDragStn].timeOffset += dy * msPerPx;
+                    _dragPrevY = py;
+                    // Sync number input if visible
+                    const numEl = document.querySelector(`[data-stnidx="${_activeDragStn}"] .offset-num`);
+                    if (numEl) numEl.value = Math.round(_stations[_activeDragStn].timeOffset);
+                    _drawRecordSection();
+                }
             });
-            fresh.addEventListener('pointerup',     () => { _draggingRef = false; });
-            fresh.addEventListener('pointercancel', () => { _draggingRef = false; });
+
+            fresh.addEventListener('pointerup',     () => { _draggingRef = _draggingEnd = false; _activeDragStn = -1; });
+            fresh.addEventListener('pointercancel', () => { _draggingRef = _draggingEnd = false; _activeDragStn = -1; });
         }
 
         function _buildOffsetList() {
@@ -516,22 +600,16 @@
                 const origIdx = _stations.indexOf(s);
                 const row = document.createElement('div');
                 row.className = 'offset-row';
+                row.dataset.stnidx = origIdx;
                 row.innerHTML = `
                     <span class="offset-row__id">${s.station_id}<br>${s.dist !== null ? s.dist.toFixed(1) + 'm' : '?'}</span>
-                    <input type="range" class="offset-slider" min="-2000" max="2000" step="1" value="${s.timeOffset}">
-                    <input type="number" class="offset-num"   min="-2000" max="2000" step="1" value="${s.timeOffset}">
+                    <input type="number" class="offset-num" step="1" value="${Math.round(s.timeOffset)}">
                     <span class="offset-row__unit">ms</span>
                 `;
-                const slider = row.querySelector('.offset-slider');
-                const num    = row.querySelector('.offset-num');
-                function apply(v) {
-                    _stations[origIdx].timeOffset = v;
-                    _drawRecordSection();
-                }
-                slider.addEventListener('input', () => { num.value = slider.value; apply(parseInt(slider.value)); });
+                const num = row.querySelector('.offset-num');
                 num.addEventListener('input', () => {
-                    const v = Math.max(-2000, Math.min(2000, parseInt(num.value) || 0));
-                    slider.value = v; apply(v);
+                    _stations[origIdx].timeOffset = parseInt(num.value) || 0;
+                    _drawRecordSection();
                 });
                 container.appendChild(row);
             }

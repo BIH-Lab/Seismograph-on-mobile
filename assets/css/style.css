@@ -859,6 +859,18 @@ html, body {
 }
 .recsec-wrap canvas { width: 100% !important; display: block; }
 
+.offset-details { margin-top: 6px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.offset-details__summary {
+    padding: 7px 12px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    cursor: pointer;
+    background: var(--surface);
+    user-select: none;
+}
+.offset-details__summary:hover { color: var(--text); }
+.offset-details .offset-list { padding: 0 10px 4px; }
+
 .offset-list { display: flex; flex-direction: column; }
 .offset-row {
     display: flex;
@@ -869,9 +881,8 @@ html, body {
     font-size: 0.84rem;
 }
 .offset-row__id  { flex: 0 0 90px; font-size: 0.78rem; color: var(--muted); font-weight: 600; }
-.offset-slider   { flex: 1; accent-color: var(--wave); min-width: 0; }
 .offset-num {
-    width: 68px;
+    width: 80px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
