@@ -408,17 +408,22 @@
             const sorted = [..._stations].filter(s => s.dist !== null).sort((a, b) => a.dist - b.dist);
             if (!sorted.length) return;
 
-            // Use frozen _rsTMin / _windowMs (set in _initRefLine, not recomputed here)
+            // Recompute _rsTMin dynamically so waveforms remain visible after offset changes
+            _rsTMin = Math.min(...sorted.map(s =>
+                new Date(s.rows[0].timestamp).getTime() + s.timeOffset
+            ));
+
             const maxDist = Math.max(...sorted.map(s => s.dist), 1);
 
-            function cxD(distM) { return RS_PAD_L + (distM / maxDist) * PW; }
+            // X: add half-interval margin so edge stations have room for wiggle
+            const xMargin = sorted.length > 1 ? PW / (sorted.length + 1) : 20;
+            const xSpan   = PW - xMargin * 2;
+            function cxD(distM) { return RS_PAD_L + xMargin + (distM / maxDist) * xSpan; }
             function cyT(tMs)   { return RS_PAD_T + (tMs - _rsTMin) / _windowMs * PH; }
 
-            // Amplitude: generous scale per-station with global context
-            // xAmpMax = 1.5x inter-station spacing (allows overlap, shows relative amplitude)
-            const xAmpMax = sorted.length > 1
-                ? (PW / (sorted.length - 1)) * 1.5
-                : PW * 0.2;
+            // Amplitude: inter-station spacing × 0.9 (canvas clip handles overflow)
+            const interSpacing = sorted.length > 1 ? xSpan / (sorted.length - 1) : xSpan;
+            const xAmpMax = interSpacing * 0.9;
 
             // Global max across all stations for relative amplitude display
             let globalMaxAbs = 0.001;
@@ -438,9 +443,8 @@
                 const hs = _stations[_hoverStnOrigIdx];
                 if (hs && hs.dist !== null) {
                     const hx = cxD(hs.dist);
-                    const hw = sorted.length > 1 ? (PW / (sorted.length - 1)) * 0.55 : 30;
                     ctx.fillStyle = 'rgba(0,210,211,0.07)';
-                    ctx.fillRect(hx - hw, RS_PAD_T, hw * 2, PH);
+                    ctx.fillRect(hx - xAmpMax, RS_PAD_T, xAmpMax * 2, PH);
                 }
             }
 
@@ -474,7 +478,12 @@
                 ctx.fillText(s.dist.toFixed(0) + 'm', x, H - RS_PAD_B + 22);
             });
 
-            // Wiggle traces (global amplitude normalization)
+            // Wiggle traces with canvas clip (prevents overflow at edges)
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(RS_PAD_L, RS_PAD_T, PW, PH);
+            ctx.clip();
+
             sorted.forEach(s => {
                 const xCenter = cxD(s.dist);
                 const accKey = s.rows[0]
@@ -491,7 +500,8 @@
                 for (let ri = 0; ri < s.rows.length; ri += stride) {
                     const r   = s.rows[ri];
                     const tMs = new Date(r.timestamp).getTime() + s.timeOffset;
-                    if (tMs < _rsTMin - 50 || tMs > _rsTMin + _windowMs + 50) { first = true; continue; }
+                    // Generous filter: skip only data far outside window (perf optimization)
+                    if (tMs < _rsTMin - _windowMs || tMs > _rsTMin + _windowMs * 2) { first = true; continue; }
                     const y = cyT(tMs);
                     const v = parseFloat(r[accKey]) || 0;
                     const x = xCenter + Math.max(-xAmpMax, Math.min(xAmpMax, v * xScale));
@@ -500,6 +510,8 @@
                 }
                 ctx.stroke();
             });
+
+            ctx.restore();
 
             // End-of-window line: yellow dashed
             const ryEnd = cyT(_refEndT);
@@ -571,14 +583,17 @@
                 };
             }
 
+            // Improve touch response
+            fresh.style.touchAction = 'none';
+
             fresh.addEventListener('pointerdown', e => {
                 const {px, py} = cpt(e);
                 const {refY, endY, PH} = lineYs();
 
-                if (Math.abs(py - refY) < 14) {
+                if (Math.abs(py - refY) < 20) {
                     _draggingRef = true;
                     fresh.setPointerCapture(e.pointerId);
-                } else if (Math.abs(py - endY) < 14) {
+                } else if (Math.abs(py - endY) < 20) {
                     _draggingEnd = true;
                     fresh.setPointerCapture(e.pointerId);
                 } else {
@@ -614,7 +629,7 @@
                 }
 
                 // Cursor + hover column feedback
-                if (Math.abs(py - refY) < 14 || Math.abs(py - endY) < 14) {
+                if (Math.abs(py - refY) < 20 || Math.abs(py - endY) < 20) {
                     fresh.style.cursor = 'ns-resize';
                     if (_hoverStnOrigIdx !== -1) { _hoverStnOrigIdx = -1; _drawRecordSection(); }
                 } else {
