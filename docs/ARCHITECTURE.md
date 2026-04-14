@@ -21,7 +21,7 @@ project-root/
 ├── activity3/
 │   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)  [Cycle 3]
 ├── activity4/
-│   └── index.html          # Activity 4 - 주시곡선 탐사 (굴절법)               [Cycle 4]
+│   └── index.html          # Activity 4 - 주시곡선 (굴절법 탐사)               [Cycle 4]
 ├── assets/
 │   ├── css/
 │   │   └── style.css
@@ -268,7 +268,7 @@ CSV 포맷:
 Cycle 1 완료  →  activity1/ (지진파 색으로 보기 + MMI 시각화 + 리뷰 모드)
 Cycle 2 완료  →  activity2/ (GPS + Z축 + CSV)
 Cycle 3 완료  →  activity3/ (스펙트로그램·PSD·HVSR 3분석 — 센서+파일 모드)
-Cycle 4 진행 →  activity4/ (굴절법 주시곡선 탐사 — 3탭: 파싱/거리·시간조정·픽킹/분석)
+Cycle 4 완료 →  activity4/ (주시곡선 (굴절법 탐사) — 3탭: 파싱/거리·시간조정·픽킹/분석)
                  v1: 다중 CSV 로드, GPS 거리 계산, Record Section 시간조정, 픽킹, 자동+수동 주시곡선
 
 Cycle 5  →  activity5/ (P파·S파 위상 픽킹 + GPS 진원 역산)

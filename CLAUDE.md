@@ -28,7 +28,7 @@ project-root/
 ├── activity3/
 │   └── index.html          # Activity 3 - 주파수 분석 (스펙트로그램·PSD·HVSR)
 ├── activity4/
-│   └── index.html          # Activity 4 - 주시곡선 탐사 (굴절법)
+│   └── index.html          # Activity 4 - 주시곡선 (굴절법 탐사)
 ├── assets/
 │   ├── css/
 │   │   └── style.css
