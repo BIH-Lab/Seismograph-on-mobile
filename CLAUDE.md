@@ -42,7 +42,7 @@ project-root/
 │       ├── psd.js          # Welch PSD 모듈 v3.6 (실시간/누적 히트맵 토글, Y축 오토스케일)
 │       ├── hvsr.js         # Nakamura HVSR 모듈 v2.1 (스무딩 없음, FILE_HOP=128, Y축 오토스케일)
 │       ├── export-image.js # PNG 내보내기 모듈 v1.0 (ObsPy 스타일 헤더 + canvas toDataURL)
-│       └── hodochron.js    # 주시곡선 모듈 v1.1 (자동 회귀 + 수동 선 그리기)
+│       └── hodochron.js    # 주시곡선 모듈 v1.2 (자동 회귀 + 수동 선 + partial 결과)
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
@@ -96,21 +96,22 @@ project-root/
   - 컨트롤(버튼) 그래프 패널 외부로 분리 (graph-controls) → 그래프 가림 해소
   - 실시간↔누적 토글: PSD 탭 활성 시 측정 정지 버튼 위 가운데 표시 (센서 모드)
   - PNG 버튼 레이블 명확화: "↓ PNG" → "↓ 파형" / "↓ 스펙트로그램" / "↓ PSD" / "↓ HVSR"
-- Activity 4 완료 (2026-04-27):
+- Activity 4 v1 완료 (2026-04-27):
   - 3단계 구조 (Step 1: 파싱/거리 · Step 2: 시간조정 · Step 3: 픽킹/분석)
-  - Step 2 Record Section (wiggle trace 레코드 섹션):
-    - X=거리(m), Y=시간(아래로), 각 스테이션 열에 wiggle 트레이스 표시
-    - 전역 진폭 정규화 (스테이션 간격의 0.9배 최대 진폭)
-    - 클릭-to-스냅: 트레이스의 초동 클릭 → 그 시각이 빨간 기준선으로 이동
-      (`timeOffset += refLineT - epochAtClick`)
-    - 빨간 기준선(t=0) 드래그, 노란 선(분석 구간 끝) 드래그
-    - 동적 `_windowMs` (실제 데이터 범위에서 계산, 최대 60s)
-    - 동적 `_rsTMin` (매 렌더마다 현재 timeOffset 반영 재계산)
-    - 호버 컬럼 하이라이트 (청록) + crosshair 커서
-    - Canvas clip rect로 진폭 오버플로 방지
-    - "오프셋 초기화" 버튼, "정밀 조정 (ms 입력)" 접이식 패널
-  - Step 3 주시곡선: 자동 회귀 모드 + 수동 선 그리기 모드 (드래그 핸들 → V1/V2/xc/h 실시간)
+  - Step 2 Record Section: X=거리(m), Y=시간(↓), wiggle 트레이스, 클릭-to-스냅, 줌인/아웃
+  - Step 3 픽킹 카드: 줌인/아웃 + ±maxAbs Y축 스케일 표시
+  - 주시곡선: 자동 회귀 모드 + 수동 선 그리기 모드
   - hodochron.js v1.1: _getTransforms(), addLine/clearLines/setMode/onManualUpdate API
+- Activity 4 후속 개선 (2026-05-13):
+  - **시간 기준 재설계**: `srcT = _refLineT` (Step 2 빨간 기준선 = 발진 시각 t=0)
+    - 이전: 진원 스테이션의 pickTime 기준 → Step 2 조정이 Step 3에 미반영되던 버그 해결
+  - **진원 스테이션 선택 선택적화**: _sourceIdx = -1 시 모든 거리 수동 입력 가능
+  - **split slider 회귀선 수정**: `_points.length < 4` 제거 → partial 결과 지원
+    - g1 ≥ 2면 V1 파랑선 + V1 값 표시 (g2 부족 시 "V₁만 계산됨" 경고)
+    - g1·g2 ≥ 2 + 물리 조건 만족 시 완전 결과 (V1/V2/h/xc)
+  - **결과 유효수자**: V1/V2/h/xc 소수점 2자리 표시
+  - **레이블 수정**: "기반층" → "하부층"
+  - hodochron.js v1.2: partial 결과, null guard, toFixed(2) 정밀도
 - Cycle 5 예정: Activity 5 — P파·S파 위상 픽킹 + GPS 진원 역산
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
