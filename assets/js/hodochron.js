@@ -73,33 +73,32 @@ const HodochronModule = (() => {
 
     // ── Auto compute (regression) ──────────────────────────────────
     function _compute() {
-        if (_split === null || _points.length < 4) return null;
+        if (_split === null) return null;
         const g1 = _points.filter(p => p.dist <= _split).map(p => ({ x: p.dist, y: p.t }));
         const g2 = _points.filter(p => p.dist >  _split).map(p => ({ x: p.dist, y: p.t }));
-        if (g1.length < 2 || g2.length < 2) return null;
 
-        const r1 = _linReg(g1), r2 = _linReg(g2);
-        if (!r1 || !r2 || r1.slope <= 0 || r2.slope <= 0) return null;
-        if (r1.slope <= r2.slope) return null;
+        if (g1.length < 2) return null;
+        const r1 = _linReg(g1);
+        if (!r1 || r1.slope <= 0) return null;
+        const V1 = parseFloat((1000 / r1.slope).toFixed(2));
 
-        const V1 = 1000 / r1.slope, V2 = 1000 / r2.slope;
-        if (V2 <= V1) return null;
+        const partial1 = { V1, V2: null, h: null, xc: null, r2_1: r1.r2.toFixed(3), _r1: r1, _r2: null, partial: true };
+        if (g2.length < 2) return partial1;
+        const r2 = _linReg(g2);
+        if (!r2 || r2.slope <= 0 || r1.slope <= r2.slope) return partial1;
+        const V2 = parseFloat((1000 / r2.slope).toFixed(2));
+        if (V2 <= V1) return partial1;
 
         const ti = r2.intercept / 1000;
-        if (ti <= 0) return null;
-
+        const partial2 = { V1, V2, h: null, xc: null, r2_1: r1.r2.toFixed(3), r2_2: r2.r2.toFixed(3), _r1: r1, _r2: r2, partial: true };
+        if (ti <= 0) return partial2;
         const dv = V2 * V2 - V1 * V1;
-        if (dv <= 0) return null;
-        const h  = (ti * V1 * V2) / (2 * Math.sqrt(dv));
-        const xc = (r2.intercept - r1.intercept) / (r1.slope - r2.slope);
+        if (dv <= 0) return partial2;
 
-        return {
-            V1: Math.round(V1), V2: Math.round(V2),
-            ti: ti.toFixed(4),  h: (Math.round(h * 10) / 10),
-            xc: Math.round(xc),
-            r2_1: r1.r2.toFixed(3), r2_2: r2.r2.toFixed(3),
-            _r1: r1, _r2: r2
-        };
+        const h  = parseFloat(((ti * V1 * V2) / (2 * Math.sqrt(dv))).toFixed(2));
+        const xc = parseFloat(((r2.intercept - r1.intercept) / (r1.slope - r2.slope)).toFixed(2));
+
+        return { V1, V2, h, xc, ti: ti.toFixed(4), r2_1: r1.r2.toFixed(3), r2_2: r2.r2.toFixed(3), _r1: r1, _r2: r2 };
     }
 
     // ── Manual compute (from dragged line handles) ─────────────────
@@ -111,12 +110,12 @@ const HodochronModule = (() => {
         if (d) {
             const dx = d.p2.distM - d.p1.distM;
             const dt = d.p2.tMs   - d.p1.tMs;
-            if (Math.abs(dx) > 0.01 && dt > 0) out.V1 = Math.round(dx * 1000 / dt);
+            if (Math.abs(dx) > 0.01 && dt > 0) out.V1 = parseFloat((dx * 1000 / dt).toFixed(2));
         }
         if (r) {
             const dx = r.p2.distM - r.p1.distM;
             const dt = r.p2.tMs   - r.p1.tMs;
-            if (Math.abs(dx) > 0.01 && dt > 0) out.V2 = Math.round(dx * 1000 / dt);
+            if (Math.abs(dx) > 0.01 && dt > 0) out.V2 = parseFloat((dx * 1000 / dt).toFixed(2));
         }
 
         if (out.V1 && out.V2 && out.V2 > out.V1 && r) {
@@ -127,13 +126,13 @@ const HodochronModule = (() => {
                 const V1 = out.V1, V2 = out.V2;
                 const dv = V2 * V2 - V1 * V1;
                 if (dv > 0) {
-                    out.h = Math.round((ti * V1 * V2) / (2 * Math.sqrt(dv)) * 10) / 10;
+                    out.h = parseFloat(((ti * V1 * V2) / (2 * Math.sqrt(dv))).toFixed(2));
                     if (d) {
                         const slope_d  = (d.p2.tMs - d.p1.tMs) / (d.p2.distM - d.p1.distM);
                         const tiMs_d   = d.p1.tMs - slope_d * d.p1.distM;
                         const dSlope   = slope_d - slope_r;
                         if (Math.abs(dSlope) > 1e-9)
-                            out.xc = Math.round((tiMs - tiMs_d) / dSlope);
+                            out.xc = parseFloat(((tiMs - tiMs_d) / dSlope).toFixed(2));
                     }
                 }
             }
@@ -227,17 +226,21 @@ const HodochronModule = (() => {
         // Auto regression lines
         if (_mode === 'auto' && autoResult) {
             const { _r1, _r2, xc } = autoResult;
-            _ctx.strokeStyle = '#4a9eff'; _ctx.lineWidth = 2; _ctx.setLineDash([]);
-            _ctx.beginPath();
-            _ctx.moveTo(tr.toCX(0),          tr.toCY(_r1.intercept));
-            _ctx.lineTo(tr.toCX(tr.maxDist), tr.toCY(_r1.slope * tr.maxDist + _r1.intercept));
-            _ctx.stroke();
-            _ctx.strokeStyle = '#ff9f43'; _ctx.lineWidth = 2;
-            _ctx.beginPath();
-            _ctx.moveTo(tr.toCX(0),          tr.toCY(_r2.intercept));
-            _ctx.lineTo(tr.toCX(tr.maxDist), tr.toCY(_r2.slope * tr.maxDist + _r2.intercept));
-            _ctx.stroke();
-            if (xc > 0 && xc < tr.maxDist) {
+            if (_r1) {
+                _ctx.strokeStyle = '#4a9eff'; _ctx.lineWidth = 2; _ctx.setLineDash([]);
+                _ctx.beginPath();
+                _ctx.moveTo(tr.toCX(0),          tr.toCY(_r1.intercept));
+                _ctx.lineTo(tr.toCX(tr.maxDist), tr.toCY(_r1.slope * tr.maxDist + _r1.intercept));
+                _ctx.stroke();
+            }
+            if (_r2) {
+                _ctx.strokeStyle = '#ff9f43'; _ctx.lineWidth = 2; _ctx.setLineDash([]);
+                _ctx.beginPath();
+                _ctx.moveTo(tr.toCX(0),          tr.toCY(_r2.intercept));
+                _ctx.lineTo(tr.toCX(tr.maxDist), tr.toCY(_r2.slope * tr.maxDist + _r2.intercept));
+                _ctx.stroke();
+            }
+            if (xc != null && xc > 0 && xc < tr.maxDist) {
                 _ctx.strokeStyle = '#ff4757'; _ctx.lineWidth = 1.5; _ctx.setLineDash([5, 4]);
                 _ctx.beginPath(); _ctx.moveTo(tr.toCX(xc), PAD_T); _ctx.lineTo(tr.toCX(xc), PAD_T + PH); _ctx.stroke();
                 _ctx.setLineDash([]);
@@ -336,10 +339,14 @@ const HodochronModule = (() => {
         // Legend
         _ctx.font = '9px sans-serif'; _ctx.textAlign = 'left';
         if (_mode === 'auto' && autoResult) {
-            _ctx.fillStyle = '#4a9eff';
-            _ctx.fillText(`직접파 V₁=${autoResult.V1} m/s`, PAD_L + 4, PAD_T + 13);
-            _ctx.fillStyle = '#ff9f43';
-            _ctx.fillText(`굴절파 V₂=${autoResult.V2} m/s`, PAD_L + 4, PAD_T + 25);
+            if (autoResult._r1) {
+                _ctx.fillStyle = '#4a9eff';
+                _ctx.fillText(`직접파 V₁=${autoResult.V1} m/s`, PAD_L + 4, PAD_T + 13);
+            }
+            if (autoResult._r2) {
+                _ctx.fillStyle = '#ff9f43';
+                _ctx.fillText(`굴절파 V₂=${autoResult.V2} m/s`, PAD_L + 4, PAD_T + 25);
+            }
         }
         const mc2 = _mode === 'manual' ? (manualResult || _computeManual()) : null;
         if (mc2) {

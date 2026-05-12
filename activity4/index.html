@@ -140,7 +140,7 @@
                         <div class="result-item__unit">m/s</div>
                     </div>
                     <div class="result-item">
-                        <div class="result-item__label">기반층 P파 속도 V₂</div>
+                        <div class="result-item__label">하부층 P파 속도 V₂</div>
                         <div class="result-item__value" id="res-v2">—</div>
                         <div class="result-item__unit">m/s</div>
                     </div>
@@ -927,6 +927,10 @@
             const midY   = H / 2;
             const yScale = (H * 0.44) / maxAbs;
 
+            const scaleLabel = maxAbs >= 0.01 ? '±' + maxAbs.toFixed(3) : '±' + maxAbs.toExponential(2);
+            ctx.fillStyle = '#555'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+            ctx.fillText(scaleLabel, 3, 11);
+
             ctx.strokeStyle = '#242424'; ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke();
 
@@ -985,9 +989,11 @@
             if (negCount > 0) {
                 detail.textContent = `⚠ ${negCount}개 스테이션의 도달 시간이 음수입니다. 2단계 시간 조정을 확인하세요.`;
                 detail.style.color = 'var(--danger)';
+                detail.dataset.negWarn = '1';
             } else {
                 detail.textContent = '';
                 detail.style.color = '';
+                detail.dataset.negWarn = '';
             }
 
             const hodoCanvas  = document.getElementById('hodoChart');
@@ -1016,21 +1022,35 @@
 
         function _onManualResult(r) {
             document.getElementById('manual-vel-display').innerHTML = r
-                ? `V₁ <strong>${r.V1 !== undefined ? r.V1.toLocaleString() : '—'}</strong> m/s &nbsp;·&nbsp; ` +
-                  `V₂ <strong>${r.V2 !== undefined ? r.V2.toLocaleString() : '—'}</strong> m/s &nbsp;·&nbsp; ` +
-                  `h <strong>${r.h !== undefined ? r.h.toFixed(1) : '—'}</strong> m &nbsp;·&nbsp; ` +
-                  `xc <strong>${r.xc !== undefined ? r.xc : '—'}</strong> m`
+                ? `V₁ <strong>${r.V1 != null ? r.V1.toFixed(2) : '—'}</strong> m/s &nbsp;·&nbsp; ` +
+                  `V₂ <strong>${r.V2 != null ? r.V2.toFixed(2) : '—'}</strong> m/s &nbsp;·&nbsp; ` +
+                  `h <strong>${r.h  != null ? r.h.toFixed(2)  : '—'}</strong> m &nbsp;·&nbsp; ` +
+                  `xc <strong>${r.xc != null ? r.xc.toFixed(2) : '—'}</strong> m`
                 : '선을 추가하고 핸들을 드래그하여 속도를 측정하세요.';
             if (r) _applyResults(r);
         }
 
         function _applyResults(r) {
-            if (!r) return;
-            document.getElementById('res-v1').textContent = r.V1 !== undefined ? r.V1.toLocaleString() : '—';
-            document.getElementById('res-v2').textContent = r.V2 !== undefined ? r.V2.toLocaleString() : '—';
-            document.getElementById('res-h').textContent  = r.h  !== undefined ? r.h.toFixed(1)        : '—';
-            document.getElementById('res-xc').textContent = r.xc !== undefined ? r.xc                  : '—';
-            document.getElementById('save-btn').hidden = false;
+            const detail   = document.getElementById('res-detail');
+            const negWarn  = detail.dataset.negWarn === '1';
+            if (!r) {
+                if (!negWarn) { detail.textContent = '슬라이더로 직접파/굴절파 경계를 설정하세요. (각 구간 최소 2개 스테이션 필요)'; detail.style.color = '#888'; }
+                return;
+            }
+            document.getElementById('res-v1').textContent = r.V1 != null ? r.V1.toFixed(2) : '—';
+            document.getElementById('res-v2').textContent = r.V2 != null ? r.V2.toFixed(2) : '—';
+            document.getElementById('res-h').textContent  = r.h  != null ? r.h.toFixed(2)  : '—';
+            document.getElementById('res-xc').textContent = r.xc != null ? r.xc.toFixed(2) : '—';
+            if (!negWarn) {
+                if (r.partial) {
+                    detail.textContent = 'V₁만 계산됨 — 굴절파 구간에 스테이션이 2개 이상 필요합니다.';
+                    detail.style.color = '#f0a500';
+                } else {
+                    detail.textContent = '';
+                    detail.style.color = '';
+                }
+            }
+            if (!r.partial) document.getElementById('save-btn').hidden = false;
         }
 
         // ── Hodochron mode toggle ─────────────────────────────────────
