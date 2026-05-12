@@ -62,7 +62,7 @@
         <!-- ── Step 2: Time adjustment (Record Section) ───────────── -->
         <section id="step2" class="step-section" hidden>
             <h2 class="step-title">2단계: 시간 조정</h2>
-            <p class="step-desc">① 빨간 기준선을 드래그해 기준 시각(t=0)을 설정하세요. ② 각 트레이스에서 초동(신호 도달 시각)을 클릭하면 그 지점이 기준선으로 정렬됩니다. 노란 선으로 분석 구간 끝을 설정하세요.</p>
+            <p class="step-desc">① 빨간 기준선을 드래그해 발진(충격) 시각(t=0)을 설정하세요. ② 각 트레이스에서 충격 순간을 클릭하면 그 지점이 기준선으로 정렬됩니다. 노란 선으로 분석 구간 끝을 설정하세요. <small style="color:var(--accent)">(기준선 위치가 주시곡선의 t=0 기준이 됩니다.)</small></p>
 
             <div class="recsec-wrap" id="recsec-wrap">
                 <canvas id="recsecChart"></canvas>
@@ -291,11 +291,17 @@
         }
 
         function _buildDistPanel() {
-            _sourceIdx = 0;
+            // Default: first station with GPS, else -1 (no source)
+            _sourceIdx = _stations.findIndex(s => s.lat !== null);
             const opts = document.getElementById('source-opts');
-            opts.innerHTML = _stations.map((s, i) => `
+            opts.innerHTML =
+                `<label class="source-opt">
+                    <input type="radio" name="source" value="-1" ${_sourceIdx < 0 ? 'checked' : ''}>
+                    <span>없음 <small>(거리 직접 입력)</small></span>
+                </label>` +
+                _stations.map((s, i) => `
                 <label class="source-opt">
-                    <input type="radio" name="source" value="${i}" ${i === 0 ? 'checked' : ''}>
+                    <input type="radio" name="source" value="${i}" ${i === _sourceIdx ? 'checked' : ''}>
                     <span>${s.station_id}
                         ${s.lat !== null
                             ? `<small>(${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})</small>`
@@ -313,12 +319,17 @@
         }
 
         function _computeDistances() {
-            const src = _stations[_sourceIdx];
-            for (const s of _stations) {
-                if (src.lat !== null && src.lon !== null && s.lat !== null && s.lon !== null) {
-                    s.dist = haversine(src.lat, src.lon, s.lat, s.lon);
-                } else {
-                    s.dist = null;
+            if (_sourceIdx < 0) {
+                // No source station — clear all distances for manual entry
+                _stations.forEach(s => { s.dist = null; });
+            } else {
+                const src = _stations[_sourceIdx];
+                for (const s of _stations) {
+                    if (src.lat !== null && src.lon !== null && s.lat !== null && s.lon !== null) {
+                        s.dist = haversine(src.lat, src.lon, s.lat, s.lon);
+                    } else {
+                        s.dist = null;
+                    }
                 }
             }
             _renderDistList();
@@ -326,10 +337,15 @@
 
         function _renderDistList() {
             const distList = document.getElementById('dist-list');
-            const hasGPS   = _stations[_sourceIdx].lat !== null;
-            document.getElementById('dist-note').textContent = hasGPS
-                ? 'GPS 좌표로 자동 계산된 거리입니다. 직접 수정할 수 있습니다.'
-                : '진원 스테이션에 GPS 좌표가 없습니다. 거리를 직접 입력하세요.';
+            let noteText;
+            if (_sourceIdx < 0) {
+                noteText = '진원 스테이션 없음 — 각 스테이션의 거리를 직접 입력하세요.';
+            } else {
+                noteText = _stations[_sourceIdx].lat !== null
+                    ? 'GPS 좌표로 자동 계산된 거리입니다. 직접 수정할 수 있습니다.'
+                    : '진원 스테이션에 GPS 좌표가 없습니다. 거리를 직접 입력하세요.';
+            }
+            document.getElementById('dist-note').textContent = noteText;
             distList.innerHTML = _stations.map((s, i) => `
                 <div class="dist-row">
                     <span class="dist-row__id">${s.station_id}
@@ -876,8 +892,7 @@
         // HODOCHRON — Build & Update
         // ════════════════════════════════════════════════════════════
         function _buildHodochron() {
-            const src  = _stations[_sourceIdx];
-            const srcT = src.pickTime + src.timeOffset;
+            const srcT = _refLineT;   // Step 2 빨간 기준선 = 발진 시각
 
             const points = _stations.map(s => ({
                 dist:  s.dist,
@@ -970,12 +985,12 @@
 
         // ── Save result CSV ───────────────────────────────────────────
         document.getElementById('save-btn').addEventListener('click', () => {
-            const src   = _stations[_sourceIdx];
-            const srcT  = src.pickTime + src.timeOffset;
+            const srcT  = _refLineT;
+            const srcLabel = _sourceIdx >= 0 ? _stations[_sourceIdx].station_id : '외부 (직접 입력)';
             const lines = [
                 '# Activity 4 — 주시곡선 (굴절법 탐사) 결과',
                 `# 생성: ${new Date().toISOString()}`,
-                `# 진원: ${src.station_id}`,
+                `# 진원: ${srcLabel}`,
                 `# V1: ${document.getElementById('res-v1').textContent} m/s`,
                 `# V2: ${document.getElementById('res-v2').textContent} m/s`,
                 `# h: ${document.getElementById('res-h').textContent} m`,
