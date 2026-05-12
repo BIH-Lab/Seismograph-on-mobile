@@ -112,7 +112,7 @@ project-root/
   - **결과 유효수자**: V1/V2/h/xc 소수점 2자리 표시
   - **레이블 수정**: "기반층" → "하부층"
   - hodochron.js v1.2: partial 결과, null guard, toFixed(2) 정밀도
-- Cycle 5 예정: Activity 5 — P파·S파 위상 픽킹 + GPS 진원 역산
+- Cycle 5 예정: Activity 5 — 추가 예정
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
 - spectrogram.js v3.2: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s

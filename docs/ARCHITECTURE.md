@@ -276,7 +276,7 @@ Cycle 4 완료 →  activity4/ (주시곡선 (굴절법 탐사) — 3단계: 파
                  v1: 다중 CSV 로드, GPS 거리 계산, Record Section 시간조정, 픽킹, 자동+수동 주시곡선
                  후속: srcT=_refLineT 재설계, 진원 선택 선택적화, split slider partial 결과, 유효수자 2자리
 
-Cycle 5  →  activity5/ (P파·S파 위상 픽킹 + GPS 진원 역산)
+Cycle 5  →  activity5/ (추가 예정)
 Cycle 6  →  실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
 ```
 

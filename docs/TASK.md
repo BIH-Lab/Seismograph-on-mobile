@@ -460,7 +460,7 @@
 
 ## 다음 Cycle 예정 (지금 건드리지 않음)
 - Cycle 4 : Activity 4 (다중 CSV 드롭 + 신호 비교 + 기본 통계)
-- Cycle 5 : Activity 5 (주시곡선 + GPS 진원 역산)
+- Cycle 5 : Activity 5 (추가 예정)
 - Cycle 6 : 실시간 다중 기기 — 서버 필요 여부 재검토 후 결정
 
 ---
