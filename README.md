@@ -220,10 +220,6 @@ Android Chrome은 모든 센서 API(`DeviceMotionEvent` 및 `Generic Sensor API`
 
 Chrome의 반올림은 PWA 설치, COOP/COEP 헤더 등으로 우회할 수 없는 **플랫폼 수준 정책**입니다.
 
-**관련 레퍼런스**
-- [Chromium — `platform_sensor_util.h` (RoundSensorReading 정책)](https://source.chromium.org/chromium/chromium/src/+/main:services/device/public/cpp/generic_sensor/platform_sensor_util.h)
-- [W3C Generic Sensor API — Security and Privacy 고려사항](https://www.w3.org/TR/generic-sensor/#security-and-privacy)
-- [W3C DeviceOrientation Event 명세](https://www.w3.org/TR/orientation-event/)
 
 ---
 
