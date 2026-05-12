@@ -68,6 +68,12 @@
                 <canvas id="recsecChart"></canvas>
             </div>
 
+            <div style="display:flex;gap:6px;justify-content:center;margin:4px 0 2px">
+                <button class="btn btn--ghost btn--sm" id="zoom-out">− 축소</button>
+                <button class="btn btn--ghost btn--sm" id="zoom-reset">전체 보기</button>
+                <button class="btn btn--ghost btn--sm" id="zoom-in">+ 확대</button>
+            </div>
+
             <details class="offset-details">
                 <summary class="offset-details__summary">정밀 조정 (ms 입력)</summary>
                 <div id="offset-list" class="offset-list"></div>
@@ -252,8 +258,7 @@
                                 sr, rows,
                                 dist:       null,
                                 timeOffset: 0,
-                                pickTime:   null,
-                                pickFrac:   null
+                                pickTime:   null
                             });
                         }
                     }
@@ -363,6 +368,8 @@
         let _rsTMin        = 0;      // frozen at step2 init
         let _refLineT      = 0;      // red reference line (t=0)
         let _refEndT       = 0;      // yellow end-of-window line
+        let _viewStartMs     = 0;    // top of visible Y range (epoch ms)
+        let _viewRangeMs     = 0;    // height of visible Y range (ms)
         let _draggingRef     = false;
         let _draggingEnd     = false;
         let _hoverStnOrigIdx = -1;   // _stations[] index under cursor
@@ -395,6 +402,8 @@
             _windowMs = Math.min(rsTMax - _rsTMin + 500, 60000);
             _refLineT = _rsTMin + _windowMs * 0.1;
             _refEndT  = _refLineT + Math.min(3000, _windowMs * 0.3);
+            _viewStartMs = _rsTMin;
+            _viewRangeMs = _windowMs;
         }
 
         function _drawRecordSection() {
@@ -419,7 +428,7 @@
             const xMargin = sorted.length > 1 ? PW / (sorted.length + 1) : 20;
             const xSpan   = PW - xMargin * 2;
             function cxD(distM) { return RS_PAD_L + xMargin + (distM / maxDist) * xSpan; }
-            function cyT(tMs)   { return RS_PAD_T + (tMs - _rsTMin) / _windowMs * PH; }
+            function cyT(tMs)   { return RS_PAD_T + (tMs - _viewStartMs) / _viewRangeMs * PH; }
 
             // Amplitude: inter-station spacing × 0.9 (canvas clip handles overflow)
             const interSpacing = sorted.length > 1 ? xSpan / (sorted.length - 1) : xSpan;
@@ -455,15 +464,16 @@
                 ctx.fillRect(RS_PAD_L, ryA, PW, ryB - ryA);
             }
 
-            // Y-axis: time ticks + horizontal grid
-            const tickStep = Math.ceil(_windowMs / 10 / 500) * 500;
+            // Y-axis: time ticks + horizontal grid (view-range-aware)
+            const _tSteps = [50,100,200,500,1000,2000,5000,10000,20000,30000];
+            const tickStep = _tSteps.find(s => s >= _viewRangeMs / 8) || 30000;
             ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
-            for (let ms = 0; ms <= _windowMs; ms += tickStep) {
-                const y = cyT(_rsTMin + ms);
+            for (let ms = 0; ms <= _viewRangeMs; ms += tickStep) {
+                const y = cyT(_viewStartMs + ms);
                 ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(RS_PAD_L, y); ctx.lineTo(RS_PAD_L + PW, y); ctx.stroke();
                 ctx.fillStyle = '#555';
-                ctx.fillText((ms / 1000).toFixed(1) + 's', RS_PAD_L - 3, y + 3);
+                ctx.fillText(((_viewStartMs + ms - _rsTMin) / 1000).toFixed(2).replace(/\.?0+$/, '') + 's', RS_PAD_L - 3, y + 3);
             }
 
             // X-axis: station labels + distance (bottom)
@@ -500,8 +510,8 @@
                 for (let ri = 0; ri < s.rows.length; ri += stride) {
                     const r   = s.rows[ri];
                     const tMs = new Date(r.timestamp).getTime() + s.timeOffset;
-                    // Generous filter: skip only data far outside window (perf optimization)
-                    if (tMs < _rsTMin - _windowMs || tMs > _rsTMin + _windowMs * 2) { first = true; continue; }
+                    // Skip data outside current view (with small margin for continuity)
+                    if (tMs < _viewStartMs - tickStep || tMs > _viewStartMs + _viewRangeMs + tickStep) { first = true; continue; }
                     const y = cyT(tMs);
                     const v = parseFloat(r[accKey]) || 0;
                     const x = xCenter + Math.max(-xAmpMax, Math.min(xAmpMax, v * xScale));
@@ -577,8 +587,8 @@
             function lineYs() {
                 const PH = fresh.height - RS_PAD_T - RS_PAD_B;
                 return {
-                    refY: RS_PAD_T + (_refLineT - _rsTMin) / _windowMs * PH,
-                    endY: RS_PAD_T + (_refEndT  - _rsTMin) / _windowMs * PH,
+                    refY: RS_PAD_T + (_refLineT - _viewStartMs) / _viewRangeMs * PH,
+                    endY: RS_PAD_T + (_refEndT  - _viewStartMs) / _viewRangeMs * PH,
                     PH
                 };
             }
@@ -600,7 +610,7 @@
                     // Click-to-snap: move clicked point to ref line
                     const s = nearestStn(px);
                     if (s) {
-                        const epochAtClick = _rsTMin + (py - RS_PAD_T) / PH * _windowMs;
+                        const epochAtClick = _viewStartMs + (py - RS_PAD_T) / PH * _viewRangeMs;
                         s.timeOffset += (_refLineT - epochAtClick);
                         const idx = _stations.indexOf(s);
                         const numEl = document.querySelector(`[data-stnidx="${idx}"] .offset-num`);
@@ -615,14 +625,14 @@
                 const {refY, endY, PH} = lineYs();
 
                 if (_draggingRef) {
-                    _refLineT = _rsTMin + (py - RS_PAD_T) / PH * _windowMs;
+                    _refLineT = _viewStartMs + (py - RS_PAD_T) / PH * _viewRangeMs;
                     _refLineT = Math.max(_rsTMin, Math.min(_rsTMin + _windowMs, _refLineT));
                     if (_refEndT <= _refLineT) _refEndT = _refLineT + 500;
                     _drawRecordSection();
                     return;
                 }
                 if (_draggingEnd) {
-                    _refEndT = _rsTMin + (py - RS_PAD_T) / PH * _windowMs;
+                    _refEndT = _viewStartMs + (py - RS_PAD_T) / PH * _viewRangeMs;
                     _refEndT = Math.max(_refLineT + 200, Math.min(_rsTMin + _windowMs, _refEndT));
                     _drawRecordSection();
                     return;
@@ -643,11 +653,54 @@
                 }
             });
 
-            fresh.addEventListener('pointerup',     () => { _draggingRef = _draggingEnd = false; });
-            fresh.addEventListener('pointercancel', () => { _draggingRef = _draggingEnd = false; });
+            fresh.addEventListener('pointerup',     () => { _draggingRef = _draggingEnd = false; _pinch = null; });
+            fresh.addEventListener('pointercancel', () => { _draggingRef = _draggingEnd = false; _pinch = null; });
             fresh.addEventListener('pointerleave',  () => {
                 if (_hoverStnOrigIdx !== -1) { _hoverStnOrigIdx = -1; _drawRecordSection(); }
             });
+
+            // Mouse wheel zoom (desktop)
+            fresh.addEventListener('wheel', e => {
+                e.preventDefault();
+                const {py} = cpt(e);
+                const PH   = fresh.height - RS_PAD_T - RS_PAD_B;
+                const frac = Math.max(0, Math.min(1, (py - RS_PAD_T) / PH));
+                const tAtCursor = _viewStartMs + frac * _viewRangeMs;
+                const factor = e.deltaY > 0 ? 1.35 : 1 / 1.35;
+                _viewRangeMs = Math.max(200, Math.min(_windowMs, _viewRangeMs * factor));
+                _viewStartMs = tAtCursor - frac * _viewRangeMs;
+                _viewStartMs = Math.max(_rsTMin, Math.min(_rsTMin + _windowMs - _viewRangeMs, _viewStartMs));
+                _drawRecordSection();
+            }, { passive: false });
+
+            // Pinch-to-zoom (mobile: two-pointer vertical distance)
+            let _pinch = null;
+            const _activeP = new Map();
+
+            fresh.addEventListener('pointerdown', e => {
+                _activeP.set(e.pointerId, cpt(e).py);
+                if (_activeP.size === 2) {
+                    const ys = [..._activeP.values()];
+                    _pinch = { dist: Math.abs(ys[1] - ys[0]), startRange: _viewRangeMs,
+                               midT: _viewStartMs + _viewRangeMs * 0.5 };
+                }
+            }, true);   // capture phase to track before existing handler consumes
+
+            fresh.addEventListener('pointermove', e => {
+                if (!_pinch || _activeP.size < 2) return;
+                _activeP.set(e.pointerId, cpt(e).py);
+                const ys   = [..._activeP.values()];
+                const dist = Math.abs(ys[1] - ys[0]);
+                if (dist < 5) return;
+                const scale = _pinch.dist / dist;
+                _viewRangeMs = Math.max(200, Math.min(_windowMs, _pinch.startRange * scale));
+                _viewStartMs = _pinch.midT - _viewRangeMs * 0.5;
+                _viewStartMs = Math.max(_rsTMin, Math.min(_rsTMin + _windowMs - _viewRangeMs, _viewStartMs));
+                _drawRecordSection();
+            }, true);
+
+            fresh.addEventListener('pointerup',     e => { _activeP.delete(e.pointerId); if (_activeP.size < 2) _pinch = null; }, true);
+            fresh.addEventListener('pointercancel', e => { _activeP.delete(e.pointerId); _pinch = null; }, true);
         }
 
         function _buildOffsetList() {
@@ -679,6 +732,19 @@
             _buildOffsetList();
             _initRefLine();
             _drawRecordSection();
+        });
+
+        function _applyZoom(factor) {
+            const midT = _viewStartMs + _viewRangeMs * 0.5;
+            _viewRangeMs = Math.max(200, Math.min(_windowMs, _viewRangeMs * factor));
+            _viewStartMs = midT - _viewRangeMs * 0.5;
+            _viewStartMs = Math.max(_rsTMin, Math.min(_rsTMin + _windowMs - _viewRangeMs, _viewStartMs));
+            _drawRecordSection();
+        }
+        document.getElementById('zoom-in').addEventListener('click',    () => _applyZoom(1 / 1.5));
+        document.getElementById('zoom-out').addEventListener('click',   () => _applyZoom(1.5));
+        document.getElementById('zoom-reset').addEventListener('click', () => {
+            _viewStartMs = _rsTMin; _viewRangeMs = _windowMs; _drawRecordSection();
         });
         document.getElementById('to-step3').addEventListener('click', () => {
             _buildStep3();
@@ -719,39 +785,48 @@
                 const canvas = document.getElementById(`pcanvas-${idx}`);
                 if (!canvas) return;
                 canvas.width = canvas.clientWidth || 300;
-                _drawWave(canvas, s.rows, s.pickFrac);
+
+                // Show only the time window defined in Step 2 (adjusted time → raw time)
+                const tRawStart = _refLineT - s.timeOffset;
+                const tRawEnd   = _refEndT  - s.timeOffset;
+                const winRows = s.rows.filter(r => {
+                    const t = new Date(r.timestamp).getTime();
+                    return t >= tRawStart && t <= tRawEnd;
+                });
+                const displayRows = winRows.length >= 2 ? winRows : s.rows;
+
+                _drawWave(canvas, displayRows, s.pickTime);
                 canvas.style.cursor = 'crosshair';
                 canvas.addEventListener('click', e => {
                     const rect   = canvas.getBoundingClientRect();
                     const xFrac  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                    const rowIdx = Math.min(Math.round(xFrac * (s.rows.length - 1)), s.rows.length - 1);
-                    s.pickTime = new Date(s.rows[rowIdx].timestamp).getTime();
-                    s.pickFrac = xFrac;
-                    _drawWave(canvas, s.rows, xFrac);
+                    const rowIdx = Math.min(Math.round(xFrac * (displayRows.length - 1)), displayRows.length - 1);
+                    s.pickTime = new Date(displayRows[rowIdx].timestamp).getTime();
+                    _drawWave(canvas, displayRows, s.pickTime);
                     document.getElementById(`ptime-${idx}`).textContent =
                         new Date(s.pickTime).toISOString().slice(11, 23);
                     div.classList.add('pick-card--picked');
                     _checkAllPicked();
                 });
-                if (s.pickFrac !== null) div.classList.add('pick-card--picked');
+                if (s.pickTime !== null) div.classList.add('pick-card--picked');
             });
             return div;
         }
 
-        function _drawWave(canvas, rows, pickFrac) {
+        function _drawWave(canvas, displayRows, pickTime) {
             const ctx = canvas.getContext('2d');
             const W = canvas.width, H = canvas.height;
-            const key = rows[0]
-                ? (rows[0].acc_z !== undefined ? 'acc_z'
-                 : rows[0].acc_x !== undefined ? 'acc_x' : null)
+            const key = displayRows[0]
+                ? (displayRows[0].acc_z !== undefined ? 'acc_z'
+                 : displayRows[0].acc_x !== undefined ? 'acc_x' : null)
                 : null;
 
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, W, H);
-            if (!key || rows.length === 0) return;
+            if (!key || displayRows.length === 0) return;
 
             let maxAbs = 0;
-            for (const r of rows) maxAbs = Math.max(maxAbs, Math.abs(parseFloat(r[key]) || 0));
+            for (const r of displayRows) maxAbs = Math.max(maxAbs, Math.abs(parseFloat(r[key]) || 0));
             maxAbs = Math.max(maxAbs, 0.001);
 
             const midY   = H / 2;
@@ -762,18 +837,23 @@
 
             ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1;
             ctx.beginPath();
-            const n = rows.length;
+            const n = displayRows.length;
             for (let i = 0; i < n; i++) {
-                const v = parseFloat(rows[i][key]) || 0;
+                const v = parseFloat(displayRows[i][key]) || 0;
                 const x = (i / (n - 1)) * W;
                 const y = midY - v * yScale;
                 i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
             }
             ctx.stroke();
 
-            if (pickFrac !== null && pickFrac !== undefined) {
+            if (pickTime !== null && pickTime !== undefined && displayRows.length >= 2) {
+                const tStart = new Date(displayRows[0].timestamp).getTime();
+                const tEnd   = new Date(displayRows[displayRows.length - 1].timestamp).getTime();
+                const frac   = tEnd > tStart
+                    ? Math.max(0, Math.min(1, (pickTime - tStart) / (tEnd - tStart)))
+                    : 0.5;
                 ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(pickFrac * W, 0); ctx.lineTo(pickFrac * W, H); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(frac * W, 0); ctx.lineTo(frac * W, H); ctx.stroke();
             }
         }
 

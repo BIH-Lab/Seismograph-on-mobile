@@ -8,7 +8,7 @@
 
 연구 결과물로 제작되며, 나선형 개발 방법론(Boehm, 1986)을 따릅니다.
 
-## 기술 스택 (현재 — Cycle 4 진행 중)
+## 기술 스택 (현재 — Cycle 4 완료, Cycle 5 예정)
 - Frontend : Vanilla JS + CSS (빌드 도구 없음)
 - 그래프   : Canvas API (외부 라이브러리 없음)
 - 센서 API : Generic Sensor API (`LinearAccelerationSensor` → `Accelerometer`) + `DeviceMotionEvent` (3단계 자동 폴백)
@@ -65,7 +65,7 @@ project-root/
 - 새 기능 추가 전 반드시 TASK.md 확인
 
 ## 현재 개발 단계
-**Cycle 4 진행 중** — TASK.md 참고
+**Cycle 4 완료** — TASK.md 참고
 - Cycle 1 완료: Activity 1 (지진파 색으로 보기 + KMA MMI + 리뷰 모드)
 - Cycle 2 완료: Activity 2 (GPS + Z축 + CSV, Android/iOS 테스트 완료)
 - Cycle 3 완료: Activity 3 (스펙트로그램·PSD·HVSR 3분석 — 센서 + 파일 모드)
@@ -96,10 +96,20 @@ project-root/
   - 컨트롤(버튼) 그래프 패널 외부로 분리 (graph-controls) → 그래프 가림 해소
   - 실시간↔누적 토글: PSD 탭 활성 시 측정 정지 버튼 위 가운데 표시 (센서 모드)
   - PNG 버튼 레이블 명확화: "↓ PNG" → "↓ 파형" / "↓ 스펙트로그램" / "↓ PSD" / "↓ HVSR"
-- Activity 4 v1 완료 (2026-04-14):
-  - 3탭 구조 (파싱/거리 · 시간조정 · 픽킹/분석)
-  - Tab 2 Record Section: 트레이스 거리순 정렬, 빨간 기준선 드래그, ±2000ms 오프셋 슬라이더
-  - Tab 3 주시곡선: 자동 회귀 모드 + 수동 선 그리기 모드 (드래그 핸들 → V1/V2/xc/h 실시간)
+- Activity 4 완료 (2026-04-27):
+  - 3단계 구조 (Step 1: 파싱/거리 · Step 2: 시간조정 · Step 3: 픽킹/분석)
+  - Step 2 Record Section (wiggle trace 레코드 섹션):
+    - X=거리(m), Y=시간(아래로), 각 스테이션 열에 wiggle 트레이스 표시
+    - 전역 진폭 정규화 (스테이션 간격의 0.9배 최대 진폭)
+    - 클릭-to-스냅: 트레이스의 초동 클릭 → 그 시각이 빨간 기준선으로 이동
+      (`timeOffset += refLineT - epochAtClick`)
+    - 빨간 기준선(t=0) 드래그, 노란 선(분석 구간 끝) 드래그
+    - 동적 `_windowMs` (실제 데이터 범위에서 계산, 최대 60s)
+    - 동적 `_rsTMin` (매 렌더마다 현재 timeOffset 반영 재계산)
+    - 호버 컬럼 하이라이트 (청록) + crosshair 커서
+    - Canvas clip rect로 진폭 오버플로 방지
+    - "오프셋 초기화" 버튼, "정밀 조정 (ms 입력)" 접이식 패널
+  - Step 3 주시곡선: 자동 회귀 모드 + 수동 선 그리기 모드 (드래그 핸들 → V1/V2/xc/h 실시간)
   - hodochron.js v1.1: _getTransforms(), addLine/clearLines/setMode/onManualUpdate API
 - Cycle 5 예정: Activity 5 — P파·S파 위상 픽킹 + GPS 진원 역산
 
