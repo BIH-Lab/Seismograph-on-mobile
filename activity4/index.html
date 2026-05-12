@@ -794,10 +794,15 @@
                 <div class="pick-card__hdr">
                     <span class="pick-card__id">${s.station_id}${isSource ? ' <span class="source-badge">진원</span>' : ''}</span>
                     <span class="pick-card__dist">${s.dist.toFixed(0)} m</span>
+                    <span style="display:flex;gap:2px;margin-left:auto;margin-right:4px">
+                        <button class="btn btn--ghost" style="padding:1px 6px;font-size:11px;line-height:1.4" data-act="out">−</button>
+                        <button class="btn btn--ghost" style="padding:1px 6px;font-size:11px;line-height:1.4" data-act="reset">전체</button>
+                        <button class="btn btn--ghost" style="padding:1px 6px;font-size:11px;line-height:1.4" data-act="in">+</button>
+                    </span>
                     <span class="pick-card__time" id="ptime-${idx}">클릭하여 픽</span>
                 </div>
                 <div class="pick-card__wave">
-                    <canvas id="pcanvas-${idx}" height="68"></canvas>
+                    <canvas id="pcanvas-${idx}" height="80"></canvas>
                 </div>`;
 
             requestAnimationFrame(() => {
@@ -805,7 +810,7 @@
                 if (!canvas) return;
                 canvas.width = canvas.clientWidth || 300;
 
-                // Show only the time window defined in Step 2 (adjusted time → raw time)
+                // Trim to Step 2 time window (adjusted time → raw time)
                 const tRawStart = _refLineT - s.timeOffset;
                 const tRawEnd   = _refEndT  - s.timeOffset;
                 const winRows = s.rows.filter(r => {
@@ -814,19 +819,90 @@
                 });
                 const displayRows = winRows.length >= 2 ? winRows : s.rows;
 
-                _drawWave(canvas, displayRows, s.pickTime);
+                // Zoom state: row index range within displayRows
+                let zStart = 0, zEnd = displayRows.length - 1;
+
+                function viewRows() { return displayRows.slice(zStart, zEnd + 1); }
+                function render()   { _drawWave(canvas, viewRows(), s.pickTime); }
+
+                render();
                 canvas.style.cursor = 'crosshair';
+                canvas.style.touchAction = 'none';
+
+                // Zoom buttons
+                div.querySelectorAll('[data-act]').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const len = zEnd - zStart + 1;
+                        const mid = Math.round((zStart + zEnd) / 2);
+                        if (btn.dataset.act === 'reset') {
+                            zStart = 0; zEnd = displayRows.length - 1;
+                        } else {
+                            const factor = btn.dataset.act === 'in' ? 1 / 1.5 : 1.5;
+                            const newLen = Math.max(5, Math.min(displayRows.length, Math.round(len * factor)));
+                            zStart = Math.max(0, mid - Math.floor(newLen / 2));
+                            zEnd   = Math.min(displayRows.length - 1, zStart + newLen - 1);
+                        }
+                        render();
+                    });
+                });
+
+                // Click to pick (within zoomed view)
                 canvas.addEventListener('click', e => {
-                    const rect   = canvas.getBoundingClientRect();
-                    const xFrac  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                    const rowIdx = Math.min(Math.round(xFrac * (displayRows.length - 1)), displayRows.length - 1);
-                    s.pickTime = new Date(displayRows[rowIdx].timestamp).getTime();
-                    _drawWave(canvas, displayRows, s.pickTime);
+                    const rect  = canvas.getBoundingClientRect();
+                    const xFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    const vr    = viewRows();
+                    const ri    = Math.min(Math.round(xFrac * (vr.length - 1)), vr.length - 1);
+                    s.pickTime  = new Date(vr[ri].timestamp).getTime();
+                    render();
                     document.getElementById(`ptime-${idx}`).textContent =
                         new Date(s.pickTime).toISOString().slice(11, 23);
                     div.classList.add('pick-card--picked');
                     _checkAllPicked();
                 });
+
+                // Mouse wheel zoom (X axis = time)
+                canvas.addEventListener('wheel', e => {
+                    e.preventDefault();
+                    const rect  = canvas.getBoundingClientRect();
+                    const xFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    const len   = zEnd - zStart + 1;
+                    const pivot = zStart + Math.round(xFrac * (len - 1));
+                    const newLen = Math.max(5, Math.min(displayRows.length,
+                        Math.round(len * (e.deltaY > 0 ? 1.35 : 1 / 1.35))));
+                    zStart = Math.max(0, Math.min(displayRows.length - newLen,
+                        Math.round(pivot - xFrac * newLen)));
+                    zEnd = Math.min(displayRows.length - 1, zStart + newLen - 1);
+                    render();
+                }, { passive: false });
+
+                // Pinch zoom (mobile)
+                const _pPtrs = new Map();
+                let _pPinch = null;
+                canvas.addEventListener('pointerdown', e => {
+                    _pPtrs.set(e.pointerId, e.clientX);
+                    if (_pPtrs.size === 2) {
+                        const xs = [..._pPtrs.values()];
+                        _pPinch = { dist: Math.abs(xs[1] - xs[0]), zStart, zEnd };
+                    }
+                });
+                canvas.addEventListener('pointermove', e => {
+                    if (!_pPinch || _pPtrs.size < 2) return;
+                    _pPtrs.set(e.pointerId, e.clientX);
+                    const xs   = [..._pPtrs.values()];
+                    const dist = Math.abs(xs[1] - xs[0]);
+                    if (dist < 5) return;
+                    const origLen = _pPinch.zEnd - _pPinch.zStart + 1;
+                    const newLen  = Math.max(5, Math.min(displayRows.length,
+                        Math.round(origLen * _pPinch.dist / dist)));
+                    const mid = Math.round((_pPinch.zStart + _pPinch.zEnd) / 2);
+                    zStart = Math.max(0, mid - Math.floor(newLen / 2));
+                    zEnd   = Math.min(displayRows.length - 1, zStart + newLen - 1);
+                    render();
+                });
+                canvas.addEventListener('pointerup',     e => { _pPtrs.delete(e.pointerId); if (_pPtrs.size < 2) _pPinch = null; });
+                canvas.addEventListener('pointercancel', e => { _pPtrs.delete(e.pointerId); _pPinch = null; });
+
                 if (s.pickTime !== null) div.classList.add('pick-card--picked');
             });
             return div;
