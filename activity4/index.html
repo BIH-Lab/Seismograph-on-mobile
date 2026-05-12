@@ -450,14 +450,17 @@
             const interSpacing = sorted.length > 1 ? xSpan / (sorted.length - 1) : xSpan;
             const xAmpMax = interSpacing * 0.9;
 
-            // Global max across all stations for relative amplitude display
+            // Global max within current view window (so zoom-in amplifies small signals)
             let globalMaxAbs = 0.001;
             sorted.forEach(s => {
                 const ak = s.rows[0] ? (s.rows[0].acc_z !== undefined ? 'acc_z' : s.rows[0].acc_x !== undefined ? 'acc_x' : null) : null;
                 if (!ak) return;
                 const step = Math.max(1, Math.ceil(s.rows.length / 2000));
-                for (let ri = 0; ri < s.rows.length; ri += step)
+                for (let ri = 0; ri < s.rows.length; ri += step) {
+                    const tMs = new Date(s.rows[ri].timestamp).getTime() + s.timeOffset;
+                    if (tMs < _viewStartMs || tMs > _viewStartMs + _viewRangeMs) continue;
                     globalMaxAbs = Math.max(globalMaxAbs, Math.abs(parseFloat(s.rows[ri][ak]) || 0));
+                }
             });
 
             ctx.fillStyle = '#0a0a0a';
