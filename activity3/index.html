@@ -910,6 +910,7 @@
             setTimeout(() => {
                 SpectrogramModule.reset();
                 initCanvas(document.getElementById('fileSpectroChart'), SpectrogramModule, sr, null);
+                SpectrogramModule.setHistoryLimit(Math.ceil(selRows.length / HOP_SIZE) + 2);
                 for (const row of selRows)
                     SpectrogramModule.push(parseFloat(row.acc_z) || 0, sr);
                 SpectrogramModule.startReview();

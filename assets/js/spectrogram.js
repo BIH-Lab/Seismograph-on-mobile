@@ -41,6 +41,8 @@ const SpectrogramModule = (() => {
     let _viewOffset = 0;   // index into _history[] of rightmost visible column
     let _viewCols   = 0;   // number of columns to display in review
 
+    let _maxHistOverride = null;  // null = use WINDOW_SEC cap; number = file mode override
+
     // Offscreen 1-px-wide canvas for efficient column scaling
     let _tmpCanvas = null;
     let _tmpCtx    = null;
@@ -293,7 +295,9 @@ const SpectrogramModule = (() => {
             const { colData, peakHz } = _computeCol(DH);
             if (_onPeak) _onPeak(peakHz.toFixed(1));
             _history.unshift({ colData });  // newest first
-            const maxFrames = Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
+            const maxFrames = _maxHistOverride !== null
+                ? _maxHistOverride
+                : Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
             if (_history.length > maxFrames) _history.length = maxFrames;
             _redrawCanvas();
         }
@@ -304,9 +308,10 @@ const SpectrogramModule = (() => {
         _head     = 0;
         _hopCount = 0;
         _history.length = 0;
-        _reviewing  = false;
-        _viewOffset = 0;
-        _viewCols   = 0;
+        _reviewing       = false;
+        _viewOffset      = 0;
+        _viewCols        = 0;
+        _maxHistOverride = null;
         if (_ctx && _canvas) {
             _ctx.fillStyle = '#0a0a0a';
             _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
@@ -339,5 +344,10 @@ const SpectrogramModule = (() => {
         return _history.length;
     }
 
-    return { init, push, reset, startReview, setView, historyLength };
+    /** File mode: set history cap high enough to hold all data (call before push loop). */
+    function setHistoryLimit(n) {
+        _maxHistOverride = (n > 0) ? n : null;
+    }
+
+    return { init, push, reset, startReview, setView, historyLength, setHistoryLimit };
 })();
