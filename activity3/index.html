@@ -454,7 +454,10 @@
             const s0 = Math.max(0, (N - _reviewOffset - _reviewCols) * HOP_SIZE);
             const s1 = Math.min(_waveRows.length, Math.max(0, (N - _reviewOffset)) * HOP_SIZE);
             const t0 = s0 / _waveSr, t1 = s1 / _waveSr;
-            selInfo.textContent = `선택 구간: ${fmtAbsTime(t0)} ~ ${fmtAbsTime(t1)} (${(t1-t0).toFixed(1)}s) — 드래그·핀치로 구간 조정`;
+            const hint = /Mobi|Android/i.test(navigator.userAgent)
+                ? '드래그: 이동 / 핀치: 줌'
+                : '드래그: 이동 / 휠: 줌';
+            selInfo.textContent = `선택 구간: ${fmtAbsTime(t0)} ~ ${fmtAbsTime(t1)} (${(t1-t0).toFixed(1)}s) — ${hint}`;
         }
 
         function _onWaveDown(e) {
@@ -870,7 +873,9 @@
                 document.getElementById('file-wave-export-row').hidden = false;
                 _updateSelInfo();
 
-                fileStatus.textContent = '드래그·핀치로 분석 구간을 선택하고 "분석 시작"을 누르세요.';
+                fileStatus.textContent = /Mobi|Android/i.test(navigator.userAgent)
+                    ? '드래그(이동)·핀치(줌)로 분석 구간을 선택하고 "분석 시작"을 누르세요.'
+                    : '드래그(이동)·휠(줌)로 분석 구간을 선택하고 "분석 시작"을 누르세요.';
             };
             reader.readAsText(file);
         }
