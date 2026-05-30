@@ -299,7 +299,8 @@ const SpectrogramModule = (() => {
                 ? _maxHistOverride
                 : Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
             if (_history.length > maxFrames) _history.length = maxFrames;
-            _redrawCanvas();
+            // file mode: skip per-frame render (startReview redraws once at the end)
+            if (_maxHistOverride === null) _redrawCanvas();
         }
     }
 
