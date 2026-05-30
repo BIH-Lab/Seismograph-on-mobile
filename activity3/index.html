@@ -510,6 +510,19 @@
                 _reviewLastX = ptr.x;
             }
         }
+        function _onWaveWheel(e) {
+            e.preventDefault();
+            const scale = e.deltaY > 0 ? 1.2 : (1 / 1.2);
+            const newCols = Math.round(_reviewCols * scale);
+            const rect = _waveCanvas.getBoundingClientRect();
+            const anchorFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, _waveCanvas.clientWidth)));
+            const anchorOff  = _reviewOffset + (1 - anchorFrac) * _reviewCols;
+            const { o, c } = _reviewClamp(Math.round(anchorOff - (1 - anchorFrac) * newCols), newCols);
+            _reviewOffset = o; _reviewCols = c;
+            if (_analysisComplete) SpectrogramModule.setView(_reviewOffset, _reviewCols);
+            _syncWave();
+            if (!_analysisComplete) _updateSelInfo();
+        }
 
         function _attachWaveEvents(canvasEl) {
             _waveCanvas = canvasEl || document.getElementById('fileWaveChart');
@@ -518,6 +531,7 @@
             _waveCanvas.addEventListener('pointermove',   _onWaveMove);
             _waveCanvas.addEventListener('pointerup',     _onWaveUp);
             _waveCanvas.addEventListener('pointercancel', _onWaveUp);
+            _waveCanvas.addEventListener('wheel',         _onWaveWheel, { passive: false });
         }
         function _detachWaveEvents() {
             if (!_waveCanvas) return;
@@ -526,6 +540,7 @@
             _waveCanvas.removeEventListener('pointermove',   _onWaveMove);
             _waveCanvas.removeEventListener('pointerup',     _onWaveUp);
             _waveCanvas.removeEventListener('pointercancel', _onWaveUp);
+            _waveCanvas.removeEventListener('wheel',         _onWaveWheel);
             _reviewPointers.clear();
             _waveCanvas = null;
         }
@@ -595,6 +610,20 @@
                 _reviewLastX = ptr.x;
             }
         }
+        function _onReviewWheel(e) {
+            e.preventDefault();
+            const scale = e.deltaY > 0 ? 1.2 : (1 / 1.2);
+            const newCols = Math.round(_reviewCols * scale);
+            const canvas = _reviewCanvas;
+            const SW = canvas.clientWidth - FREQ_AXIS_W;
+            const rect = canvas.getBoundingClientRect();
+            const anchorFrac = Math.max(0, Math.min(1, (e.clientX - rect.left - FREQ_AXIS_W) / Math.max(1, SW)));
+            const anchorOff  = _reviewOffset + (1 - anchorFrac) * _reviewCols;
+            const { o, c } = _reviewClamp(Math.round(anchorOff - (1 - anchorFrac) * newCols), newCols);
+            _reviewOffset = o; _reviewCols = c;
+            SpectrogramModule.setView(_reviewOffset, _reviewCols);
+            _syncWave();
+        }
 
         function _attachReviewEvents(canvas) {
             _reviewCanvas = canvas;
@@ -603,6 +632,7 @@
             canvas.addEventListener('pointermove',   _onReviewMove);
             canvas.addEventListener('pointerup',     _onReviewUp);
             canvas.addEventListener('pointercancel', _onReviewUp);
+            canvas.addEventListener('wheel',         _onReviewWheel, { passive: false });
         }
 
         function _detachReviewEvents() {
@@ -612,6 +642,7 @@
             _reviewCanvas.removeEventListener('pointermove',   _onReviewMove);
             _reviewCanvas.removeEventListener('pointerup',     _onReviewUp);
             _reviewCanvas.removeEventListener('pointercancel', _onReviewUp);
+            _reviewCanvas.removeEventListener('wheel',         _onReviewWheel);
             _reviewPointers.clear();
             _reviewCanvas = null;
         }
@@ -775,6 +806,10 @@
             dropZone.classList.remove('drop-zone--hover');
             const file = e.dataTransfer.files[0];
             if (file) loadFile(file);
+        });
+        dropZone.addEventListener('click', (e) => {
+            if (e.target.closest('label')) return;
+            fileInput.click();
         });
         fileInput.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
 
