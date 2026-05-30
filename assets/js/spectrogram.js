@@ -41,7 +41,8 @@ const SpectrogramModule = (() => {
     let _viewOffset = 0;   // index into _history[] of rightmost visible column
     let _viewCols   = 0;   // number of columns to display in review
 
-    let _maxHistOverride = null;  // null = use WINDOW_SEC cap; number = file mode override
+    // File mode: override rolling cap so full data is kept; skip per-push render
+    let _maxHistOverride = null;
 
     // Offscreen 1-px-wide canvas for efficient column scaling
     let _tmpCanvas = null;
@@ -299,16 +300,15 @@ const SpectrogramModule = (() => {
                 ? _maxHistOverride
                 : Math.ceil(_sr * WINDOW_SEC / HOP_SIZE) + 1;
             if (_history.length > maxFrames) _history.length = maxFrames;
-            // file mode: skip per-frame render (startReview redraws once at the end)
-            if (_maxHistOverride === null) _redrawCanvas();
+            if (_maxHistOverride === null) _redrawCanvas(); // file mode defers render to startReview
         }
     }
 
     function reset() {
         _buf.fill(0);
-        _head     = 0;
-        _hopCount = 0;
-        _history.length = 0;
+        _head            = 0;
+        _hopCount        = 0;
+        _history.length  = 0;
         _reviewing       = false;
         _viewOffset      = 0;
         _viewCols        = 0;
@@ -345,7 +345,7 @@ const SpectrogramModule = (() => {
         return _history.length;
     }
 
-    /** File mode: set history cap high enough to hold all data (call before push loop). */
+    /** File mode only: lift the WINDOW_SEC rolling cap so full data is kept. */
     function setHistoryLimit(n) {
         _maxHistOverride = (n > 0) ? n : null;
     }

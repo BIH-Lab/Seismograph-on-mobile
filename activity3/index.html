@@ -156,12 +156,13 @@
             <h3>스펙트로그램</h3>
             <p class="modal__note">시간의 흐름에 따라 각 주파수에 담긴 에너지를 색상으로 표시합니다.</p>
             <ol>
-                <li><strong>X축</strong> — 시간 (오른쪽=현재, 왼쪽=과거)</li>
+                <li><strong>X축</strong> — 시간 (오른쪽=현재/최신, 왼쪽=과거)</li>
                 <li><strong>Y축</strong> — 주파수 (Hz)</li>
                 <li><strong>색상</strong> — 검정→파랑→초록→노랑→빨강 순으로 에너지 증가</li>
                 <li>지진파 도달 시 특정 주파수 대역에서 밝은 색이 갑자기 나타납니다</li>
+                <li>센서 모드: <strong>마지막 30초</strong> 롤링 표시 / 파일 모드: <strong>선택 구간 전체</strong> 표시</li>
             </ol>
-            <p class="modal__note">FFT 크기: 256, 홉: 26샘플 (~97.5% 오버랩), 표시 범위: 30초</p>
+            <p class="modal__note">FFT 크기: 256, 홉: 26샘플 (~97.5% 오버랩) · 센서 모드 표시 범위: 30초</p>
             <button class="btn btn--ghost" id="modal-spectro-close">닫기</button>
         </div>
     </div>
