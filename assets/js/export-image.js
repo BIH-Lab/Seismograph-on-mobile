@@ -1,7 +1,7 @@
-// ImageExportModule v1.0
-// ObsPy-style PNG export: dark metadata header + canvas graph body
+// ImageExportModule v1.1
+// ObsPy-style PNG export: dark metadata header (3 lines) + canvas graph body
 const ImageExportModule = (() => {
-    const HEADER_H = 56;
+    const HEADER_H = 72;
     const MIN_W    = 800;
 
     function download(srcCanvas, meta) {
@@ -18,15 +18,22 @@ const ImageExportModule = (() => {
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(0, 0, W, HEADER_H);
 
-        // title: "STN-01  ·  Z-axis  ·  100 Hz"
+        // line 1: "STN-01  ·  Z-axis  ·  100 Hz"
         ctx.fillStyle = '#f0f0f0';
         ctx.font = 'bold 15px "Courier New", monospace';
         ctx.fillText(meta.title, 12, 22);
 
-        // subtitle: "PSD (Welch)  ·  2026-04-04T12:34:56Z  ·  0.1–50 Hz"
+        // line 2: "Waveform  ·  2026-05-31T12:34:56Z  ·  0–50 Hz"
         ctx.font = '12px "Courier New", monospace';
         ctx.fillStyle = '#aaaaaa';
-        ctx.fillText(meta.subtitle, 12, 42);
+        ctx.fillText(meta.subtitle, 12, 41);
+
+        // line 3: time range / duration / sample count (optional)
+        if (meta.timeinfo) {
+            ctx.fillStyle = '#888888';
+            ctx.font = '11px "Courier New", monospace';
+            ctx.fillText(meta.timeinfo, 12, 58);
+        }
 
         // separator line
         ctx.strokeStyle = '#444444';

@@ -462,6 +462,7 @@
 
         function _onWaveDown(e) {
             e.preventDefault();
+            _waveCanvas.style.cursor = 'grabbing';
             _waveCanvas.setPointerCapture(e.pointerId);
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (_reviewPointers.size === 1) {
@@ -509,6 +510,7 @@
         }
         function _onWaveUp(e) {
             _reviewPointers.delete(e.pointerId);
+            if (_reviewPointers.size === 0 && _waveCanvas) _waveCanvas.style.cursor = 'grab';
             if (_reviewPointers.size === 1) {
                 const [ptr] = _reviewPointers.values();
                 _reviewLastX = ptr.x;
@@ -531,6 +533,7 @@
         function _attachWaveEvents(canvasEl) {
             _waveCanvas = canvasEl || document.getElementById('fileWaveChart');
             _waveCanvas.style.touchAction = 'none';
+            _waveCanvas.style.cursor = 'grab';
             _waveCanvas.addEventListener('pointerdown',   _onWaveDown);
             _waveCanvas.addEventListener('pointermove',   _onWaveMove);
             _waveCanvas.addEventListener('pointerup',     _onWaveUp);
@@ -540,6 +543,7 @@
         function _detachWaveEvents() {
             if (!_waveCanvas) return;
             _waveCanvas.style.touchAction = '';
+            _waveCanvas.style.cursor = '';
             _waveCanvas.removeEventListener('pointerdown',   _onWaveDown);
             _waveCanvas.removeEventListener('pointermove',   _onWaveMove);
             _waveCanvas.removeEventListener('pointerup',     _onWaveUp);
@@ -559,6 +563,7 @@
         function _onReviewDown(e) {
             e.preventDefault();
             const canvas = _reviewCanvas;
+            canvas.style.cursor = 'grabbing';
             canvas.setPointerCapture(e.pointerId);
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (_reviewPointers.size === 1) {
@@ -610,6 +615,7 @@
 
         function _onReviewUp(e) {
             _reviewPointers.delete(e.pointerId);
+            if (_reviewPointers.size === 0 && _reviewCanvas) _reviewCanvas.style.cursor = 'grab';
             if (_reviewPointers.size === 1) {
                 const [ptr] = _reviewPointers.values();
                 _reviewLastX = ptr.x;
@@ -633,6 +639,7 @@
         function _attachReviewEvents(canvas) {
             _reviewCanvas = canvas;
             canvas.style.touchAction = 'none';
+            canvas.style.cursor = 'grab';
             canvas.addEventListener('pointerdown',   _onReviewDown);
             canvas.addEventListener('pointermove',   _onReviewMove);
             canvas.addEventListener('pointerup',     _onReviewUp);
@@ -1032,9 +1039,21 @@
                 wave    : `Waveform  ·  ${ts}  ·  ${sr} Hz`
             };
             const dateStr = (ts || '').slice(0, 10).replace(/-/g, '') || 'unknown';
+
+            let timeinfo = null;
+            if (mode === 'file' && _waveRows && _waveRows.length >= 2) {
+                const t0str = _waveRows[0].timestamp.slice(0, 19).replace('T', ' ');
+                const t1str = _waveRows[_waveRows.length - 1].timestamp.slice(0, 19).replace('T', ' ');
+                const durSec = (_waveRows.length / sr).toFixed(1);
+                timeinfo = `${t0str} ~ ${t1str.slice(11)} UTC  ·  ${durSec} s  ·  ${_waveRows.length} samples`;
+            } else if (mode === 'sensor') {
+                timeinfo = `exported: ${new Date().toISOString().slice(0, 19).replace('T', ' ')} UTC  ·  ${sr} Hz`;
+            }
+
             return {
                 title    : `${stn}  ·  ${axis}  ·  ${sr} Hz`,
                 subtitle : subtitleMap[graphType] || graphType,
+                timeinfo,
                 filename : `seismo_${graphType}_${stn}_${dateStr}.png`
             };
         }
