@@ -941,6 +941,7 @@
                         fwc.height = fwc.clientHeight || 120;
                         _drawFileWave(0, selRows.length);
                         _attachWaveEvents(fwc);
+                        _attachReviewEvents(document.getElementById('fileSpectroChart'));
 
                         fileStatus.textContent = '분석 완료. 탭을 눌러 결과를 확인하세요.';
                         fileResetBtn.hidden = false;
