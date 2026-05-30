@@ -916,6 +916,7 @@
                 _reviewTotal  = SpectrogramModule.historyLength();
                 _reviewCols   = _reviewTotal;
                 _reviewOffset = 0;
+                SpectrogramModule.setView(_reviewOffset, _reviewCols); // sync internal state to show full data
 
                 // ── Step 2: PSD ────────────────────────────────────
                 fileStatus.textContent = '② PSD 계산 중...';
