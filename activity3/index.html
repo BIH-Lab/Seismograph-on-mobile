@@ -478,6 +478,7 @@
             }
         }
         function _onWaveMove(e) {
+            if (!_reviewPointers.has(e.pointerId)) return;
             e.preventDefault();
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const SW = _waveCanvas.clientWidth;
@@ -576,6 +577,7 @@
         }
 
         function _onReviewMove(e) {
+            if (!_reviewPointers.has(e.pointerId)) return;
             e.preventDefault();
             _reviewPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const canvas = _reviewCanvas;
