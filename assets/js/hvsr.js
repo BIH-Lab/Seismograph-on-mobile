@@ -13,12 +13,11 @@
  *   HVSR(f) = mean over windows of [ H(f)/V(f) ]   ← per-window ratio (SESAME-correct)
  *
  * Sensor mode : Hann, hop=26 (~97.5% overlap), live accumulation
- * File mode   : Hann, hop=128 (87.5% overlap), stationarity filter
+ * File mode   : Hann, hop=64 (93.75% overlap), stationarity filter
  * Both modes  : no post-hoc smoothing — averaging over windows provides natural smoothing
  *
- * v2.1 changes vs v2.0:
- *   - Removed KO and MA smoothing: with sufficient windows, averaging is enough
- *   - FILE_HOP: 512 → 128 (87.5% overlap); 60s@100Hz gives ~39 windows (was 10)
+ * v2.2 changes vs v2.1:
+ *   - FILE_HOP: 128 → 64 (93.75% overlap); 60s@100Hz gives ~78 windows (was 39)
  *
  * Reference : Nakamura (1989); SESAME guidelines (2004);
  *             Jung et al. (2010) — HVSR study of SW Korean Peninsula
@@ -29,7 +28,7 @@ const HvsrModule = (() => {
     // ── Config ────────────────────────────────────────────────────
     const FFT_SIZE    = 1024;
     const HOP_SIZE    = 26;     // sensor mode: ~97.5% overlap
-    const FILE_HOP    = 128;    // file mode: 87.5% overlap
+    const FILE_HOP    = 64;     // file mode: 93.75% overlap
     const F_MIN       = 0.2;    // Hz: left edge of plot
     const F_MAX       = 50;     // Hz: right edge of plot
     const MIN_WINDOWS = 50;     // below this: show low-reliability warning
