@@ -1,5 +1,5 @@
 /**
- * hvsr.js  v2.1
+ * hvsr.js  v2.2
  * Role   : Horizontal-to-Vertical Spectral Ratio (Nakamura method)
  * Input  : acc_x, acc_y, acc_z samples via push()
  *          or pre-loaded 3-axis rows via computeFromRows()

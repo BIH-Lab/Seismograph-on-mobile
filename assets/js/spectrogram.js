@@ -1,5 +1,5 @@
 /**
- * spectrogram.js  v3.2
+ * spectrogram.js  v3.3
  * Role   : Real-time FFT spectrogram Canvas rendering (horizontal waterfall)
  * Input  : acc_z samples via push()
  * Output : Canvas 2D waterfall — X axis = time (oldest left → newest right)

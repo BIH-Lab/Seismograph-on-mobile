@@ -38,9 +38,9 @@ project-root/
 │       ├── review.js       # 리뷰 모드 모듈 (activity1 전용)
 │       ├── gps.js          # GPS 좌표 수집 모듈
 │       ├── export.js       # CSV 내보내기 모듈 (toFixed(9))
-│       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 v3.2 (FFT → Canvas, Seismic jet 컬러맵)
+│       ├── spectrogram.js  # 가로 워터폴 스펙트로그램 v3.3 (FFT → Canvas, Seismic jet 컬러맵, 파일 모드 전체 구간)
 │       ├── psd.js          # Welch PSD 모듈 v3.6 (실시간/누적 히트맵 토글, Y축 오토스케일)
-│       ├── hvsr.js         # Nakamura HVSR 모듈 v2.1 (스무딩 없음, FILE_HOP=128, Y축 오토스케일)
+│       ├── hvsr.js         # Nakamura HVSR 모듈 v2.2 (스무딩 없음, FILE_HOP=64, Y축 오토스케일)
 │       ├── export-image.js # PNG 내보내기 모듈 v1.0 (ObsPy 스타일 헤더 + canvas toDataURL)
 │       └── hodochron.js    # 주시곡선 모듈 v1.2 (자동 회귀 + 수동 선 + partial 결과)
 ├── docs/
@@ -115,9 +115,9 @@ project-root/
 - Cycle 5 예정: Activity 5 — 추가 예정
 
 ## 스펙트로그램 파라미터 (ObsPy 기준)
-- spectrogram.js v3.2: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s
+- spectrogram.js v3.3: FFT_SIZE=256, HOP_SIZE=26 (오버랩 ~90%), MAX_FREQ=100Hz, WINDOW_SEC=30s (파일 모드: 전체 구간 보관)
   - 컬러맵: Seismic jet (검정→파랑→시안→녹색→노랑→주황→빨강), LOG_MIN=-5, LOG_MAX=0
 - psd.js v3.6: FFT_SIZE=1024, HOP_SIZE=26, F_MIN=0.2Hz, 밀도 히트맵(파랑→빨강), 평균선(흰색 1px), 실시간/누적 토글, Y축 오토스케일(_dispDbMax)
-- hvsr.js v2.1: FFT_SIZE=1024, HOP_SIZE=26(센서)/128(파일), F_MAX=50Hz, SESAME 준수, 스무딩 없음, 정상성 필터, Y축 오토스케일(_hvDispMax)
+- hvsr.js v2.2: FFT_SIZE=1024, HOP_SIZE=26(센서)/64(파일), F_MAX=50Hz, SESAME 준수, 스무딩 없음, 정상성 필터, Y축 오토스케일(_hvDispMax)
 - 공통: Hann 윈도우, 히스토리 기반 전체 재렌더
 - 알려진 이슈: Firefox Android DeviceMotionEvent.interval 오보고(100ms) → activity3에서 50~250Hz 범위 체크로 필터링

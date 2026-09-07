@@ -1,5 +1,5 @@
 /**
- * hodochron.js  v1.1
+ * hodochron.js  v1.2
  * Role   : Travel-time curve (hodochron) Canvas renderer
  *          + manual line drawing with draggable handles
  *
